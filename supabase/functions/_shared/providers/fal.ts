@@ -163,6 +163,77 @@ export async function callFal(
 }
 
 /**
+ * callFalVideo — submits an async video job to fal.ai queue.
+ * Always returns immediately with request_id (video is always async).
+ */
+export async function callFalVideo(
+  modelId: string,
+  payload: { compiled_prompt: string; compiled_negative?: string; aspect_ratio?: string; duration_seconds?: number },
+  apiKey: string,
+): Promise<{ request_id: string; status: string }> {
+  const input: Record<string, any> = {
+    prompt: payload.compiled_prompt,
+  }
+  if (payload.compiled_negative) input.negative_prompt = payload.compiled_negative
+  if (payload.aspect_ratio) input.aspect_ratio = payload.aspect_ratio
+  if (payload.duration_seconds) input.duration_seconds = payload.duration_seconds
+
+  const submitRes = await fetch(`${FAL_BASE}/${modelId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ input }),
+  })
+
+  if (!submitRes.ok) {
+    const errText = await submitRes.text()
+    throw new Error(`fal video submit error ${submitRes.status}: ${errText}`)
+  }
+
+  const data = await submitRes.json()
+  const request_id = data.request_id as string
+  if (!request_id) throw new Error('fal_video_no_request_id')
+
+  return { request_id, status: 'pending' }
+}
+
+/**
+ * pollFalVideoJob — checks fal.ai video job status.
+ * Returns completed with videoUrl, processing, or failed.
+ */
+export async function pollFalVideoJob(
+  modelId: string,
+  requestId: string,
+  apiKey: string,
+): Promise<{ status: string; videoUrl?: string; error?: string }> {
+  const statusRes = await fetch(`https://queue.fal.run/requests/${requestId}/status`, {
+    headers: { 'Authorization': `Key ${apiKey}` },
+  })
+
+  if (!statusRes.ok) return { status: 'processing' }
+  const statusData = await statusRes.json()
+
+  if (statusData.status === 'COMPLETED') {
+    const resultRes = await fetch(`https://queue.fal.run/requests/${requestId}`, {
+      headers: { 'Authorization': `Key ${apiKey}` },
+    })
+    if (!resultRes.ok) return { status: 'processing' }
+    const result = await resultRes.json()
+    const videoUrl = result.video?.url ?? result.videos?.[0]?.url
+    if (!videoUrl) return { status: 'failed', error: 'fal_video_no_url' }
+    return { status: 'completed', videoUrl }
+  }
+
+  if (statusData.status === 'FAILED') {
+    return { status: 'failed', error: statusData.error ?? 'fal_video_failed' }
+  }
+
+  return { status: 'processing' }
+}
+
+/**
  * pollFalJob — polls until the fal job completes.
  */
 export async function pollFalJob(requestId: string, apiKey: string): Promise<any> {

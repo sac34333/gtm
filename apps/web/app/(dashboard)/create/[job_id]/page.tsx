@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Loader2, Download, RefreshCw, ThumbsUp, ThumbsDown, Star, ArrowRight } from 'lucide-react'
@@ -44,7 +44,7 @@ export default function JobResultPage() {
   const [feedbackError, setFeedbackError] = useState<string | null>(null)
   const [submittingFeedback, setSubmittingFeedback] = useState(false)
 
-  const supabase = createClient()
+  const supabase = getSupabaseBrowserClient()
 
   async function getToken() {
     const { data: { session } } = await supabase.auth.getSession()
@@ -110,7 +110,8 @@ export default function JobResultPage() {
   async function handleDownload() {
     if (!signedUrl) return
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-    const filename = (orgSlug || 'gtm') + '_' + dateStr + '_' + jobId.slice(0, 8) + '.png'
+    const ext = job?.asset_type === 'video' ? 'mp4' : 'png'
+    const filename = (orgSlug || 'gtm') + '_' + dateStr + '_' + jobId.slice(0, 8) + '.' + ext
     const res = await fetch(signedUrl)
     const blob = await res.blob()
     const url = URL.createObjectURL(blob)
@@ -170,9 +171,17 @@ export default function JobResultPage() {
           </div>
         </div>
         <div>
-          <p className="text-slate-100 font-semibold">Generating your asset...</p>
+          <p className="text-slate-100 font-semibold">
+            {job.asset_type === 'video' ? 'Generating your video…' : 'Generating your asset...'}
+          </p>
           <p className="text-slate-500 text-sm mt-1">This page updates automatically.</p>
         </div>
+        {job.asset_type === 'video' && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3 text-sm text-amber-300 text-left">
+            <p className="font-medium">Video generation is async</p>
+            <p className="mt-1 text-amber-400/80">You can leave this page — we'll email you when it's done and update the dashboard in real time.</p>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -203,14 +212,28 @@ export default function JobResultPage() {
                   <RefreshCw className="h-3.5 w-3.5 mr-2" />Regenerate
                 </Button>
                 <Button size="sm" onClick={handleDownload} disabled={!signedUrl} className="bg-indigo-600 hover:bg-indigo-500 text-white">
-                  <Download className="h-3.5 w-3.5 mr-2" />Download
+                  <Download className="h-3.5 w-3.5 mr-2" />
+                  {job.asset_type === 'video' ? 'Download MP4' : 'Download'}
                 </Button>
               </div>
             </div>
 
-            {signedUrl && (
+            {signedUrl && job.asset_type !== 'video' && (
               <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
                 <img src={signedUrl} alt="Generated asset" className="w-full object-contain max-h-[70vh]" />
+              </div>
+            )}
+
+            {signedUrl && job.asset_type === 'video' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
+                <video
+                  controls
+                  className="w-full rounded-xl"
+                  src={signedUrl}
+                  preload="metadata"
+                >
+                  Your browser does not support the video tag.
+                </video>
               </div>
             )}
 

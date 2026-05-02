@@ -102,6 +102,49 @@ export async function resolveApiKey(
 }
 
 /**
+ * routeVideoGeneration — routes a video generation request to the correct provider.
+ * All video models are async — always returns { jobId/request_id, status: 'pending' }.
+ */
+export async function routeVideoGeneration(
+  providerKey: string,
+  modelId: string,
+  payload: any,
+  apiKey: string,
+): Promise<{ request_id?: string; operationName?: string; videoUrl?: string; status: string }> {
+  const prompt = payload.compiled_prompt ?? payload.prompt ?? ''
+  const negativePrompt = payload.compiled_negative ?? payload.negative_prompt ?? ''
+  const orgId = payload.org_id as string
+  const orgSlug = payload.org_slug as string
+  const jobId = payload.job_id as string
+
+  switch (providerKey) {
+    case 'fal': {
+      const { callFalVideo } = await import('./fal.ts')
+      const result = await callFalVideo(modelId, {
+        compiled_prompt: prompt,
+        compiled_negative: negativePrompt,
+        aspect_ratio: payload.prompt_tags?.aspect_ratio ?? payload.aspect_ratio,
+      }, apiKey)
+      return { request_id: result.request_id, status: 'pending' }
+    }
+    case 'google_ai_studio': {
+      const { callGoogleAIStudioVideo } = await import('./google_ai_studio.ts')
+      const result = await callGoogleAIStudioVideo(modelId, prompt, negativePrompt, apiKey)
+      return { operationName: result.operationName, status: 'pending' }
+    }
+    case 'openrouter': {
+      const { callOpenRouterVideo } = await import('./openrouter.ts')
+      return await callOpenRouterVideo(modelId, prompt, negativePrompt, apiKey, orgId, orgSlug, jobId)
+    }
+    default:
+      throw new Response(
+        JSON.stringify({ error: `Video not supported on provider: ${providerKey}` }),
+        { status: 400 },
+      )
+  }
+}
+
+/**
  * Routes a generation request to the correct provider adapter.
  */
 export async function routeGeneration(

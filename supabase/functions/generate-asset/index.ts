@@ -1,7 +1,7 @@
 ﻿import { validateJWT, requireRole } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
-import { resolveApiKey, routeGeneration } from '../_shared/providers/router.ts'
+import { resolveApiKey, routeGeneration, routeVideoGeneration } from '../_shared/providers/router.ts'
 
 Deno.serve(async (req: Request) => {
   const corsResp = handleCors(req)
@@ -152,10 +152,14 @@ Deno.serve(async (req: Request) => {
 
     const startTime = Date.now()
 
-    // Call provider
+    // Call provider — video always async, image can be sync or async
     let result: any
     try {
-      result = await routeGeneration(provider_key, model_id, providerPayload, apiKey)
+      if (assetType === 'video') {
+        result = await routeVideoGeneration(provider_key, model_id, providerPayload, apiKey)
+      } else {
+        result = await routeGeneration(provider_key, model_id, providerPayload, apiKey)
+      }
     } catch (providerErr) {
       if (providerErr instanceof Response) {
         await db.from('generation_jobs').update({ status: 'failed', error_message: 'provider_error' }).eq('id', jobId)
@@ -169,8 +173,8 @@ Deno.serve(async (req: Request) => {
     const generationTimeMs = Date.now() - startTime
     const storagePath = `assets/${org_id}/${jobId}.${assetType === 'video' ? 'mp4' : 'png'}`
 
-    // Synchronous completion (image models return outputUrl)
-    if (result.outputUrl) {
+    // Synchronous completion — image models that return outputUrl immediately
+    if (result.outputUrl && assetType === 'image') {
       await db.from('generation_jobs').update({
         status: 'completed',
         output_url: storagePath,
@@ -181,17 +185,22 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({
         job_id: jobId,
         status: 'completed',
-        output_url: result.outputUrl, // signed URL for immediate display
+        output_url: result.outputUrl,
         storage_path: storagePath,
       }), { status: 200, headers: corsHeaders })
     }
 
-    // Async video: provider returned { jobId }
-    if (result.jobId) {
+    // Async — video or slow image model
+    // Store the external job reference for poll-job-status to use
+    const externalJobId = result.request_id ?? result.operationName ?? result.jobId ?? null
+    if (externalJobId) {
       await db.from('generation_jobs').update({
-        openrouter_job_id: result.jobId,
+        openrouter_job_id: externalJobId,
       }).eq('id', jobId)
+    }
 
+    // Video always returns pending
+    if (assetType === 'video' || result.status === 'pending') {
       return new Response(JSON.stringify({
         job_id: jobId,
         status: 'pending',

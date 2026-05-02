@@ -174,6 +174,38 @@ async function _submitVideoJob(
 
 
 /**
+ * callGoogleAIStudioVideo — submits a Veo video generation (long-running operation).
+ * Uses predictLongRunning endpoint per spec Week 4 Part 1.
+ * Always async — returns operationName for polling.
+ */
+export async function callGoogleAIStudioVideo(
+  modelId: string,
+  prompt: string,
+  negativePrompt: string,
+  apiKey: string,
+): Promise<{ operationName: string; status: string }> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predictLongRunning?key=${apiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        instances: [{ prompt, negativePrompt }],
+        parameters: { aspectRatio: '16:9', durationSeconds: 8 },
+      }),
+    },
+  )
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(`Google AI Studio Veo error: ${res.status} ${JSON.stringify(err)}`)
+  }
+
+  const operation = await res.json()
+  return { operationName: operation.name, status: 'pending' }
+}
+
+/**
  * pollGoogleVideoJob — polls a Veo video generation operation.
  * operationName looks like: "operations/xyz123"
  */
@@ -193,12 +225,11 @@ export async function pollGoogleVideoJob(
   const data = await res.json()
 
   if (data.done) {
+    if (data.error) return { status: 'failed', error: data.error.message ?? 'video_generation_failed' }
     const videoUri = data.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri
-    if (videoUri) {
-      return { status: 'completed', outputUrl: videoUri }
-    }
-    const errMsg = data.error?.message ?? 'video_generation_failed'
-    return { status: 'failed', error: errMsg }
+      ?? data.response?.videos?.[0]?.video?.uri
+    if (videoUri) return { status: 'completed', outputUrl: videoUri }
+    return { status: 'failed', error: 'video_generation_failed' }
   }
 
   return { status: 'pending' }

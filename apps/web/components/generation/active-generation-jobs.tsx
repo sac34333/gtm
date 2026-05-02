@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Loader2, Image, Video } from 'lucide-react'
 
 type ActiveJob = {
@@ -17,7 +17,7 @@ type ActiveJob = {
 export function ActiveGenerationJobs({ orgId }: { orgId: string }) {
   const [jobs, setJobs] = useState<ActiveJob[]>([])
   const router = useRouter()
-  const supabase = createClient()
+  const supabase = getSupabaseBrowserClient()
 
   async function loadActiveJobs() {
     const { data } = await supabase
@@ -33,8 +33,8 @@ export function ActiveGenerationJobs({ orgId }: { orgId: string }) {
   useEffect(() => {
     loadActiveJobs()
 
-    // Subscribe to DB changes for active jobs
-    const channel = supabase
+    // Subscribe to DB-level changes (org-wide — catches any job status update)
+    const dbChannel = supabase
       .channel('active-jobs-' + orgId)
       .on(
         'postgres_changes',
@@ -43,8 +43,24 @@ export function ActiveGenerationJobs({ orgId }: { orgId: string }) {
       )
       .subscribe()
 
-    return () => { supabase.removeChannel(channel) }
+    return () => { supabase.removeChannel(dbChannel) }
   }, [orgId])
+
+  // Subscribe to per-job broadcast channels for instant completion events
+  useEffect(() => {
+    if (jobs.length === 0) return
+    const channels = jobs.map(job => {
+      const ch = supabase.channel('job:' + job.id)
+      ch.on('broadcast', { event: 'job_complete' }, ({ payload }: any) => {
+        if (payload.job_id === job.id) {
+          setJobs(prev => prev.filter(j => j.id !== job.id))
+          router.push('/create/' + job.id)
+        }
+      }).subscribe()
+      return ch
+    })
+    return () => { channels.forEach(ch => supabase.removeChannel(ch)) }
+  }, [jobs.map(j => j.id).join(',')])
 
   if (jobs.length === 0) return null
 

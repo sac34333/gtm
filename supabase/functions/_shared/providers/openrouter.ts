@@ -154,6 +154,50 @@ export async function callOpenRouterImage(
 }
 
 /**
+ * callOpenRouterVideo — submits an async video generation job via OpenRouter.
+ * Uses /api/v1/images/generations. Returns request_id for polling.
+ */
+export async function callOpenRouterVideo(
+  modelId: string,
+  prompt: string,
+  negativePrompt: string,
+  apiKey: string,
+  orgId: string,
+  orgSlug: string,
+  jobId: string,
+): Promise<{ request_id?: string; videoUrl?: string; status: string }> {
+  const body: any = {
+    model: modelId,
+    prompt,
+    user: orgId,
+    session_id: jobId,
+    trace: { org_id: orgId, org_slug: orgSlug, step_key: 'video_generation', job_id: jobId },
+  }
+  if (negativePrompt) body.negative_prompt = negativePrompt
+
+  const res = await fetch(`${OPENROUTER_BASE}/images/generations`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://gtmengine.qubitlyventures.com',
+      'X-Title': 'GTM Engine',
+    },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`OpenRouter video error ${res.status}: ${errText}`)
+  }
+
+  const data = await res.json()
+  const videoUrl = data.data?.[0]?.url
+  if (videoUrl) return { videoUrl, status: 'completed' }
+  return { request_id: data.id, status: 'pending' }
+}
+
+/**
  * pollOpenRouterJob — polls async video jobs only.
  */
 export async function pollOpenRouterJob(
