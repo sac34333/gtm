@@ -2,6 +2,20 @@ import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { validateJWT, extractOrgId } from '../_shared/auth.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { resolveApiKey, routeTextGeneration } from '../_shared/providers/router.ts'
+import { GenerateCampaignBriefBodySchema } from '../_shared/schemas.ts'
+
+/** Resolve the default model for a given step_key */
+async function resolveDefaultModel(
+  db: any, orgId: string, stepKey: string,
+): Promise<{ providerKey: string; modelId: string }> {
+  const { data: pref } = await db.from('org_model_preferences')
+    .select('provider_key, model_id').eq('org_id', orgId).eq('step_key', stepKey).single()
+  if (pref) return { providerKey: pref.provider_key, modelId: pref.model_id }
+  const { data: def } = await db.from('available_models')
+    .select('provider_key, model_id').contains('default_for_step_key', [stepKey]).eq('is_active', true).single()
+  if (def) return { providerKey: def.provider_key, modelId: def.model_id }
+  return { providerKey: 'google_ai_studio', modelId: 'gemini-3-flash-preview' }
+}
 
 interface PostingDay {
   recommended_date: string
@@ -17,7 +31,7 @@ interface BriefData {
   timing_recommendations: Record<string, string>
 }
 
-async function generatePdf(brief: BriefData, brand: any, job: any): Promise<Uint8Array> {
+async function generatePdf(brief: BriefData, brand: any, campaignInfo: any): Promise<Uint8Array> {
   const { PDFDocument, rgb, StandardFonts } = await import('npm:pdf-lib')
 
   const pdfDoc = await PDFDocument.create()
@@ -57,7 +71,7 @@ async function generatePdf(brief: BriefData, brand: any, job: any): Promise<Uint
   // Header
   writeText(`Campaign Brief — ${brand.company_name ?? 'Your Company'}`, MARGIN, 18, true)
   writeLine()
-  writeText(`Asset: ${job.asset_type ?? 'image'} — ${job.prompt_tags?.subject ?? 'Campaign Asset'}`, MARGIN, 11)
+  writeText(`Asset: ${campaignInfo?.asset_type ?? 'image'} — ${campaignInfo?.prompt_tags?.subject ?? 'Campaign Asset'}`, MARGIN, 11)
   writeText(`Generated: ${new Date().toLocaleDateString()}`, MARGIN, 10, false, rgb(0.4, 0.4, 0.4))
   writeLine()
 
@@ -73,7 +87,9 @@ async function generatePdf(brief: BriefData, brand: any, job: any): Promise<Uint
   // Caption variants — primary platform
   const primaryPlatform = brand.primary_platform ?? 'LinkedIn'
   writeSection(`Caption Variants — ${primaryPlatform}`)
-  ;(brief.caption_variants?.primary_platform ?? []).forEach((caption: string, i: number) => {
+  const primaryCaptions: string[] = (brief.caption_variants as any)?.[primaryPlatform] ??
+    Object.values(brief.caption_variants ?? {})?.[0] as string[] ?? []
+  primaryCaptions.forEach((caption: string, i: number) => {
     writeText(`Option ${i + 1}:`, MARGIN + 10, 10, true)
     // Word-wrap long captions
     const words = caption.split(' ')
@@ -93,7 +109,9 @@ async function generatePdf(brief: BriefData, brand: any, job: any): Promise<Uint
   // Caption variants — secondary platform
   const secondaryPlatform = brand.secondary_platform ?? 'Twitter'
   writeSection(`Caption Variants — ${secondaryPlatform}`)
-  ;(brief.caption_variants?.secondary_platform ?? []).forEach((caption: string, i: number) => {
+  const secondaryCaptions: string[] = (brief.caption_variants as any)?.[secondaryPlatform] ??
+    Object.values(brief.caption_variants ?? {})?.[1] as string[] ?? []
+  secondaryCaptions.forEach((caption: string, i: number) => {
     writeText(`Option ${i + 1}: ${caption.slice(0, 90)}`, MARGIN + 10, 10)
     writeLine()
   })
@@ -133,130 +151,106 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const body = await req.json()
-    const { job_id, prospect_ids = [] } = body
-
-    if (!job_id || typeof job_id !== 'string') {
-      return new Response(JSON.stringify({ error: 'job_id required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    const rawBody = await req.json()
+    const parseResult = GenerateCampaignBriefBodySchema.safeParse(rawBody)
+    if (!parseResult.success) {
+      return new Response(
+        JSON.stringify({ error: 'validation_failed', details: parseResult.error.flatten() }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
     }
-    if (!Array.isArray(prospect_ids) || prospect_ids.length === 0) {
-      return new Response(JSON.stringify({ error: 'prospect_ids required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    const body = parseResult.data
+    const { campaign_id } = body
 
-    // Fetch generation job
-    const { data: job, error: jobErr } = await db
-      .from('generation_jobs')
+    // Fetch existing campaign (must belong to this org)
+    const { data: campaign, error: campaignErr } = await db
+      .from('campaign_briefs')
       .select('*')
-      .eq('id', job_id)
+      .eq('id', campaign_id)
       .eq('org_id', orgId)
       .single()
 
-    if (jobErr || !job) {
-      return new Response(JSON.stringify({ error: 'job_not_found' }), {
+    if (campaignErr || !campaign) {
+      return new Response(JSON.stringify({ error: 'campaign_not_found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // Fetch brand context
-    const { data: brand } = await db
-      .from('brand_contexts')
-      .select('*')
-      .eq('org_id', orgId)
-      .single()
+    // Resolve job_id, channel_mix, prospect list
+    const jobId = body.job_id ?? campaign.job_id
+    const channelMix: string[] = body.channel_mix ?? campaign.channel_mix ?? ['linkedin_message', 'email']
 
+    let prospectIds: string[] = body.prospect_ids ?? []
+    if (prospectIds.length === 0) {
+      const { data: cpRows } = await db.from('campaign_prospects')
+        .select('prospect_id').eq('campaign_id', campaign_id).eq('org_id', orgId)
+      prospectIds = (cpRows ?? []).map((r: any) => r.prospect_id)
+    }
+
+    const { data: prospects } = prospectIds.length
+      ? await db.from('prospects').select('*').in('id', prospectIds).eq('org_id', orgId)
+      : { data: [] }
+
+    // Fetch brand context
+    const { data: brand } = await db.from('brand_contexts').select('*').eq('org_id', orgId).single()
     if (!brand) {
       return new Response(JSON.stringify({ error: 'brand_context_not_found' }), {
         status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    // Fetch approved outreach copies
-    const { data: copies } = await db
-      .from('outreach_copies')
-      .select('*')
-      .eq('org_id', orgId)
-      .eq('job_id', job_id)
-      .eq('status', 'approved')
-      .in('prospect_id', prospect_ids)
-
-    // Fetch org slug
-    const { data: org } = await db
-      .from('orgs')
-      .select('slug')
-      .eq('id', orgId)
-      .single()
-    const orgSlug = (org as any)?.slug ?? ''
-
-    // Resolve text model for campaign_brief step
-    let providerKey = 'openrouter'
-    let modelId = 'google/gemini-flash-1.5'
-
-    const { data: modelPref } = await db
-      .from('org_model_preferences')
-      .select('provider_key, model_id')
-      .eq('org_id', orgId)
-      .eq('step_key', 'campaign_brief')
-      .single()
-
-    if (modelPref) {
-      providerKey = modelPref.provider_key
-      modelId = modelPref.model_id
-    } else {
-      const { data: defaultModel } = await db
-        .from('available_models')
-        .select('provider_key, model_id')
-        .eq('step_key', 'campaign_brief')
-        .eq('is_default', true)
-        .single()
-      if (defaultModel) {
-        providerKey = defaultModel.provider_key
-        modelId = defaultModel.model_id
-      }
+    // Fetch job if linked
+    let job: any = null
+    if (jobId) {
+      const { data: jobRow } = await db.from('generation_jobs').select('*')
+        .eq('id', jobId).eq('org_id', orgId).single()
+      job = jobRow
     }
 
+    // Fetch org slug + timezone
+    const { data: orgRow } = await db.from('orgs').select('slug, timezone').eq('id', orgId).single()
+    const orgSlug = (orgRow as any)?.slug ?? ''
+    const timezone = (orgRow as any)?.timezone ?? brand.timezone ?? 'UTC'
+
+    // Resolve text model for campaign_brief step
+    const { providerKey, modelId } = await resolveDefaultModel(db, orgId, 'campaign_brief')
     const apiKey = await resolveApiKey(orgId, providerKey)
 
-    const contentJob = job.content_job_json ?? {}
-    const promptTags = job.prompt_tags ?? {}
+    const assetDescription = job
+      ? `${job.asset_type ?? 'image'} — ${job.content_job_json?.prompt_tags?.subject ?? 'Campaign Asset'}`
+      : 'No asset linked'
 
-    // Generate brief content via AI
-    const briefPrompt = `Create a 14-day campaign brief for the following B2B marketing campaign.
-Return ONLY valid JSON, no markdown, no explanation.
+    const channelList = channelMix.join(', ')
+
+    const briefPrompt = `Create a 14-day B2B marketing campaign brief. Return ONLY valid JSON, no markdown.
 
 Company: ${brand.company_name ?? 'Company'}
-Campaign asset: ${job.asset_type ?? 'image'} — ${promptTags.subject ?? 'Campaign Asset'}
-Trend: ${contentJob.signal_headline ?? 'Trending topic'}
-Primary platform: ${brand.primary_platform ?? 'LinkedIn'}
-Secondary platform: ${brand.secondary_platform ?? 'Twitter'}
-Timezone: ${brand.timezone ?? 'UTC'}
-Posts per week: ${brand.posts_per_week ?? 3}
-Country code: ${brand.country_code ?? 'US'}
+Campaign: ${campaign.name}
+Type: ${campaign.campaign_type ?? 'awareness'}
+Asset: ${assetDescription}
+Channels: ${channelList}
+Timezone: ${timezone}
+Country: ${brand.country_code ?? 'US'}
+Themes: ${(brand.active_themes ?? []).join(', ')}
 
-Generate a JSON object with this exact structure:
+Return exactly this JSON structure:
 {
   "posting_schedule": [
-    {"recommended_date": "YYYY-MM-DD", "platform": "LinkedIn", "time_utc": "09:00", "time_local": "09:00 EST"}
+    {"recommended_date": "YYYY-MM-DD", "platform": "channel_name", "time_utc": "HH:MM", "time_local": "HH:MM TZ"}
   ],
   "caption_variants": {
-    "primary_platform": ["caption 1", "caption 2", "caption 3"],
-    "secondary_platform": ["caption 1", "caption 2", "caption 3"]
+    ${channelMix.map((ch: string) => `"${ch}": ["caption1", "caption2", "caption3"]`).join(',\n    ')}
   },
   "hashtag_sets": {
-    "general": ["#hashtag1", "#hashtag2"],
-    "regional": ["#regional1", "#regional2"]
+    "general": ["#tag1", "#tag2", "#tag3"],
+    "industry": ["#industry1", "#industry2"],
+    "regional": ["#regional1"]
   },
   "timing_recommendations": {
-    "LinkedIn": "Best posting times for this audience",
-    "Twitter": "Best posting times for this audience"
+    ${channelMix.map((ch: string) => `"${ch}": "Best days/times for this channel"`).join(',\n    ')}
   }
 }
-
-Generate 14 days of posting schedule starting from today ${new Date().toISOString().slice(0, 10)}.
-Each day should have 1 post alternating between primary and secondary platforms.`
+Generate exactly 14 schedule entries starting ${new Date().toISOString().slice(0, 10)}.`
 
     const briefRaw = await routeTextGeneration(
       providerKey,
@@ -265,7 +259,7 @@ Each day should have 1 post alternating between primary and secondary platforms.
       apiKey,
       orgId,
       orgSlug,
-      job_id,
+      null,
       'campaign_brief',
       { responseFormat: { type: 'json_object' } },
     )
@@ -282,30 +276,39 @@ Each day should have 1 post alternating between primary and secondary platforms.
     }
 
     // Generate PDF using pdf-lib
-    const pdfBytes = await generatePdf(briefData, brand, job)
+    const pdfBytes = await generatePdf(briefData, brand, { asset_type: job?.asset_type, prompt_tags: job?.content_job_json?.prompt_tags })
 
-    // Create brief record to get ID
-    const { data: briefRecord, error: briefErr } = await db
-      .from('campaign_briefs')
-      .insert({
-        org_id: orgId,
-        job_id,
-        brief_data: briefData,
-        name: `${brand.company_name ?? 'Campaign'} Brief — ${new Date().toISOString().slice(0, 10)}`,
-        status: 'active',
-      })
-      .select('id')
-      .single()
-
-    if (briefErr || !briefRecord) {
-      console.error('campaign_briefs insert failed:', briefErr?.message)
-      return new Response(JSON.stringify({ error: 'failed_to_save_brief' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    // Generate outreach copies per prospect per channel
+    let copyCount = 0
+    for (const prospect of prospects ?? []) {
+      for (const channel of channelMix) {
+        try {
+          const copyPrompt = `Write a short personalised outreach message.
+Platform: ${channel}
+Prospect: ${(prospect as any).first_name ?? ''} ${(prospect as any).last_name ?? ''}, ${(prospect as any).title ?? 'Professional'} at ${(prospect as any).company_name ?? 'their company'}
+Campaign: ${campaign.name}
+Brand voice: ${(brand.voice_examples ?? [])[0]?.slice(0, 200) ?? 'Professional and direct'}
+Return ONLY the message text.`
+          const copyText = await routeTextGeneration(
+            providerKey, modelId, [{ role: 'user', content: copyPrompt }],
+            apiKey, orgId, orgSlug, null, 'outreach_copy',
+          )
+          await db.from('outreach_copies').upsert({
+            org_id: orgId,
+            campaign_id,
+            prospect_id: (prospect as any).id,
+            job_id: jobId ?? null,
+            copy_text: copyText.trim(),
+            platform: channel,
+            status: 'draft',
+          }, { onConflict: 'org_id,campaign_id,prospect_id,platform', ignoreDuplicates: false })
+          copyCount++
+        } catch { /* continue on individual copy failure */ }
+      }
     }
 
-    const briefId = briefRecord.id
-    const storagePath = `briefs/${orgId}/${briefId}.pdf`
+    // Upload PDF to storage (use campaign_id as filename for idempotency)
+    const storagePath = `briefs/${orgId}/${campaign_id}.pdf`
 
     // Upload PDF to storage
     const { error: uploadErr } = await db.storage
@@ -319,13 +322,26 @@ Each day should have 1 post alternating between primary and secondary platforms.
       })
     }
 
-    // Update brief with PDF URL
+    // Update existing campaign_briefs row (do NOT insert new)
     await db.from('campaign_briefs')
-      .update({ pdf_url: storagePath })
-      .eq('id', briefId)
+      .update({
+        brief_data: briefData,
+        pdf_url: storagePath,
+        updated_at: new Date().toISOString(),
+        ...(jobId ? { job_id: jobId } : {}),
+      })
+      .eq('id', campaign_id)
+
+    const channelSummary: Record<string, number> = {}
+    for (const ch of channelMix) channelSummary[ch] = (prospects ?? []).length
 
     return new Response(
-      JSON.stringify({ brief_id: briefId, pdf_url: storagePath }),
+      JSON.stringify({
+        brief_id: campaign_id,
+        pdf_url: storagePath,
+        copy_count: copyCount,
+        channel_summary: channelSummary,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

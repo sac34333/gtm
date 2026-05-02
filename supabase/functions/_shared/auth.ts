@@ -70,7 +70,7 @@ export async function requireRole(
   const requiredRank = ROLE_ORDER[minRole] ?? 0
 
   if (userRank < requiredRank) {
-    throw new Response(JSON.stringify({ error: 'forbidden' }), { status: 403 })
+    throw new Response(JSON.stringify({ error: 'insufficient_role' }), { status: 403 })
   }
 
   return data.role

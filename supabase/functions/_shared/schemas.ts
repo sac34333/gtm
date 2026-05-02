@@ -198,3 +198,37 @@ export const RemoveMemberBodySchema = z.object({
   action: z.enum(['remove', 'change_role']),
   new_role: z.enum(['admin', 'member']).optional(),
 })
+
+export const CreateCampaignBodySchema = z.object({
+  name: z.string().min(1).max(120),
+  campaign_type: z.enum(['awareness', 'lead_gen', 'nurture', 'product_launch']),
+  description: z.string().max(500).optional(),
+  channel_mix: z.array(z.enum(['linkedin_message', 'linkedin_post', 'email', 'cold_dm', 'twitter'])).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  job_id: z.string().uuid().optional(),
+})
+
+export const AddCampaignProspectsBodySchema = z.object({
+  campaign_id: z.string().uuid(),
+  prospect_ids: z.array(z.string().uuid()).min(1).max(1000),
+})
+
+export const UpdateCampaignBodySchema = z.object({
+  campaign_id: z.string().uuid(),
+  name: z.string().min(1).max(120).optional(),
+  status: z.enum(['draft', 'active', 'completed', 'paused']).optional(),
+  campaign_type: z.enum(['awareness', 'lead_gen', 'nurture', 'product_launch']).optional(),
+  description: z.string().max(500).optional(),
+  channel_mix: z.array(z.enum(['linkedin_message', 'linkedin_post', 'email', 'cold_dm', 'twitter'])).optional(),
+  start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  job_id: z.string().uuid().optional().nullable(),
+})
+
+export const GenerateCampaignBriefBodySchema = z.object({
+  campaign_id: z.string().uuid(),
+  job_id: z.string().uuid().optional(),
+  prospect_ids: z.array(z.string().uuid()).optional(),
+  channel_mix: z.array(z.enum(['linkedin_message', 'linkedin_post', 'email', 'cold_dm', 'twitter'])).optional(),
+})
