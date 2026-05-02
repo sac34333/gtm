@@ -145,6 +145,70 @@ export async function routeVideoGeneration(
 }
 
 /**
+ * routeTextGeneration — dispatches text/chat prompts to the correct provider.
+ * Used by personalise, generate-campaign-brief, build-prompt, and any other
+ * step that needs a text completion.
+ */
+export async function routeTextGeneration(
+  providerKey: string,
+  modelId: string,
+  messages: { role: string; content: string }[],
+  apiKey: string,
+  orgId: string,
+  orgSlug: string,
+  jobId: string | null,
+  stepKey: string,
+  opts: { responseFormat?: any; maxTokens?: number } = {},
+): Promise<string> {
+  switch (providerKey) {
+    case 'openrouter': {
+      const { callOpenRouter } = await import('./openrouter.ts')
+      // callOpenRouter takes (modelId, prompt, opts, apiKey, orgSlug, orgId, jobId, stepKey)
+      // For multi-message we concatenate system + user
+      const systemMsg = messages.find(m => m.role === 'system')?.content
+      const userMsg = messages.filter(m => m.role !== 'system').map(m => m.content).join('\n\n')
+      return await callOpenRouter(
+        modelId,
+        userMsg,
+        { systemPrompt: systemMsg, responseFormat: opts.responseFormat, maxTokens: opts.maxTokens },
+        apiKey,
+        orgSlug,
+        orgId,
+        jobId ?? undefined,
+        stepKey,
+      )
+    }
+    case 'anthropic': {
+      const { callAnthropic } = await import('./anthropic.ts')
+      const result = await callAnthropic(modelId, messages, apiKey, {
+        org_id: orgId, job_id: jobId ?? undefined, step_key: stepKey,
+        key_source_used: 'platform',
+      })
+      return result.text
+    }
+    case 'openai': {
+      const { callOpenAI } = await import('./openai.ts')
+      const result = await callOpenAI(modelId, messages, apiKey, {
+        org_id: orgId, job_id: jobId ?? undefined, step_key: stepKey,
+        key_source_used: 'platform',
+      })
+      return result.text
+    }
+    case 'google_ai_studio': {
+      const { callGoogleAIStudio } = await import('./google_ai_studio.ts')
+      const userContent = messages.map(m => m.content).join('\n\n')
+      const result = await callGoogleAIStudio(modelId, { compiled_prompt: userContent, org_id: orgId }, apiKey)
+      return result.text ?? ''
+    }
+    default:
+      throw new Response(
+        JSON.stringify({ error: `Text generation not supported on provider: ${providerKey}` }),
+        { status: 400 },
+      )
+  }
+}
+
+/**
  * Routes a generation request to the correct provider adapter.
  */
 export async function routeGeneration(
