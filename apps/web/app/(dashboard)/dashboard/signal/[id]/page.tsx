@@ -96,15 +96,19 @@ export default async function SignalDetailPage({ params }: { params: { id: strin
           </div>
         )}
 
-        {/* Full content */}
-        {signal.full_content && (
-          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-2">
-            <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Full Article</h2>
-            <div className="text-slate-400 text-sm leading-relaxed whitespace-pre-line">
-              {signal.full_content}
+        {/* Full content from raw_payload */}
+        {(() => {
+          const payload = signal.raw_payload
+          if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+          const content = (payload as Record<string, unknown>).content
+          if (!content || typeof content !== 'string') return null
+          return (
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 space-y-2">
+              <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Full Article</h2>
+              <div className="text-slate-400 text-sm leading-relaxed whitespace-pre-line">{content}</div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* CTA */}
         <div className="flex items-center gap-3">

@@ -19,7 +19,7 @@ export const useGenerationStore = create<GenerationStore>((set) => ({
       activeJobs: {
         ...state.activeJobs,
         [jobId]: state.activeJobs[jobId]
-          ? { ...state.activeJobs[jobId], status, result_url: resultUrl ?? state.activeJobs[jobId].result_url }
+          ? { ...state.activeJobs[jobId], status, output_url: resultUrl ?? state.activeJobs[jobId].output_url }
           : state.activeJobs[jobId],
       },
     })),
