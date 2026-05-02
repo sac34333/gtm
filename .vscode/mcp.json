@@ -1,0 +1,99 @@
+{
+  "servers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${input:githubPAT}"
+      }
+    },
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp?project_ref=${input:supabaseProjectRef}&features=database,functions,development,docs,debugging,storage"
+    },
+    "gemini-api-docs-mcp": {
+      "type": "http",
+      "url": "https://gemini-api-docs-mcp.dev"
+    },
+    "dodopayments": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "dodopayments-mcp@latest"],
+      "env": {
+        "DODO_PAYMENTS_API_KEY": "${input:dodoApiKey}",
+        "DODO_PAYMENTS_WEBHOOK_KEY": "${input:dodoWebhookKey}",
+        "DODO_PAYMENTS_ENVIRONMENT": "${input:dodoEnvironment}"
+      }
+    },
+    "dodo-knowledge": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "mcp-remote@latest", "https://knowledge.dodopayments.com/mcp"]
+    },
+    "cloudflare": {
+      "type": "http",
+      "url": "https://mcp.cloudflare.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:cloudflareApiToken}"
+      }
+    },
+    "fal-ai": {
+      "type": "http",
+      "url": "https://mcp.fal.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${input:falApiKey}"
+      }
+    },
+    "sentry": {
+      "type": "http",
+      "url": "https://mcp.sentry.dev/mcp"
+    },
+    "resend": {
+      "type": "http",
+      "url": "https://resend.com/docs/mcp"
+    }
+  },
+  "inputs": [
+    {
+      "id": "githubPAT",
+      "type": "promptString",
+      "description": "GitHub Personal Access Token for github.com/qubitlyventures — create at github.com/settings/tokens with scopes: repo, read:org, read:user, workflow.",
+      "password": true
+    },
+    {
+      "id": "supabaseProjectRef",
+      "type": "promptString",
+      "description": "Supabase Project Reference ID — found in Supabase Dashboard → Project Settings → General → Project ID. Leave blank to connect to all projects in your org."
+    },
+    {
+      "id": "dodoApiKey",
+      "type": "promptString",
+      "description": "Dodo Payments API key — use dodo_test_... for development, live key for production. Found in Dodo Payments Dashboard → Developers → API Keys.",
+      "password": true
+    },
+    {
+      "id": "dodoWebhookKey",
+      "type": "promptString",
+      "description": "Dodo Payments webhook signing key — found in Dodo Payments Dashboard → Developers → Webhooks. Required for webhook signature verification.",
+      "password": true
+    },
+    {
+      "id": "dodoEnvironment",
+      "type": "promptString",
+      "description": "Dodo Payments environment: 'test_mode' for development, 'live_mode' for production.",
+      "default": "test_mode"
+    },
+    {
+      "id": "cloudflareApiToken",
+      "type": "promptString",
+      "description": "Cloudflare API token — create at dash.cloudflare.com/profile/api-tokens. Recommended permissions: Zone > DNS (Edit), Cloudflare Pages (Edit), Account > Cloudflare Pages (Edit). Add Workers permissions later if needed.",
+      "password": true
+    },
+    {
+      "id": "falApiKey",
+      "type": "promptString",
+      "description": "fal.ai API key — create at fal.ai/dashboard/keys. Gives access to 1,000+ image, video, audio, and 3D models.",
+      "password": true
+    }
+  ]
+}
