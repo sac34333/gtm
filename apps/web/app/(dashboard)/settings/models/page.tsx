@@ -276,7 +276,7 @@ function StepCard({
         <div className="flex-1">
           <Select
             value={selectedModelId}
-            onValueChange={handleSelect}
+            onValueChange={(v) => v && handleSelect(v)}
             disabled={!isAdmin}
           >
             <SelectTrigger className="bg-white/5 border-white/10 text-white h-9">

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   Megaphone, Target, Droplets, Rocket,
-  Linkedin, Mail, MessageSquare, Twitter, CheckCircle,
+  Briefcase, Mail, MessageSquare, AtSign, CheckCircle,
   ArrowLeft, ArrowRight, Image as ImageIcon, Loader2, X,
 } from 'lucide-react'
 
@@ -27,11 +27,11 @@ const CAMPAIGN_TYPES: CampaignType[] = [
 ]
 
 const CHANNELS: Channel[] = [
-  { key: 'linkedin_message', label: 'LinkedIn DM', sub: 'Personal 1:1 outreach', Icon: Linkedin },
-  { key: 'linkedin_post', label: 'LinkedIn Post', sub: 'Organic thought leadership', Icon: Linkedin },
+  { key: 'linkedin_message', label: 'Briefcase DM', sub: 'Personal 1:1 outreach', Icon: Briefcase },
+  { key: 'linkedin_post', label: 'Briefcase Post', sub: 'Organic thought leadership', Icon: Briefcase },
   { key: 'email', label: 'Email', sub: 'Cold or warm email', Icon: Mail },
-  { key: 'cold_dm', label: 'Cold DM', sub: 'Twitter or Instagram DM', Icon: MessageSquare },
-  { key: 'twitter', label: 'Twitter / X', sub: 'Social media post', Icon: Twitter },
+  { key: 'cold_dm', label: 'Cold DM', sub: 'AtSign or Instagram DM', Icon: MessageSquare },
+  { key: 'AtSign', label: 'AtSign / X', sub: 'Social media post', Icon: AtSign },
 ]
 
 interface GenerationJob {
@@ -116,7 +116,7 @@ export default function NewCampaignPage() {
   function toggleProspect(id: string) {
     setSelectedProspectIds(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id); else next.add(id)
       return next
     })
   }
@@ -193,7 +193,7 @@ export default function NewCampaignPage() {
           <span className="ml-2 text-sm text-slate-400">Step {step} of 3</span>
         </div>
 
-        {/* Step 1 — Campaign basics */}
+        {/* Step 1 â€” Campaign basics */}
         {step === 1 && (
           <div className="space-y-8">
             <div>
@@ -264,7 +264,7 @@ export default function NewCampaignPage() {
           </div>
         )}
 
-        {/* Step 2 — Channel mix and asset */}
+        {/* Step 2 â€” Channel mix and asset */}
         {step === 2 && (
           <div className="space-y-8">
             <div>
@@ -308,7 +308,7 @@ export default function NewCampaignPage() {
                 <div className="rounded-xl border border-dashed border-slate-800 py-8 text-center">
                   <ImageIcon className="w-8 h-8 text-slate-700 mx-auto mb-2" />
                   <p className="text-sm text-slate-500">No assets yet.</p>
-                  <a href="/create" className="text-xs text-indigo-400 hover:text-indigo-300 mt-1 block">Create an asset →</a>
+                  <a href="/create" className="text-xs text-indigo-400 hover:text-indigo-300 mt-1 block">Create an asset â†’</a>
                 </div>
               ) : (
                 <div className="grid grid-cols-4 gap-3">
@@ -342,7 +342,7 @@ export default function NewCampaignPage() {
           </div>
         )}
 
-        {/* Step 3 — Add prospects */}
+        {/* Step 3 â€” Add prospects */}
         {step === 3 && (
           <div className="space-y-6">
             <div>
@@ -357,7 +357,7 @@ export default function NewCampaignPage() {
             ) : prospects.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-800 py-10 text-center">
                 <p className="text-slate-400 text-sm">No prospects yet.</p>
-                <a href="/icp" className="text-xs text-indigo-400 hover:text-indigo-300 mt-1 block">Run ICP enrichment to find prospects →</a>
+                <a href="/icp" className="text-xs text-indigo-400 hover:text-indigo-300 mt-1 block">Run ICP enrichment to find prospects â†’</a>
               </div>
             ) : (
               <>
@@ -366,7 +366,7 @@ export default function NewCampaignPage() {
                   <div className="flex gap-2">
                     <button onClick={() => setSelectedProspectIds(new Set(prospects.map(p => p.id)))}
                       className="text-xs text-indigo-400 hover:text-indigo-300">Select all</button>
-                    <span className="text-slate-700">·</span>
+                    <span className="text-slate-700">Â·</span>
                     <button onClick={() => setSelectedProspectIds(new Set())}
                       className="text-xs text-slate-400 hover:text-slate-300">Clear</button>
                   </div>
@@ -394,7 +394,7 @@ export default function NewCampaignPage() {
                           <span className="text-sm font-medium text-white">
                             {[p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unnamed'}
                           </span>
-                          {p.job_title && <span className="text-slate-400 text-xs"> · {p.job_title}</span>}
+                          {p.job_title && <span className="text-slate-400 text-xs"> Â· {p.job_title}</span>}
                           {p.company_name && <span className="text-slate-500 text-xs"> at {p.company_name}</span>}
                         </div>
                         {score !== null && (
@@ -449,7 +449,7 @@ export default function NewCampaignPage() {
               className="flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              {saving ? 'Creating…' : 'Create Campaign'}
+              {saving ? 'Creatingâ€¦' : 'Create Campaign'}
             </button>
           )}
         </div>
@@ -458,7 +458,7 @@ export default function NewCampaignPage() {
         {step === 3 && !saving && (
           <div className="text-center mt-2">
             <button onClick={handleFinish} className="text-xs text-slate-500 hover:text-slate-400 underline underline-offset-2">
-              Skip for now — add prospects later
+              Skip for now â€” add prospects later
             </button>
           </div>
         )}

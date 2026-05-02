@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -84,20 +84,25 @@ export default function SettingsUsagePage() {
   const { userRole } = useOrgStore()
   const router = useRouter()
   const [period, setPeriod] = useState<Period>('month')
-
-  // Redirect members
-  if (userRole === 'member') {
-    toast.error('Upgrade required')
-    router.push('/dashboard')
-    return null
-  }
+  const isMember = userRole === 'member'
 
   const { data, isLoading, isError, refetch } = useQuery<UsageData>({
     queryKey: ['usage-stats', period],
     queryFn: () => fetchUsageStats(period),
     staleTime: 60_000,
     retry: 1,
+    enabled: !isMember,
   })
+
+  // Redirect members (after hooks)
+  useEffect(() => {
+    if (isMember) {
+      toast.error('Upgrade required')
+      router.push('/dashboard')
+    }
+  }, [isMember, router])
+
+  if (isMember) return null
 
   const PERIOD_TABS: { label: string; value: Period }[] = [
     { label: 'Today', value: 'day' },

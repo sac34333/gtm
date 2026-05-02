@@ -622,6 +622,7 @@ export type Database = {
           cost_usd: number | null
           created_at: string
           error_code: string | null
+          estimated_cost_usd: number | null
           id: string
           job_id: string | null
           key_source_used: string | null
@@ -640,6 +641,7 @@ export type Database = {
           cost_usd?: number | null
           created_at?: string
           error_code?: string | null
+          estimated_cost_usd?: number | null
           id?: string
           job_id?: string | null
           key_source_used?: string | null
@@ -658,6 +660,7 @@ export type Database = {
           cost_usd?: number | null
           created_at?: string
           error_code?: string | null
+          estimated_cost_usd?: number | null
           id?: string
           job_id?: string | null
           key_source_used?: string | null
@@ -765,6 +768,7 @@ export type Database = {
       org_members: {
         Row: {
           created_at: string
+          email: string | null
           id: string
           invited_by: string | null
           joined_at: string | null
@@ -776,6 +780,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email?: string | null
           id?: string
           invited_by?: string | null
           joined_at?: string | null
@@ -787,6 +792,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email?: string | null
           id?: string
           invited_by?: string | null
           joined_at?: string | null

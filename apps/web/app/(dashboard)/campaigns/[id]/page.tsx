@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
 import {
   ArrowLeft, Megaphone, Target, Droplets, Rocket,
-  Linkedin, Mail, MessageSquare, Twitter,
+  Briefcase, Mail, MessageSquare, AtSign,
   Image as ImageIcon, FileText, Download, RefreshCw,
   Calendar, Clock, Hash, CheckCircle, AlertCircle,
   Loader2, Plus, X, ChevronRight, ExternalLink,
@@ -57,11 +57,11 @@ const TYPE_CONFIG: Record<string, { label: string; Icon: any }> = {
 }
 
 const CHANNEL_ICONS: Record<string, any> = {
-  linkedin_message: Linkedin,
-  linkedin_post: Linkedin,
+  linkedin_message: Briefcase,
+  linkedin_post: Briefcase,
   email: Mail,
   cold_dm: MessageSquare,
-  twitter: Twitter,
+  AtSign: AtSign,
 }
 
 const COPY_STATUS_COLOR: Record<string, string> = {
