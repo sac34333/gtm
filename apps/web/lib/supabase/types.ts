@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -305,33 +305,51 @@ export type Database = {
       }
       feed_configs: {
         Row: {
+          api_key_ref: string | null
           config: Json
           created_at: string
+          error_count: number | null
           id: string
           is_active: boolean
+          keywords: string[] | null
           last_fetched_at: string | null
           org_id: string
+          requires_api_key: boolean | null
+          source_label: string | null
           source_type: string
+          source_url: string | null
           updated_at: string
         }
         Insert: {
+          api_key_ref?: string | null
           config?: Json
           created_at?: string
+          error_count?: number | null
           id?: string
           is_active?: boolean
+          keywords?: string[] | null
           last_fetched_at?: string | null
           org_id: string
+          requires_api_key?: boolean | null
+          source_label?: string | null
           source_type: string
+          source_url?: string | null
           updated_at?: string
         }
         Update: {
+          api_key_ref?: string | null
           config?: Json
           created_at?: string
+          error_count?: number | null
           id?: string
           is_active?: boolean
+          keywords?: string[] | null
           last_fetched_at?: string | null
           org_id?: string
+          requires_api_key?: boolean | null
+          source_label?: string | null
           source_type?: string
+          source_url?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -714,6 +732,7 @@ export type Database = {
       }
       orgs: {
         Row: {
+          country_code: string | null
           created_at: string
           dodo_customer_id: string | null
           dodo_subscription_id: string | null
@@ -734,6 +753,7 @@ export type Database = {
           video_used: number
         }
         Insert: {
+          country_code?: string | null
           created_at?: string
           dodo_customer_id?: string | null
           dodo_subscription_id?: string | null
@@ -754,6 +774,7 @@ export type Database = {
           video_used?: number
         }
         Update: {
+          country_code?: string | null
           created_at?: string
           dodo_customer_id?: string | null
           dodo_subscription_id?: string | null
@@ -911,16 +932,23 @@ export type Database = {
         Row: {
           author: string | null
           created_at: string
+          dismissed_at: string | null
+          dismissed_by: string | null
           feed_config_id: string | null
           headline: string | null
           id: string
           is_archived: boolean
+          matched_themes: string[] | null
           org_id: string
           published_at: string | null
           raw_payload: Json | null
           relevance_score: number | null
+          scraped_at: string | null
+          source_name: string | null
           source_type: string
+          status: string
           summary: string | null
+          tags: string[] | null
           updated_at: string
           url: string | null
           url_hash: string
@@ -928,16 +956,23 @@ export type Database = {
         Insert: {
           author?: string | null
           created_at?: string
+          dismissed_at?: string | null
+          dismissed_by?: string | null
           feed_config_id?: string | null
           headline?: string | null
           id?: string
           is_archived?: boolean
+          matched_themes?: string[] | null
           org_id: string
           published_at?: string | null
           raw_payload?: Json | null
           relevance_score?: number | null
+          scraped_at?: string | null
+          source_name?: string | null
           source_type: string
+          status?: string
           summary?: string | null
+          tags?: string[] | null
           updated_at?: string
           url?: string | null
           url_hash: string
@@ -945,16 +980,23 @@ export type Database = {
         Update: {
           author?: string | null
           created_at?: string
+          dismissed_at?: string | null
+          dismissed_by?: string | null
           feed_config_id?: string | null
           headline?: string | null
           id?: string
           is_archived?: boolean
+          matched_themes?: string[] | null
           org_id?: string
           published_at?: string | null
           raw_payload?: Json | null
           relevance_score?: number | null
+          scraped_at?: string | null
+          source_name?: string | null
           source_type?: string
+          status?: string
           summary?: string | null
+          tags?: string[] | null
           updated_at?: string
           url?: string | null
           url_hash?: string
@@ -1114,4 +1156,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

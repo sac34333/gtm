@@ -11,3 +11,6 @@ export function getSupabaseBrowserClient() {
   )
   return client
 }
+
+// Singleton export for use in client components
+export const supabase = getSupabaseBrowserClient()

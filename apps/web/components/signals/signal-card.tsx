@@ -151,16 +151,13 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
             </Button>
           ) : (
             <>
-              <Button
-                size="sm"
-                asChild
-                className="bg-indigo-600 hover:bg-indigo-500 h-7 text-xs"
+              <Link
+                href={`/create?signal_id=${signal.id}`}
+                className="inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
               >
-                <Link href={`/create?signal_id=${signal.id}`}>
-                  <Zap className="h-3 w-3 mr-1" />
-                  Use this trend
-                </Link>
-              </Button>
+                <Zap className="h-3 w-3 mr-1" />
+                Use this trend
+              </Link>
               <Button
                 size="sm"
                 variant="ghost"
