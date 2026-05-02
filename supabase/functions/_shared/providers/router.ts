@@ -1,0 +1,153 @@
+import { createServiceClient } from '../db.ts'
+import { decrypt } from '../encryption.ts'
+
+export interface ProviderResponse {
+  text?: string
+  imageUrl?: string
+  videoUrl?: string
+  bytes?: Uint8Array
+  outputUrl?: string
+  jobId?: string
+  status?: string
+}
+
+/**
+ * Resolves the API key for a provider for a given org.
+ * Reads byok_mode from orgs table, then:
+ * - byok_mode=true: always require org key (no platform fallback)
+ * - byok_mode=false: use org key > platform env var per key_source
+ */
+export async function resolveApiKey(
+  orgId: string,
+  providerKey: string,
+  modelKeySource: string = 'user_or_platform',
+): Promise<string> {
+  const supabase = createServiceClient()
+
+  // Check org byok_mode
+  const { data: org } = await supabase
+    .from('orgs')
+    .select('byok_mode, plan_tier')
+    .eq('id', orgId)
+    .single()
+
+  const byokMode = org?.byok_mode ?? false
+
+  // Check for org's own key
+  const { data: keyRow } = await supabase
+    .from('org_provider_api_keys')
+    .select('encrypted_key')
+    .eq('org_id', orgId)
+    .eq('provider_key', providerKey)
+    .single()
+
+  if (keyRow?.encrypted_key) {
+    return await decrypt(keyRow.encrypted_key)
+  }
+
+  // BYOK mode: no platform fallback
+  if (byokMode) {
+    const providerNames: Record<string, string> = {
+      openrouter: 'OpenRouter',
+      fal: 'fal.ai',
+      google_ai_studio: 'Google AI Studio',
+      anthropic: 'Anthropic',
+      openai: 'OpenAI',
+    }
+    throw new Response(
+      JSON.stringify({
+        error: `BYOK plan requires your own ${providerNames[providerKey] ?? providerKey} API key. Add it in Settings → Model Settings.`,
+      }),
+      { status: 403 },
+    )
+  }
+
+  // Platform key fallback based on key_source
+  if (modelKeySource === 'user_required') {
+    const providerNames: Record<string, string> = {
+      openrouter: 'OpenRouter',
+      fal: 'fal.ai',
+      google_ai_studio: 'Google AI Studio',
+      anthropic: 'Anthropic',
+      openai: 'OpenAI',
+    }
+    throw new Response(
+      JSON.stringify({
+        error: `This model requires your own ${providerNames[providerKey] ?? providerKey} API key. Add it in Settings → Model Settings.`,
+      }),
+      { status: 403 },
+    )
+  }
+
+  // user_or_platform or platform: use platform env var
+  const platformKeys: Record<string, string> = {
+    openrouter: 'OPENROUTER_DEFAULT_API_KEY',
+    fal: 'FAL_API_KEY',
+    google_ai_studio: 'GOOGLE_AI_STUDIO_API_KEY',
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+  }
+
+  const envVar = platformKeys[providerKey]
+  const platformKey = envVar ? Deno.env.get(envVar) : undefined
+
+  if (platformKey) return platformKey
+
+  throw new Response(
+    JSON.stringify({
+      error: `No API key found for ${providerKey}. Add your key in Settings → Model Settings, or switch to a different provider.`,
+    }),
+    { status: 403 },
+  )
+}
+
+/**
+ * Routes a generation request to the correct provider adapter.
+ */
+export async function routeGeneration(
+  providerKey: string,
+  modelId: string,
+  payload: any,
+  apiKey: string,
+): Promise<ProviderResponse> {
+  switch (providerKey) {
+    case 'openrouter': {
+      const { callOpenRouterImage, callOpenRouter } = await import('./openrouter.ts')
+      if (payload.asset_type === 'image') {
+        return await callOpenRouterImage(
+          modelId,
+          payload.compiled_prompt,
+          payload.image_config,
+          payload.modalities,
+          apiKey,
+          payload.org_slug,
+          payload.org_id,
+          payload.job_id,
+        )
+      }
+      const text = await callOpenRouter(modelId, payload.prompt, {}, apiKey, payload.org_slug)
+      return { text }
+    }
+    case 'fal': {
+      const { callFal } = await import('./fal.ts')
+      return await callFal(modelId, payload, apiKey)
+    }
+    case 'google_ai_studio': {
+      const { callGoogleAIStudio } = await import('./google_ai_studio.ts')
+      return await callGoogleAIStudio(modelId, payload, apiKey)
+    }
+    case 'anthropic': {
+      const { callAnthropic } = await import('./anthropic.ts')
+      return await callAnthropic(modelId, payload.messages, apiKey)
+    }
+    case 'openai': {
+      const { callOpenAI } = await import('./openai.ts')
+      return await callOpenAI(modelId, payload.messages, apiKey)
+    }
+    default:
+      throw new Response(
+        JSON.stringify({ error: `Unknown provider: ${providerKey}` }),
+        { status: 400 },
+      )
+  }
+}
