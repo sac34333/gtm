@@ -33,7 +33,7 @@ export async function recordUsage(
     success, error_code, input, output } = event
 
   const total_tokens = event.total_tokens ??
-    ((prompt_tokens ?? 0) + (completion_tokens ?? 0)) || undefined
+    (((prompt_tokens ?? 0) + (completion_tokens ?? 0)) || undefined)
 
   // ── Track 1: llm_usage_events DB row ────────────────────────────────────
   try {

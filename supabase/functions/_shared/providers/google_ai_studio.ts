@@ -171,3 +171,35 @@ async function _submitVideoJob(
 
   return { jobId: operationName, status: 'pending' }
 }
+
+
+/**
+ * pollGoogleVideoJob — polls a Veo video generation operation.
+ * operationName looks like: "operations/xyz123"
+ */
+export async function pollGoogleVideoJob(
+  operationName: string,
+  apiKey: string,
+): Promise<{ status: string; outputUrl?: string; error?: string }> {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/${operationName}?key=${apiKey}`,
+    { method: 'GET', headers: { 'Content-Type': 'application/json' } },
+  )
+
+  if (!res.ok) {
+    return { status: 'failed', error: `google_video_poll_error_${res.status}` }
+  }
+
+  const data = await res.json()
+
+  if (data.done) {
+    const videoUri = data.response?.generateVideoResponse?.generatedSamples?.[0]?.video?.uri
+    if (videoUri) {
+      return { status: 'completed', outputUrl: videoUri }
+    }
+    const errMsg = data.error?.message ?? 'video_generation_failed'
+    return { status: 'failed', error: errMsg }
+  }
+
+  return { status: 'pending' }
+}

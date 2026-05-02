@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { SignalFeed } from '@/components/signals/signal-feed'
+import { ActiveGenerationJobs } from '@/components/generation/active-generation-jobs'
 import { TrendingUp, Image, Video } from 'lucide-react'
 
 export default async function DashboardPage() {
@@ -56,6 +57,8 @@ export default async function DashboardPage() {
         )}
 
         <SignalFeed orgId={orgId} />
+
+        <ActiveGenerationJobs orgId={orgId} />
       </div>
     </div>
   )
