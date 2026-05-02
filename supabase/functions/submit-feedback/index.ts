@@ -1,4 +1,4 @@
-﻿import { validateJWT } from '../_shared/auth.ts'
+﻿import { validateJWT, requireRole } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 
@@ -36,6 +36,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const db = createServiceClient()
+    await requireRole(org_id, user.id, 'member', db)
 
     // Verify the job belongs to this org
     const { data: job } = await db

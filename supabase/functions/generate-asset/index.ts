@@ -1,4 +1,4 @@
-﻿import { validateJWT } from '../_shared/auth.ts'
+﻿import { validateJWT, requireRole } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { resolveApiKey, routeGeneration } from '../_shared/providers/router.ts'
@@ -15,6 +15,9 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'no_org' }), { status: 401, headers: corsHeaders })
     }
 
+    const db = createServiceClient()
+    await requireRole(org_id, user.id, 'member', db)
+
     const contentLength = parseInt(req.headers.get('content-length') ?? '0')
     if (contentLength > 1_048_576) {
       return new Response(JSON.stringify({ error: 'payload_too_large' }), { status: 413, headers: corsHeaders })
@@ -26,8 +29,6 @@ Deno.serve(async (req: Request) => {
     if (!content_job || typeof content_job !== 'object') {
       return new Response(JSON.stringify({ error: 'content_job_required' }), { status: 400, headers: corsHeaders })
     }
-
-    const db = createServiceClient()
 
     // Resolve model if not in request
     if (!model_id || !provider_key) {
@@ -125,6 +126,19 @@ Deno.serve(async (req: Request) => {
     }
 
     // Build payload for provider
+    // Update stored content_job_json to include resolved job_id and org_slug
+    await db.from('generation_jobs').update({
+      content_job_json: {
+        ...content_job,
+        job_id: jobId,
+        org_id,
+        org_slug: org?.slug ?? content_job.org_slug ?? '',
+        model_id,
+        provider_key,
+        asset_type: assetType,
+      },
+    }).eq('id', jobId)
+
     const providerPayload = {
       ...content_job,
       org_id,
