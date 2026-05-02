@@ -16,57 +16,81 @@ export type Database = {
     Tables: {
       available_models: {
         Row: {
-          context_window: number | null
+          compatible_step_keys: string[] | null
+          context_length: number | null
+          cost_per_1k_input_tokens: number | null
+          cost_per_1k_output_tokens: number | null
           cost_tier: string
           created_at: string
           default_for_step_key: string[] | null
-          display_name: string
+          estimated_time_seconds: number | null
           id: string
           is_active: boolean
           is_recommended: boolean
           key_source: string
           max_output_tokens: number | null
-          modality: string
           model_id: string
+          model_label: string
+          model_type: string
           notes: string | null
+          output_modalities: string[] | null
           provider_key: string
           recommendation_order: number | null
+          recommendation_text: string | null
+          release_date: string | null
+          requires_paid_plan: boolean | null
           updated_at: string
         }
         Insert: {
-          context_window?: number | null
+          compatible_step_keys?: string[] | null
+          context_length?: number | null
+          cost_per_1k_input_tokens?: number | null
+          cost_per_1k_output_tokens?: number | null
           cost_tier: string
           created_at?: string
           default_for_step_key?: string[] | null
-          display_name: string
+          estimated_time_seconds?: number | null
           id?: string
           is_active?: boolean
           is_recommended?: boolean
           key_source: string
           max_output_tokens?: number | null
-          modality: string
           model_id: string
+          model_label: string
+          model_type: string
           notes?: string | null
+          output_modalities?: string[] | null
           provider_key: string
           recommendation_order?: number | null
+          recommendation_text?: string | null
+          release_date?: string | null
+          requires_paid_plan?: boolean | null
           updated_at?: string
         }
         Update: {
-          context_window?: number | null
+          compatible_step_keys?: string[] | null
+          context_length?: number | null
+          cost_per_1k_input_tokens?: number | null
+          cost_per_1k_output_tokens?: number | null
           cost_tier?: string
           created_at?: string
           default_for_step_key?: string[] | null
-          display_name?: string
+          estimated_time_seconds?: number | null
           id?: string
           is_active?: boolean
           is_recommended?: boolean
           key_source?: string
           max_output_tokens?: number | null
-          modality?: string
           model_id?: string
+          model_label?: string
+          model_type?: string
           notes?: string | null
+          output_modalities?: string[] | null
           provider_key?: string
           recommendation_order?: number | null
+          recommendation_text?: string | null
+          release_date?: string | null
+          requires_paid_plan?: boolean | null
           updated_at?: string
         }
         Relationships: [
@@ -121,11 +145,11 @@ export type Database = {
           target_geographies: Json | null
           target_industries: Json | null
           timezone: string | null
-          tone_bold: number | null
-          tone_educational: number | null
-          tone_formal: number | null
-          tone_inspirational: number | null
-          tone_playful: number | null
+          tone_conservative_provocative: number | null
+          tone_corporate_human: number | null
+          tone_data_story: number | null
+          tone_formal_conversational: number | null
+          tone_safe_bold: number | null
           topics_to_avoid: Json | null
           updated_at: string
           visual_style: string | null
@@ -174,11 +198,11 @@ export type Database = {
           target_geographies?: Json | null
           target_industries?: Json | null
           timezone?: string | null
-          tone_bold?: number | null
-          tone_educational?: number | null
-          tone_formal?: number | null
-          tone_inspirational?: number | null
-          tone_playful?: number | null
+          tone_conservative_provocative?: number | null
+          tone_corporate_human?: number | null
+          tone_data_story?: number | null
+          tone_formal_conversational?: number | null
+          tone_safe_bold?: number | null
           topics_to_avoid?: Json | null
           updated_at?: string
           visual_style?: string | null
@@ -227,11 +251,11 @@ export type Database = {
           target_geographies?: Json | null
           target_industries?: Json | null
           timezone?: string | null
-          tone_bold?: number | null
-          tone_educational?: number | null
-          tone_formal?: number | null
-          tone_inspirational?: number | null
-          tone_playful?: number | null
+          tone_conservative_provocative?: number | null
+          tone_corporate_human?: number | null
+          tone_data_story?: number | null
+          tone_formal_conversational?: number | null
+          tone_safe_bold?: number | null
           topics_to_avoid?: Json | null
           updated_at?: string
           visual_style?: string | null
@@ -251,39 +275,57 @@ export type Database = {
       }
       campaign_briefs: {
         Row: {
-          brief_pdf_url: string | null
+          brief_data: Json | null
           brief_text: string | null
+          campaign_type: string | null
+          channel_mix: Json | null
           created_at: string
+          description: string | null
+          end_date: string | null
           id: string
           job_id: string | null
+          name: string
           org_id: string
+          pdf_url: string | null
           signal_ids: Json | null
+          start_date: string | null
           status: string
-          title: string
           updated_at: string
         }
         Insert: {
-          brief_pdf_url?: string | null
+          brief_data?: Json | null
           brief_text?: string | null
+          campaign_type?: string | null
+          channel_mix?: Json | null
           created_at?: string
+          description?: string | null
+          end_date?: string | null
           id?: string
           job_id?: string | null
+          name: string
           org_id: string
+          pdf_url?: string | null
           signal_ids?: Json | null
+          start_date?: string | null
           status?: string
-          title: string
           updated_at?: string
         }
         Update: {
-          brief_pdf_url?: string | null
+          brief_data?: Json | null
           brief_text?: string | null
+          campaign_type?: string | null
+          channel_mix?: Json | null
           created_at?: string
+          description?: string | null
+          end_date?: string | null
           id?: string
           job_id?: string | null
+          name?: string
           org_id?: string
+          pdf_url?: string | null
           signal_ids?: Json | null
+          start_date?: string | null
           status?: string
-          title?: string
           updated_at?: string
         }
         Relationships: [
@@ -303,11 +345,62 @@ export type Database = {
           },
         ]
       }
+      campaign_prospects: {
+        Row: {
+          campaign_id: string
+          created_at: string
+          id: string
+          org_id: string
+          prospect_id: string
+          status: string
+        }
+        Insert: {
+          campaign_id: string
+          created_at?: string
+          id?: string
+          org_id: string
+          prospect_id: string
+          status?: string
+        }
+        Update: {
+          campaign_id?: string
+          created_at?: string
+          id?: string
+          org_id?: string
+          prospect_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_prospects_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_prospects_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_prospects_prospect_id_fkey"
+            columns: ["prospect_id"]
+            isOneToOne: false
+            referencedRelation: "prospects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feed_configs: {
         Row: {
           api_key_ref: string | null
+          auto_activated: boolean
           config: Json
           created_at: string
+          cron_expression: string | null
           error_count: number | null
           id: string
           is_active: boolean
@@ -322,8 +415,10 @@ export type Database = {
         }
         Insert: {
           api_key_ref?: string | null
+          auto_activated?: boolean
           config?: Json
           created_at?: string
+          cron_expression?: string | null
           error_count?: number | null
           id?: string
           is_active?: boolean
@@ -338,8 +433,10 @@ export type Database = {
         }
         Update: {
           api_key_ref?: string | null
+          auto_activated?: boolean
           config?: Json
           created_at?: string
+          cron_expression?: string | null
           error_count?: number | null
           id?: string
           is_active?: boolean
@@ -370,6 +467,9 @@ export type Database = {
           job_id: string
           org_id: string
           rating: number | null
+          regenerated: boolean | null
+          tags_changed: Json | null
+          thumbs: string | null
           updated_at: string
           user_id: string
         }
@@ -380,6 +480,9 @@ export type Database = {
           job_id: string
           org_id: string
           rating?: number | null
+          regenerated?: boolean | null
+          tags_changed?: Json | null
+          thumbs?: string | null
           updated_at?: string
           user_id: string
         }
@@ -390,6 +493,9 @@ export type Database = {
           job_id?: string
           org_id?: string
           rating?: number | null
+          regenerated?: boolean | null
+          tags_changed?: Json | null
+          thumbs?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -412,18 +518,24 @@ export type Database = {
       }
       generation_jobs: {
         Row: {
+          asset_type: string | null
           completed_at: string | null
+          content_job_json: Json | null
           created_at: string
+          created_by: string | null
           error_message: string | null
+          generation_time_ms: number | null
           id: string
           model_id: string
+          openrouter_job_id: string | null
           org_id: string
+          output_url: string | null
           parent_job_id: string | null
           poll_count: number
-          prompt_payload: Json | null
+          prompt_tags: Json | null
           provider_key: string
           result_metadata: Json | null
-          result_url: string | null
+          signal_id: string | null
           started_at: string | null
           status: string
           step_key: string
@@ -431,18 +543,24 @@ export type Database = {
           version: number
         }
         Insert: {
+          asset_type?: string | null
           completed_at?: string | null
+          content_job_json?: Json | null
           created_at?: string
+          created_by?: string | null
           error_message?: string | null
+          generation_time_ms?: number | null
           id?: string
           model_id: string
+          openrouter_job_id?: string | null
           org_id: string
+          output_url?: string | null
           parent_job_id?: string | null
           poll_count?: number
-          prompt_payload?: Json | null
+          prompt_tags?: Json | null
           provider_key: string
           result_metadata?: Json | null
-          result_url?: string | null
+          signal_id?: string | null
           started_at?: string | null
           status?: string
           step_key: string
@@ -450,18 +568,24 @@ export type Database = {
           version?: number
         }
         Update: {
+          asset_type?: string | null
           completed_at?: string | null
+          content_job_json?: Json | null
           created_at?: string
+          created_by?: string | null
           error_message?: string | null
+          generation_time_ms?: number | null
           id?: string
           model_id?: string
+          openrouter_job_id?: string | null
           org_id?: string
+          output_url?: string | null
           parent_job_id?: string | null
           poll_count?: number
-          prompt_payload?: Json | null
+          prompt_tags?: Json | null
           provider_key?: string
           result_metadata?: Json | null
-          result_url?: string | null
+          signal_id?: string | null
           started_at?: string | null
           status?: string
           step_key?: string
@@ -483,6 +607,13 @@ export type Database = {
             referencedRelation: "generation_jobs"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "generation_jobs_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
         ]
       }
       llm_usage_events: {
@@ -490,8 +621,10 @@ export type Database = {
           completion_tokens: number | null
           cost_usd: number | null
           created_at: string
+          error_code: string | null
           id: string
           job_id: string | null
+          key_source_used: string | null
           langfuse_trace_id: string | null
           latency_ms: number | null
           model_id: string
@@ -499,14 +632,17 @@ export type Database = {
           prompt_tokens: number | null
           provider_key: string
           step_key: string
+          success: boolean | null
           total_tokens: number | null
         }
         Insert: {
           completion_tokens?: number | null
           cost_usd?: number | null
           created_at?: string
+          error_code?: string | null
           id?: string
           job_id?: string | null
+          key_source_used?: string | null
           langfuse_trace_id?: string | null
           latency_ms?: number | null
           model_id: string
@@ -514,14 +650,17 @@ export type Database = {
           prompt_tokens?: number | null
           provider_key: string
           step_key: string
+          success?: boolean | null
           total_tokens?: number | null
         }
         Update: {
           completion_tokens?: number | null
           cost_usd?: number | null
           created_at?: string
+          error_code?: string | null
           id?: string
           job_id?: string | null
+          key_source_used?: string | null
           langfuse_trace_id?: string | null
           latency_ms?: number | null
           model_id?: string
@@ -529,6 +668,7 @@ export type Database = {
           prompt_tokens?: number | null
           provider_key?: string
           step_key?: string
+          success?: boolean | null
           total_tokens?: number | null
         }
         Relationships: [
@@ -550,34 +690,37 @@ export type Database = {
       }
       model_providers: {
         Row: {
-          base_url: string
+          api_base_url: string
           created_at: string
+          display_name: string
+          docs_url: string | null
           id: string
           is_active: boolean
           models_endpoint: string | null
-          name: string
           platform_key_available: boolean
           provider_key: string
           updated_at: string
         }
         Insert: {
-          base_url: string
+          api_base_url: string
           created_at?: string
+          display_name: string
+          docs_url?: string | null
           id?: string
           is_active?: boolean
           models_endpoint?: string | null
-          name: string
           platform_key_available?: boolean
           provider_key: string
           updated_at?: string
         }
         Update: {
-          base_url?: string
+          api_base_url?: string
           created_at?: string
+          display_name?: string
+          docs_url?: string | null
           id?: string
           is_active?: boolean
           models_endpoint?: string | null
-          name?: string
           platform_key_available?: boolean
           provider_key?: string
           updated_at?: string
@@ -623,6 +766,8 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          invited_by: string | null
+          joined_at: string | null
           org_id: string
           role: string
           status: string
@@ -632,6 +777,8 @@ export type Database = {
         Insert: {
           created_at?: string
           id?: string
+          invited_by?: string | null
+          joined_at?: string | null
           org_id: string
           role: string
           status?: string
@@ -641,6 +788,8 @@ export type Database = {
         Update: {
           created_at?: string
           id?: string
+          invited_by?: string | null
+          joined_at?: string | null
           org_id?: string
           role?: string
           status?: string
@@ -662,28 +811,34 @@ export type Database = {
           created_at: string
           id: string
           model_id: string
+          model_label: string | null
           org_id: string
           provider_key: string
           step_key: string
           updated_at: string
+          updated_by: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           model_id: string
+          model_label?: string | null
           org_id: string
           provider_key: string
           step_key: string
           updated_at?: string
+          updated_by?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           model_id?: string
+          model_label?: string | null
           org_id?: string
           provider_key?: string
           step_key?: string
           updated_at?: string
+          updated_by?: string | null
         }
         Relationships: [
           {
@@ -700,6 +855,7 @@ export type Database = {
           created_at: string
           encrypted_key: string
           id: string
+          key_label: string | null
           org_id: string
           provider_key: string
           updated_at: string
@@ -708,6 +864,7 @@ export type Database = {
           created_at?: string
           encrypted_key: string
           id?: string
+          key_label?: string | null
           org_id: string
           provider_key: string
           updated_at?: string
@@ -716,6 +873,7 @@ export type Database = {
           created_at?: string
           encrypted_key?: string
           id?: string
+          key_label?: string | null
           org_id?: string
           provider_key?: string
           updated_at?: string
@@ -732,6 +890,7 @@ export type Database = {
       }
       orgs: {
         Row: {
+          byok_mode: boolean
           country_code: string | null
           created_at: string
           dodo_customer_id: string | null
@@ -753,6 +912,7 @@ export type Database = {
           video_used: number
         }
         Insert: {
+          byok_mode?: boolean
           country_code?: string | null
           created_at?: string
           dodo_customer_id?: string | null
@@ -774,6 +934,7 @@ export type Database = {
           video_used?: number
         }
         Update: {
+          byok_mode?: boolean
           country_code?: string | null
           created_at?: string
           dodo_customer_id?: string | null
@@ -798,7 +959,10 @@ export type Database = {
       }
       outreach_copies: {
         Row: {
-          body: string
+          approved_at: string | null
+          approved_by: string | null
+          campaign_id: string | null
+          copy_text: string
           created_at: string
           id: string
           job_id: string | null
@@ -811,7 +975,10 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          body: string
+          approved_at?: string | null
+          approved_by?: string | null
+          campaign_id?: string | null
+          copy_text: string
           created_at?: string
           id?: string
           job_id?: string | null
@@ -824,7 +991,10 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          body?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          campaign_id?: string | null
+          copy_text?: string
           created_at?: string
           id?: string
           job_id?: string | null
@@ -837,6 +1007,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "outreach_copies_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_briefs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "outreach_copies_job_id_fkey"
             columns: ["job_id"]
@@ -863,11 +1040,14 @@ export type Database = {
       prospects: {
         Row: {
           company_description: string | null
+          company_domain: string | null
           company_name: string | null
           company_size: string | null
+          country: string | null
           created_at: string
           email: string | null
           enrichment_data: Json | null
+          enrichment_source: string | null
           first_name: string | null
           icp_fit_reason: string | null
           icp_score: number | null
@@ -878,15 +1058,19 @@ export type Database = {
           linkedin_url: string | null
           location: string | null
           org_id: string
+          status: string
           updated_at: string
         }
         Insert: {
           company_description?: string | null
+          company_domain?: string | null
           company_name?: string | null
           company_size?: string | null
+          country?: string | null
           created_at?: string
           email?: string | null
           enrichment_data?: Json | null
+          enrichment_source?: string | null
           first_name?: string | null
           icp_fit_reason?: string | null
           icp_score?: number | null
@@ -897,15 +1081,19 @@ export type Database = {
           linkedin_url?: string | null
           location?: string | null
           org_id: string
+          status?: string
           updated_at?: string
         }
         Update: {
           company_description?: string | null
+          company_domain?: string | null
           company_name?: string | null
           company_size?: string | null
+          country?: string | null
           created_at?: string
           email?: string | null
           enrichment_data?: Json | null
+          enrichment_source?: string | null
           first_name?: string | null
           icp_fit_reason?: string | null
           icp_score?: number | null
@@ -916,6 +1104,7 @@ export type Database = {
           linkedin_url?: string | null
           location?: string | null
           org_id?: string
+          status?: string
           updated_at?: string
         }
         Relationships: [
@@ -938,6 +1127,7 @@ export type Database = {
           headline: string | null
           id: string
           is_archived: boolean
+          matched_keywords: string[] | null
           matched_themes: string[] | null
           org_id: string
           published_at: string | null
@@ -962,6 +1152,7 @@ export type Database = {
           headline?: string | null
           id?: string
           is_archived?: boolean
+          matched_keywords?: string[] | null
           matched_themes?: string[] | null
           org_id: string
           published_at?: string | null
@@ -986,6 +1177,7 @@ export type Database = {
           headline?: string | null
           id?: string
           is_archived?: boolean
+          matched_keywords?: string[] | null
           matched_themes?: string[] | null
           org_id?: string
           published_at?: string | null

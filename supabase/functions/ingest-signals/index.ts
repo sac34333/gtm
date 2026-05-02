@@ -142,6 +142,13 @@ Deno.serve(async (req: Request) => {
             // Only store if score > 0
             if (relevanceScore <= 0) continue
 
+            // Compute which themes and keywords matched
+            const signalText = `${signal.headline} ${signal.summary ?? ''}`.toLowerCase()
+            const matchedThemes = activeThemes.filter((t) => signalText.includes(t.toLowerCase()))
+            const matchedKeywords = (config.keywords as string[] ?? []).filter((k) =>
+              signalText.includes(k.toLowerCase())
+            )
+
             const { error: insertError } = await db.from('signals').insert({
               org_id: org.id,
               feed_config_id: config.id,
@@ -153,6 +160,8 @@ Deno.serve(async (req: Request) => {
               source_type: signal.source_type,
               published_at: signal.published_at ?? null,
               relevance_score: relevanceScore,
+              matched_themes: matchedThemes,
+              matched_keywords: matchedKeywords,
               tags: signal.tags ?? [],
               status: 'unread',
             })

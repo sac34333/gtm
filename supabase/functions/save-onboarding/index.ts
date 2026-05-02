@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { getRegionalSources } from '../_shared/sources/regional.ts'
 
 const ALLOWED_ORIGINS = [
   'https://gtmengine.qubitlyventures.com',
@@ -98,6 +99,47 @@ Deno.serve(async (req: Request) => {
         .eq('id', org_id)
 
       onboarding_complete = true
+
+      // Activate regional feed sources based on country_code (silent on failure)
+      try {
+        const countryCode = (brandPayload.country_code as string | undefined) ?? ''
+        if (countryCode) {
+          const regionalSources = getRegionalSources(countryCode)
+          if (regionalSources.length > 0) {
+            // Only insert sources that don't already exist for this org
+            const { data: existing } = await serviceClient
+              .from('feed_configs')
+              .select('source_url, source_type')
+              .eq('org_id', org_id)
+              .eq('auto_activated', true)
+
+            const existingKeys = new Set(
+              (existing ?? []).map((fc) => `${fc.source_type}::${fc.source_url}`)
+            )
+
+            const toInsert = regionalSources
+              .filter((s) => !existingKeys.has(`${s.source_type}::${s.source_url}`))
+              .map((s) => ({
+                org_id,
+                source_type: s.source_type,
+                source_url: s.source_url,
+                source_label: s.source_label,
+                keywords: s.keywords,
+                requires_api_key: s.requires_api_key,
+                auto_activated: s.auto_activated,
+                cron_expression: s.cron_expression,
+                is_active: true,
+              }))
+
+            if (toInsert.length > 0) {
+              await serviceClient.from('feed_configs').insert(toInsert)
+            }
+          }
+        }
+      } catch (_regionalErr) {
+        // Silent failure — never block the save
+        console.error('regional feed activation failed silently')
+      }
 
       // Extract PDF text from guidelines (silent on failure)
       if (brandPayload.brand_guidelines_url) {
