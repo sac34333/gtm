@@ -191,6 +191,11 @@ export const SaveDataSourceKeyBodySchema = z.object({
 
 export const InviteUserBodySchema = z.object({
   email: z.string().email().max(254),
+  role: z.enum(['admin', 'member']).default('member'),
+})
+
+export const DeleteProviderKeyBodySchema = z.object({
+  provider_key: z.string().min(1).max(50),
 })
 
 export const RemoveMemberBodySchema = z.object({

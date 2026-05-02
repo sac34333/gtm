@@ -14,6 +14,9 @@ import {
   Target, Wand2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp,
   Loader2, Code2, X, ExternalLink, AlertCircle, Sparkles,
 } from 'lucide-react'
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
 import { REFINEMENT_CHIP_MAP, STRENGTH_INSTRUCTIONS } from '@/lib/refinement-chips'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -219,6 +222,8 @@ export default function CreatePage() {
   const [generatedJobId, setGeneratedJobId] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null)
   const [showRefinement, setShowRefinement] = useState(false)
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false)
+  const [quotaError, setQuotaError] = useState<{ quota_type: string; quota: number; used: number; resets_at: string | null } | null>(null)
 
   const supabase = getSupabaseBrowserClient()
 
@@ -303,8 +308,9 @@ export default function CreatePage() {
         const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: selectedModelId, provider_key: selectedProviderKey }) })
         if (!genRes.ok) {
           const err = await genRes.json()
-          if (err.error === 'quota_exceeded') setError('Quota reached. Upgrade to continue.')
-          else if (err.error === 'model_requires_paid_plan') setError('This model requires a paid plan.')
+          if (genRes.status === 402 || err.error === 'quota_exceeded') {
+            setQuotaError(err); setShowUpgradeModal(true); return
+          } else if (err.error === 'model_requires_paid_plan') setError('This model requires a paid plan.')
           else setError(err.error ?? 'Generation failed'); return
         }
         const genData = await genRes.json()
@@ -582,6 +588,33 @@ export default function CreatePage() {
         <RefinementPanel open={showRefinement} onClose={() => setShowRefinement(false)} originalJobId={generatedJobId} originalTags={tags} originalImageUrl={generatedImageUrl}
           onRefined={(newJobId, newUrl) => { setGeneratedImageUrl(newUrl); setGeneratedJobId(newJobId); setFeedback(null) }} />
       )}
+
+      {/* Quota exceeded upgrade modal */}
+      <Dialog open={showUpgradeModal} onOpenChange={open => !open && setShowUpgradeModal(false)}>
+        <DialogContent className="bg-[#12121e] border-white/10 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generation limit reached</DialogTitle>
+            <DialogDescription className="text-slate-400">
+              {quotaError ? (
+                <>You have used {quotaError.used ?? 0} of {quotaError.quota === 999999 ? 'unlimited' : quotaError.quota} {quotaError.quota_type}s this month.{quotaError.resets_at ? ` Resets on ${new Date(quotaError.resets_at).toLocaleDateString()}.` : ''}</>
+              ) : (
+                <>You have reached your generation quota for this month.</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="flex gap-2">
+            <Button variant="ghost" className="text-slate-400" onClick={() => setShowUpgradeModal(false)}>
+              Wait for reset
+            </Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-500 text-white"
+              onClick={() => { setShowUpgradeModal(false); router.push('/settings/billing') }}
+            >
+              Upgrade plan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
