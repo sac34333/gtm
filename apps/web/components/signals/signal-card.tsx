@@ -13,26 +13,35 @@ import { toast } from 'sonner'
 
 type Signal = Tables<'signals'>
 
-function relevanceBadgeClass(score: number) {
-  if (score >= 0.7) return 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
-  if (score >= 0.4) return 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-  return 'bg-slate-500/15 text-slate-400 border-slate-500/30'
+function relevanceBadge(score: number, publishedAt: string | null): { label: string; className: string } {
+  // Age-aware: an article older than 30 days can never be "High relevance",
+  // even if its keyword score is strong. Keeps the feed feeling fresh.
+  let ageDays = 0
+  if (publishedAt) {
+    const ms = new Date(publishedAt).getTime()
+    if (Number.isFinite(ms)) ageDays = (Date.now() - ms) / (1000 * 60 * 60 * 24)
+  }
+  const isFresh = ageDays <= 30
+
+  if (score >= 0.25 && isFresh) return { label: 'High relevance', className: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30' }
+  if (score >= 0.1) return { label: 'Medium', className: 'bg-amber-500/15 text-amber-400 border-amber-500/30' }
+  return { label: 'Low', className: 'bg-slate-500/15 text-slate-400 border-slate-500/30' }
 }
 
 const SOURCE_LABELS: Record<string, string> = {
-  rss: 'RSS',
-  hackernews: 'HN',
-  producthunt: 'PH',
+  rss: 'News',
+  hackernews: 'Hacker News',
+  producthunt: 'Product Hunt',
   github: 'GitHub',
   youtube: 'YouTube',
   reddit: 'Reddit',
-  newsapi: 'NewsAPI',
+  newsapi: 'News',
   twitter: 'Twitter',
-  gdelt: 'GDELT',
+  gdelt: 'Global News',
   apify_linkedin: 'LinkedIn',
-  tavily: 'Tavily',
-  brave_search: 'Brave',
-  regional_auto: 'Regional',
+  tavily: 'AI Search',
+  brave_search: 'Web Search',
+  regional_auto: 'Regional News',
 }
 
 interface SignalCardProps {
@@ -109,11 +118,10 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {signal.relevance_score != null && (
-              <Badge className={`text-xs tabular-nums border ${relevanceBadgeClass(signal.relevance_score)}`}>
-                {Math.round(signal.relevance_score * 100)}%
-              </Badge>
-            )}
+            {signal.relevance_score != null && (() => {
+              const { label, className } = relevanceBadge(signal.relevance_score, signal.published_at ?? null)
+              return <Badge className={`text-xs border ${className}`}>{label}</Badge>
+            })()}
           </div>
         </div>
       </CardHeader>

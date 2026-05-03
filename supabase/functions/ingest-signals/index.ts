@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
         // Check frequency
         if (org.last_signal_ingestion_at) {
           const lastRun = new Date(org.last_signal_ingestion_at).getTime()
-          const interval = FREQUENCY_INTERVALS[org.signal_ingestion_frequency ?? 'daily'] ?? FREQUENCY_INTERVALS.daily
+          const interval = FREQUENCY_INTERVALS[org.signal_ingestion_frequency ?? 'every_2_days'] ?? FREQUENCY_INTERVALS.every_2_days
           if (now - lastRun < interval) continue
         }
 
@@ -145,6 +145,16 @@ Deno.serve(async (req: Request) => {
 
             // Only store if score > 0
             if (relevanceScore <= 0) continue
+
+            // Skip articles older than 180 days at the source — avoids evergreen
+            // HN threads / Wikipedia pages from years ago resurfacing as "new" signals.
+            if (signal.published_at) {
+              const publishedMs = new Date(signal.published_at).getTime()
+              if (Number.isFinite(publishedMs)) {
+                const ageDays = (Date.now() - publishedMs) / (1000 * 60 * 60 * 24)
+                if (ageDays > 180) continue
+              }
+            }
 
             // Compute which themes and keywords matched (token-based, stopword-aware)
             const signalText = `${signal.headline} ${signal.summary ?? ''}`

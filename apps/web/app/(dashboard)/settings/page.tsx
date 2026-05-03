@@ -19,21 +19,19 @@ export default async function SettingsPage() {
   const existingKeys = (apiKeys ?? []).map((k) => k.key_name)
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 lg:p-8">
-      <div className="max-w-3xl mx-auto space-y-8">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-100">Settings</h1>
-          <p className="text-slate-400 mt-1">Configure your organisation&apos;s signal ingestion and data sources.</p>
-        </div>
-
-        <IngestionSettings
-          initialEnabled={org?.signal_ingestion_enabled ?? false}
-          initialFrequency={org?.signal_ingestion_frequency ?? 'daily'}
-          lastIngestionAt={org?.last_signal_ingestion_at ?? null}
-          existingKeys={existingKeys}
-          isAdmin={isAdmin}
-        />
+    <div className="mx-auto max-w-4xl px-6 py-8 space-y-8">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-100">General Settings</h1>
+        <p className="text-slate-400 text-sm mt-1">Configure your organisation&apos;s signal ingestion and data sources.</p>
       </div>
+
+      <IngestionSettings
+        initialEnabled={org?.signal_ingestion_enabled ?? false}
+        initialFrequency={org?.signal_ingestion_frequency ?? 'every_2_days'}
+        lastIngestionAt={org?.last_signal_ingestion_at ?? null}
+        existingKeys={existingKeys}
+        isAdmin={isAdmin}
+      />
     </div>
   )
 }

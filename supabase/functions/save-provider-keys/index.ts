@@ -16,16 +16,16 @@ Deno.serve(async (req: Request) => {
 
     await requireRole(orgId, user.id, 'admin', db)
 
-    // Check plan_tier — fully_subscribed cannot manage API keys
+    // Plan gate: only fully_subscribed plan can manage BYOK API keys
     const { data: org } = await db
       .from('orgs')
       .select('plan_tier')
       .eq('id', orgId)
       .single()
 
-    if (org?.plan_tier === 'fully_subscribed') {
+    if (org?.plan_tier !== 'fully_subscribed') {
       return new Response(
-        JSON.stringify({ error: 'api_key_management_disabled_on_fully_subscribed_plan' }),
+        JSON.stringify({ error: 'upgrade_required', message: 'BYOK API keys are available on the Fully Subscribed plan only.' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       )
     }

@@ -170,11 +170,11 @@ export default function SettingsTeamPage() {
   if (isError) {
     return (
       <div className="container mx-auto max-w-4xl px-4 py-12 space-y-4">
-        <h1 className="text-2xl font-bold text-white">Team</h1>
+        <h1 className="text-2xl font-bold text-slate-100">Team</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
           <p className="text-red-300">Failed to load team members.</p>
-          <Button variant="outline" className="border-white/10 text-white" onClick={() => refetch()}>
+          <Button variant="outline" className="border-slate-700 text-slate-100" onClick={() => refetch()}>
             Try again
           </Button>
         </div>
@@ -185,21 +185,21 @@ export default function SettingsTeamPage() {
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8 space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white">Team</h1>
+        <h1 className="text-2xl font-bold text-slate-100">Team</h1>
         <p className="text-slate-400 text-sm mt-1">Manage team members and invitations.</p>
       </div>
 
       {/* Seat counter */}
       <div className="text-sm text-slate-400">
-        <span className="text-white font-medium">{activeCount}</span> of{' '}
-        <span className="text-white font-medium">{org?.seat_limit ?? 2}</span> seats used
+        <span className="text-slate-100 font-medium">{activeCount}</span> of{' '}
+        <span className="text-slate-100 font-medium">{org?.seat_limit ?? 2}</span> seats used
       </div>
 
       {/* Members table */}
-      <div className="rounded-xl border border-white/8 overflow-hidden">
+      <div className="rounded-xl border border-slate-800 overflow-hidden">
         <Table>
           <TableHeader>
-            <TableRow className="border-white/8 hover:bg-transparent">
+            <TableRow className="border-slate-800 hover:bg-transparent">
               <TableHead className="text-slate-400">Email</TableHead>
               <TableHead className="text-slate-400">Role</TableHead>
               <TableHead className="text-slate-400">Status</TableHead>
@@ -215,7 +215,7 @@ export default function SettingsTeamPage() {
               const canChangeRole = isOwner && !isSelf
 
               return (
-                <TableRow key={member.id} className="border-white/5 hover:bg-white/3">
+                <TableRow key={member.id} className="border-slate-800 hover:bg-slate-900">
                   <TableCell className="text-slate-300 text-sm">
                     {member.email ?? `user_${member.user_id.slice(0, 8)}`}
                     {isSelf && <span className="ml-2 text-xs text-slate-500">(you)</span>}
@@ -256,13 +256,13 @@ export default function SettingsTeamPage() {
                               changeRoleMutation.mutate({ userId: member.user_id, newRole: newRole as 'admin' | 'member' })
                             }
                           >
-                            <SelectTrigger className="h-7 w-28 bg-white/5 border-white/10 text-white text-xs">
+                            <SelectTrigger className="h-7 w-28 bg-slate-800 border-slate-700 text-slate-100 text-xs">
                               <UserCog className="w-3 h-3 mr-1" />
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#1a1a2e] border-white/10">
-                              <SelectItem value="admin" className="text-white text-xs">Admin</SelectItem>
-                              <SelectItem value="member" className="text-white text-xs">Member</SelectItem>
+                            <SelectContent className="bg-[#1a1a2e] border-slate-700">
+                              <SelectItem value="admin" className="text-slate-100 text-xs">Admin</SelectItem>
+                              <SelectItem value="member" className="text-slate-100 text-xs">Member</SelectItem>
                             </SelectContent>
                           </Select>
                         )}
@@ -278,30 +278,30 @@ export default function SettingsTeamPage() {
 
       {/* Invite form */}
       {isAdminOrOwner && (
-        <div className="rounded-xl border border-white/8 bg-white/4 p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-white">Invite member</h2>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-100">Invite member</h2>
           <div className="flex gap-2">
             <Input
               type="email"
               placeholder="colleague@company.com"
               value={inviteEmail}
               onChange={e => setInviteEmail(e.target.value)}
-              className="flex-1 bg-white/5 border-white/10 text-white placeholder:text-slate-500 h-9"
+              className="flex-1 bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 h-9"
             />
             <Select
               value={inviteRole}
               onValueChange={v => setInviteRole(v as 'admin' | 'member')}
             >
-              <SelectTrigger className="w-28 bg-white/5 border-white/10 text-white h-9">
+              <SelectTrigger className="w-28 bg-slate-800 border-slate-700 text-slate-100 h-9">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-[#1a1a2e] border-white/10">
-                <SelectItem value="admin" className="text-white">Admin</SelectItem>
-                <SelectItem value="member" className="text-white">Member</SelectItem>
+              <SelectContent className="bg-[#1a1a2e] border-slate-700">
+                <SelectItem value="admin" className="text-slate-100">Admin</SelectItem>
+                <SelectItem value="member" className="text-slate-100">Member</SelectItem>
               </SelectContent>
             </Select>
             <Button
-              className="bg-indigo-600 hover:bg-indigo-500 text-white h-9"
+              className="bg-indigo-600 hover:bg-indigo-500 text-slate-100 h-9"
               onClick={() => inviteMutation.mutate()}
               disabled={!inviteEmail.trim() || inviteMutation.isPending}
             >
@@ -313,7 +313,7 @@ export default function SettingsTeamPage() {
 
       {/* Remove confirmation dialog */}
       <Dialog open={!!removeTarget} onOpenChange={open => !open && setRemoveTarget(null)}>
-        <DialogContent className="bg-[#12121e] border-white/10 text-white">
+        <DialogContent className="bg-[#12121e] border-slate-700 text-slate-100">
           <DialogHeader>
             <DialogTitle>Remove team member?</DialogTitle>
             <DialogDescription className="text-slate-400">
@@ -340,9 +340,9 @@ export default function SettingsTeamPage() {
 function TeamLoading() {
   return (
     <div className="container mx-auto max-w-4xl px-4 py-8 space-y-6">
-      <Skeleton className="h-8 w-24 bg-white/5" />
-      <Skeleton className="h-48 w-full bg-white/5 rounded-xl" />
-      <Skeleton className="h-24 w-full bg-white/5 rounded-xl" />
+      <Skeleton className="h-8 w-24 bg-slate-800" />
+      <Skeleton className="h-48 w-full bg-slate-800 rounded-xl" />
+      <Skeleton className="h-24 w-full bg-slate-800 rounded-xl" />
     </div>
   )
 }

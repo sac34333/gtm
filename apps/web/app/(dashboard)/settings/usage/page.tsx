@@ -114,20 +114,20 @@ export default function SettingsUsagePage() {
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-white">AI Usage</h1>
+        <h1 className="text-2xl font-bold text-slate-100">AI Usage</h1>
         <p className="text-slate-400 text-sm mt-1">Track AI model calls and estimated costs.</p>
       </div>
 
       {/* Period tabs */}
-      <div className="flex gap-1 p-1 bg-white/5 rounded-lg w-fit">
+      <div className="flex gap-1 p-1 bg-slate-800 rounded-lg w-fit">
         {PERIOD_TABS.map(tab => (
           <button
             key={tab.value}
             onClick={() => setPeriod(tab.value)}
             className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
               period === tab.value
-                ? 'bg-indigo-600 text-white font-medium'
-                : 'text-slate-400 hover:text-white'
+                ? 'bg-indigo-600 text-slate-100 font-medium'
+                : 'text-slate-400 hover:text-slate-100'
             }`}
           >
             {tab.label}
@@ -141,12 +141,12 @@ export default function SettingsUsagePage() {
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
           <p className="text-red-300">Failed to load usage data.</p>
-          <Button variant="outline" className="border-white/10 text-white" onClick={() => refetch()}>
+          <Button variant="outline" className="border-slate-700 text-slate-100" onClick={() => refetch()}>
             Try again
           </Button>
         </div>
       ) : !data || data.by_model.length === 0 ? (
-        <div className="rounded-xl border border-white/8 bg-white/4 p-12 text-center space-y-3">
+        <div className="rounded-xl border border-slate-800 bg-slate-900 p-12 text-center space-y-3">
           <p className="text-slate-300 font-medium">No AI usage recorded yet.</p>
           <p className="text-slate-500 text-sm">Generate a trend image or run an outreach copy step to see usage here.</p>
         </div>
@@ -154,18 +154,18 @@ export default function SettingsUsagePage() {
         <>
           {/* Stat cards */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="rounded-xl border border-white/8 bg-white/4 p-5 space-y-1">
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-1">
               <p className="text-xs text-slate-400 font-medium">Platform calls</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-2xl font-bold text-slate-100">
                 {formatNumber(data.key_source_split.platform.calls)}
               </p>
               <p className="text-xs text-slate-500">
                 {formatCost(data.key_source_split.platform.cost_usd)} est. cost
               </p>
             </div>
-            <div className="rounded-xl border border-white/8 bg-white/4 p-5 space-y-1">
+            <div className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-1">
               <p className="text-xs text-slate-400 font-medium">Your API key calls</p>
-              <p className="text-2xl font-bold text-white">
+              <p className="text-2xl font-bold text-slate-100">
                 {formatNumber(data.key_source_split.user.calls)}
               </p>
               <p className="text-xs text-slate-500">
@@ -175,10 +175,10 @@ export default function SettingsUsagePage() {
           </div>
 
           {/* Usage table */}
-          <div className="rounded-xl border border-white/8 overflow-hidden">
+          <div className="rounded-xl border border-slate-800 overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow className="border-white/8 hover:bg-transparent">
+                <TableRow className="border-slate-800 hover:bg-transparent">
                   <TableHead className="text-slate-400 font-medium">Provider</TableHead>
                   <TableHead className="text-slate-400 font-medium">Model</TableHead>
                   <TableHead className="text-slate-400 font-medium">Step</TableHead>
@@ -191,14 +191,14 @@ export default function SettingsUsagePage() {
               </TableHeader>
               <TableBody>
                 {data.by_model.map((row, i) => (
-                  <TableRow key={i} className="border-white/5 hover:bg-white/3">
+                  <TableRow key={i} className="border-slate-800 hover:bg-slate-900">
                     <TableCell className="text-slate-300 font-mono text-xs">{row.provider_key}</TableCell>
                     <TableCell className="text-slate-300 text-xs max-w-[180px] truncate">{row.model_id}</TableCell>
                     <TableCell className="text-slate-400 text-xs">{row.step_key ?? '—'}</TableCell>
-                    <TableCell className="text-white text-right">{formatNumber(row.total_calls)}</TableCell>
+                    <TableCell className="text-slate-100 text-right">{formatNumber(row.total_calls)}</TableCell>
                     <TableCell className="text-slate-300 text-right text-xs">{formatNumber(row.prompt_tokens)}</TableCell>
                     <TableCell className="text-slate-300 text-right text-xs">{formatNumber(row.completion_tokens)}</TableCell>
-                    <TableCell className="text-white text-right text-xs font-mono">{formatCost(row.estimated_cost_usd)}</TableCell>
+                    <TableCell className="text-slate-100 text-right text-xs font-mono">{formatCost(row.estimated_cost_usd)}</TableCell>
                     <TableCell>
                       {row.key_source_used === 'platform' ? (
                         <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400">Platform</span>
@@ -210,13 +210,13 @@ export default function SettingsUsagePage() {
                 ))}
 
                 {/* Totals row */}
-                <TableRow className="border-white/8 bg-white/4 font-semibold">
+                <TableRow className="border-slate-800 bg-slate-900 font-semibold">
                   <TableCell colSpan={3} className="text-slate-300">Total</TableCell>
-                  <TableCell className="text-white text-right">{formatNumber(data.totals.total_calls)}</TableCell>
+                  <TableCell className="text-slate-100 text-right">{formatNumber(data.totals.total_calls)}</TableCell>
                   <TableCell colSpan={2} className="text-slate-300 text-right text-xs">
                     {formatNumber(data.totals.total_tokens)} total
                   </TableCell>
-                  <TableCell className="text-white text-right text-xs font-mono">
+                  <TableCell className="text-slate-100 text-right text-xs font-mono">
                     {formatCost(data.totals.estimated_cost_usd)}
                   </TableCell>
                   <TableCell />
@@ -226,7 +226,7 @@ export default function SettingsUsagePage() {
           </div>
 
           {/* Disclaimer */}
-          <div className="flex items-start gap-2 text-xs text-slate-500 bg-white/3 rounded-lg px-4 py-3">
+          <div className="flex items-start gap-2 text-xs text-slate-500 bg-slate-900 rounded-lg px-4 py-3">
             <Info className="w-4 h-4 text-slate-400 flex-shrink-0 mt-0.5" />
             <span>
               Cost estimates are calculated from model pricing data in the GTM Engine catalog and are for reference only.
@@ -244,10 +244,10 @@ function UsageLoading() {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <Skeleton className="h-24 bg-white/5 rounded-xl" />
-        <Skeleton className="h-24 bg-white/5 rounded-xl" />
+        <Skeleton className="h-24 bg-slate-800 rounded-xl" />
+        <Skeleton className="h-24 bg-slate-800 rounded-xl" />
       </div>
-      <Skeleton className="h-64 bg-white/5 rounded-xl" />
+      <Skeleton className="h-64 bg-slate-800 rounded-xl" />
     </div>
   )
 }

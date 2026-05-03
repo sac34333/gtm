@@ -7,7 +7,7 @@
  */
 
 const PLAN_TIERS: Record<string, { seat_limit: number; image_quota: number; video_quota: number }> = {
-  starter: { seat_limit: 2, image_quota: 50, video_quota: 5 },
+  starter: { seat_limit: 2, image_quota: 5, video_quota: 2 },
   growth: { seat_limit: 5, image_quota: 300, video_quota: 30 },
   scale: { seat_limit: 20, image_quota: 999999, video_quota: 100 },
 }

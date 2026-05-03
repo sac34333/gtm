@@ -9,11 +9,11 @@ export default function BillingError({ error, reset }: { error: Error; reset: ()
   return (
     <div className="container mx-auto max-w-3xl px-4 py-12 flex flex-col items-center gap-4">
       <AlertTriangle className="w-10 h-10 text-amber-400" />
-      <p className="text-white font-semibold">Failed to load billing</p>
+      <p className="text-slate-100 font-semibold">Failed to load billing</p>
       <p className="text-slate-400 text-sm text-center max-w-sm">
         An unexpected error occurred. Your billing data could not be loaded.
       </p>
-      <Button variant="outline" className="border-white/10 text-white" onClick={reset}>
+      <Button variant="outline" className="border-slate-700 text-slate-100" onClick={reset}>
         Try again
       </Button>
     </div>

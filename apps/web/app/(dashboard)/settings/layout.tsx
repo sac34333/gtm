@@ -1,0 +1,47 @@
+'use client'
+
+import Link from 'next/link'
+import { usePathname } from 'next/navigation'
+import { Settings, Cpu, BarChart3, CreditCard, Users } from 'lucide-react'
+
+const TABS = [
+  { href: '/settings', label: 'General', icon: Settings, exact: true },
+  { href: '/settings/models', label: 'Models', icon: Cpu },
+  { href: '/settings/usage', label: 'Usage', icon: BarChart3 },
+  { href: '/settings/billing', label: 'Billing', icon: CreditCard },
+  { href: '/settings/team', label: 'Team', icon: Users },
+]
+
+export default function SettingsLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname()
+
+  return (
+    <div className="min-h-screen bg-slate-950">
+      <div className="border-b border-slate-800 bg-slate-950 sticky top-0 z-10">
+        <div className="mx-auto max-w-5xl px-6">
+          <nav className="flex gap-1 overflow-x-auto -mb-px">
+            {TABS.map(tab => {
+              const isActive = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href)
+              const Icon = tab.icon
+              return (
+                <Link
+                  key={tab.href}
+                  href={tab.href}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+                    isActive
+                      ? 'border-indigo-500 text-slate-100'
+                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-slate-700'
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}

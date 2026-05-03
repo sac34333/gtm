@@ -8,8 +8,8 @@ import { SignalCard } from '@/components/signals/signal-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
-import { Badge } from '@/components/ui/badge'
-import { TrendingUp, Loader2 } from 'lucide-react'
+import { TrendingUp } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 
 type Signal = Tables<'signals'>
 
@@ -21,7 +21,7 @@ async function fetchSignals(orgId: string, showDismissed: boolean, dateRange: Da
     .select('*')
     .eq('org_id', orgId)
     .order('relevance_score', { ascending: false })
-    .order('published_at', { ascending: false })
+    .order('created_at', { ascending: false })
     .limit(100)
 
   if (!showDismissed) {
@@ -33,26 +33,80 @@ async function fetchSignals(orgId: string, showDismissed: boolean, dateRange: Da
   if (dateRange !== 'all') {
     const days = dateRange === '7d' ? 7 : dateRange === '30d' ? 30 : 90
     const cutoff = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
-    query = query.gte('published_at', cutoff)
+    // Filter on discovery time (when WE ingested) so freshly-fetched signals always show.
+    query = query.gte('created_at', cutoff)
   }
+
+  // Hard cap on article age — never show signals whose source content is older
+  // than 180 days, even on "All time", to avoid evergreen HN threads from years ago.
+  const HARD_AGE_CAP_DAYS = 180
+  const ageCutoff = new Date(Date.now() - HARD_AGE_CAP_DAYS * 24 * 60 * 60 * 1000).toISOString()
+  query = query.or(`published_at.gte.${ageCutoff},published_at.is.null`)
 
   const { data, error } = await query
   if (error) throw error
   return data ?? []
 }
 
+const SOURCE_PILL_LABELS: Record<string, string> = {
+  rss: 'News',
+  hackernews: 'Hacker News',
+  producthunt: 'Product Hunt',
+  github: 'GitHub',
+  youtube: 'YouTube',
+  reddit: 'Reddit',
+  newsapi: 'News',
+  twitter: 'Twitter',
+  gdelt: 'Global News',
+  apify_linkedin: 'LinkedIn',
+  tavily: 'AI Search',
+  brave_search: 'Web Search',
+  regional_auto: 'Regional News',
+}
+
+type RelevanceTier = 'high' | 'medium' | 'low'
+
+function tierFor(score: number | null, publishedAt: string | null): RelevanceTier {
+  if (score == null) return 'low'
+  let ageDays = 0
+  if (publishedAt) {
+    const ms = new Date(publishedAt).getTime()
+    if (Number.isFinite(ms)) ageDays = (Date.now() - ms) / (1000 * 60 * 60 * 24)
+  }
+  const isFresh = ageDays <= 30
+  if (score >= 0.25 && isFresh) return 'high'
+  if (score >= 0.1) return 'medium'
+  return 'low'
+}
+
+const TIER_RANK: Record<RelevanceTier, number> = { high: 3, medium: 2, low: 1 }
+
 export function SignalFeed({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient()
   const [showDismissed, setShowDismissed] = useState(false)
   const [dateRange, setDateRange] = useState<DateRange>('30d')
   const [sourceFilter, setSourceFilter] = useState<string>('all')
+  const [relevanceFilter, setRelevanceFilter] = useState<'all' | RelevanceTier>('all')
 
-  const { data: signals = [], isLoading, isFetching } = useQuery({
+  const { data: signals = [], isLoading, isFetching, dataUpdatedAt } = useQuery({
     queryKey: ['signals', orgId, showDismissed, dateRange],
     queryFn: () => fetchSignals(orgId, showDismissed, dateRange),
     refetchInterval: 60 * 1000, // refresh every 60s
     staleTime: 30 * 1000,
   })
+
+  // "Last ingested" = newest created_at across the loaded rows.
+  // This reflects when the cron job actually wrote new signals, not when the
+  // browser last polled the DB (dataUpdatedAt would be misleading here).
+  const lastIngestedAt = signals.reduce<number>((max, s) => {
+    const t = s.created_at ? new Date(s.created_at).getTime() : 0
+    return t > max ? t : max
+  }, 0)
+  const lastUpdatedLabel = lastIngestedAt
+    ? formatDistanceToNow(new Date(lastIngestedAt), { addSuffix: true })
+    : null
+  // Suppress unused warning while keeping the import handy if you want to switch back
+  void dataUpdatedAt
 
   const handleDismiss = useCallback((id: string) => {
     queryClient.setQueryData<Signal[]>(['signals', orgId, showDismissed, dateRange], (old = []) => {
@@ -67,13 +121,35 @@ export function SignalFeed({ orgId }: { orgId: string }) {
     )
   }, [queryClient, orgId, showDismissed, dateRange])
 
-  // Derive distinct source types from loaded signals
-  const sourceTypes = Array.from(new Set(signals.map((s) => s.source_type).filter(Boolean))) as string[]
+  // Derive distinct source types from loaded signals + per-source counts
+  const sourceCounts = signals.reduce<Record<string, number>>((acc, s) => {
+    if (!s.source_type) return acc
+    acc[s.source_type] = (acc[s.source_type] ?? 0) + 1
+    return acc
+  }, {})
+  const sourceTypes = Object.keys(sourceCounts).sort((a, b) => sourceCounts[b]! - sourceCounts[a]!)
 
-  const filtered = signals.filter((s) => {
-    if (sourceFilter !== 'all' && s.source_type !== sourceFilter) return false
-    return true
-  })
+  // Per-tier counts (after source filter applied, before relevance filter)
+  const sourceFiltered = signals.filter((s) => sourceFilter === 'all' || s.source_type === sourceFilter)
+  const tierCounts = sourceFiltered.reduce<Record<RelevanceTier, number>>(
+    (acc, s) => { acc[tierFor(s.relevance_score, s.published_at ?? null)]++; return acc },
+    { high: 0, medium: 0, low: 0 },
+  )
+
+  // Final filtered + sorted list: tier desc, then score desc, then created_at desc
+  const filtered = sourceFiltered
+    .filter((s) => relevanceFilter === 'all' || tierFor(s.relevance_score, s.published_at ?? null) === relevanceFilter)
+    .sort((a, b) => {
+      const ta = TIER_RANK[tierFor(a.relevance_score, a.published_at ?? null)]
+      const tb = TIER_RANK[tierFor(b.relevance_score, b.published_at ?? null)]
+      if (tb !== ta) return tb - ta
+      const sa = a.relevance_score ?? 0
+      const sb = b.relevance_score ?? 0
+      if (sb !== sa) return sb - sa
+      const ca = a.created_at ? new Date(a.created_at).getTime() : 0
+      const cb = b.created_at ? new Date(b.created_at).getTime() : 0
+      return cb - ca
+    })
 
   const dismissedCount = signals.filter((s) => s.status === 'dismissed').length
 
@@ -108,25 +184,13 @@ export function SignalFeed({ orgId }: { orgId: string }) {
           ))}
         </div>
 
-        {/* Source type filter */}
-        {sourceTypes.length > 1 && (
-          <select
-            value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value)}
-            className="bg-slate-800 border border-slate-700 text-slate-300 text-xs rounded-md px-2 py-1"
-          >
-            <option value="all">All sources</option>
-            {sourceTypes.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        )}
-
-        {/* Show dismissed */}
-        <div className="flex items-center gap-2 ml-auto">
-          {isFetching && !isLoading && (
-            <Loader2 className="h-3 w-3 text-slate-500 animate-spin" />
-          )}
+        {/* Show dismissed + live indicator */}
+        <div className="flex items-center gap-3 ml-auto">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+            <span className={`h-1.5 w-1.5 rounded-full ${isFetching ? 'bg-emerald-400 animate-pulse' : 'bg-emerald-500/60'}`} />
+            <span>Live</span>
+            {lastUpdatedLabel && <span className="text-slate-600">· last fetched {lastUpdatedLabel}</span>}
+          </div>
           {dismissedCount > 0 && (
             <div className="flex items-center gap-2">
               <Switch
@@ -140,6 +204,58 @@ export function SignalFeed({ orgId }: { orgId: string }) {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Source pills with counts */}
+      {sourceTypes.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <button
+            onClick={() => setSourceFilter('all')}
+            className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+              sourceFilter === 'all'
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
+            }`}
+          >
+            All <span className="text-slate-500 ml-1">{signals.length}</span>
+          </button>
+          {sourceTypes.map((t) => (
+            <button
+              key={t}
+              onClick={() => setSourceFilter(t)}
+              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                sourceFilter === t
+                  ? 'bg-slate-700 text-white'
+                  : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
+              }`}
+            >
+              {SOURCE_PILL_LABELS[t] ?? t} <span className="text-slate-500 ml-1">{sourceCounts[t]}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Relevance pills */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {([
+          { key: 'all',    label: 'All',            count: sourceFiltered.length, dot: '' },
+          { key: 'high',   label: 'High relevance', count: tierCounts.high,   dot: 'bg-emerald-400' },
+          { key: 'medium', label: 'Medium',         count: tierCounts.medium, dot: 'bg-amber-400' },
+          { key: 'low',    label: 'Low',            count: tierCounts.low,    dot: 'bg-slate-500' },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setRelevanceFilter(t.key)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+              relevanceFilter === t.key
+                ? 'bg-slate-700 text-white'
+                : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
+            }`}
+          >
+            {t.dot && <span className={`h-1.5 w-1.5 rounded-full ${t.dot}`} />}
+            {t.label} <span className="text-slate-500 ml-0.5">{t.count}</span>
+          </button>
+        ))}
       </div>
 
       {/* Signal count */}

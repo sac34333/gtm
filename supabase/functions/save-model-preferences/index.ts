@@ -15,6 +15,20 @@ Deno.serve(async (req: Request) => {
 
     await requireRole(orgId, user.id, 'admin', db)
 
+    // Plan gate: only fully_subscribed plan can change model preferences
+    const { data: org } = await db
+      .from('orgs')
+      .select('plan_tier')
+      .eq('id', orgId)
+      .single()
+
+    if (org?.plan_tier !== 'fully_subscribed') {
+      return new Response(
+        JSON.stringify({ error: 'upgrade_required', message: 'Model selection is available on the Fully Subscribed plan only.' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
     const contentLength = Number(req.headers.get('content-length') ?? 0)
     if (contentLength > 1_048_576) {
       return new Response(JSON.stringify({ error: 'payload_too_large' }), {
