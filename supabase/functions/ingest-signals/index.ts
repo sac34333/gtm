@@ -1,6 +1,6 @@
 import { createServiceClient } from '../_shared/db.ts'
 import { decrypt } from '../_shared/encryption.ts'
-import { scoreRelevance } from '../_shared/relevance.ts'
+import { scoreRelevance, matchesTheme } from '../_shared/relevance.ts'
 import { fetchRSSFeed } from '../_shared/sources/rss.ts'
 import { fetchHackerNews } from '../_shared/sources/hackernews.ts'
 import { fetchProductHunt } from '../_shared/sources/producthunt.ts'
@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
         for (const config of feedConfigs ?? []) {
           let rawSignals: Signal[] = []
           try {
-            rawSignals = await callAdapter(config, orgKeys, getKey, activeThemes, competitorNames)
+            rawSignals = await callAdapter(config, orgKeys, getKey, activeThemes, competitorNames, db)
           } catch (err) {
             console.error(`Adapter error [${config.source_type}] org=${org.id}:`, err)
             // Increment error_count — don't abort
@@ -146,11 +146,11 @@ Deno.serve(async (req: Request) => {
             // Only store if score > 0
             if (relevanceScore <= 0) continue
 
-            // Compute which themes and keywords matched
-            const signalText = `${signal.headline} ${signal.summary ?? ''}`.toLowerCase()
-            const matchedThemes = activeThemes.filter((t) => signalText.includes(t.toLowerCase()))
+            // Compute which themes and keywords matched (token-based, stopword-aware)
+            const signalText = `${signal.headline} ${signal.summary ?? ''}`
+            const matchedThemes = activeThemes.filter((t) => matchesTheme(signalText, t))
             const matchedKeywords = (config.keywords as string[] ?? []).filter((k) =>
-              signalText.includes(k.toLowerCase())
+              matchesTheme(signalText, k)
             )
 
             const { error: insertError } = await db.from('signals').insert({
@@ -206,6 +206,7 @@ async function callAdapter(
   getKey: (name: string) => string | undefined,
   activeThemes: string[],
   competitorNames: string[],
+  db: ReturnType<typeof createServiceClient>,
 ): Promise<Signal[]> {
   const sourceType = config.source_type as string
   const sourceUrl = config.source_url as string
@@ -266,10 +267,43 @@ async function callAdapter(
     case 'tavily': {
       const key = getKey('tavily_api_key') ?? Deno.env.get('TAVILY_API_KEY')
       if (!key) throw new Error('tavily_api_key not set')
+      console.log(`[tavily] starting, key present, themes=${activeThemes.length}, competitors=${competitorNames.length}`)
+
+      // Budget: at most 1 search per theme/competitor per 6 hours.
+      // State is stored in feed_configs.config.tavily_last_called[query] = ISO timestamp.
+      const COOLDOWN_MS = 6 * 60 * 60 * 1000
+      const now = Date.now()
+      const cfg = (config.config as Record<string, unknown>) ?? {}
+      const lastCalled = (cfg.tavily_last_called as Record<string, string>) ?? {}
+      const updated: Record<string, string> = { ...lastCalled }
+
+      const queries = [...activeThemes.slice(0, 3), ...competitorNames.slice(0, 3)]
       const signals: Signal[] = []
-      for (const q of [...activeThemes.slice(0, 3), ...competitorNames.slice(0, 3)]) {
-        signals.push(...await fetchTavily(q, key))
+      let calls = 0
+      for (const q of queries) {
+        const last = lastCalled[q] ? new Date(lastCalled[q]).getTime() : 0
+        if (now - last < COOLDOWN_MS) {
+          console.log(`[tavily] skip "${q}" — cooldown`)
+          continue
+        }
+        try {
+          const results = await fetchTavily(q, key)
+          console.log(`[tavily] "${q}" → ${results.length} results`)
+          signals.push(...results)
+          updated[q] = new Date(now).toISOString()
+          calls++
+        } catch (err) {
+          console.error(`[tavily] query failed for "${q}":`, err)
+        }
       }
+
+      if (calls > 0) {
+        await db
+          .from('feed_configs')
+          .update({ config: { ...cfg, tavily_last_called: updated } })
+          .eq('id', config.id as string)
+      }
+
       return signals
     }
 
