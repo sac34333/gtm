@@ -368,9 +368,9 @@ export default function OnboardingPage() {
       extended_description: extended_description.trim() || undefined,
       products_services: validProducts.length > 0 ? validProducts : undefined,
       revenue_model: revenue_model || undefined,
-      geographies_served: geographies_served.length > 0 ? geographies_served : undefined,
-      industries_targeted: industries_targeted.length > 0 ? industries_targeted : undefined,
-      company_sizes_targeted: company_sizes_targeted.length > 0 ? company_sizes_targeted : undefined,
+      target_geographies: geographies_served.length > 0 ? geographies_served : undefined,
+      target_industries: industries_targeted.length > 0 ? industries_targeted : undefined,
+      target_company_sizes: company_sizes_targeted.length > 0 ? company_sizes_targeted : undefined,
       decision_maker_titles: decision_maker_titles.length > 0 ? decision_maker_titles : undefined,
     }
   }
@@ -396,8 +396,8 @@ export default function OnboardingPage() {
       brand_colours,
       visual_style: visual_style || undefined,
       dark_light_preference: dark_light_preference || undefined,
-      composition: composition || undefined,
-      human_faces: human_faces || undefined,
+      busy_minimal: composition || undefined,
+      human_faces: human_faces ? !['no'].includes(human_faces) : undefined,
       location_style: location_style || undefined,
     }
   }
@@ -408,7 +408,7 @@ export default function OnboardingPage() {
       competitor_names: competitor_names.length > 0 ? competitor_names : undefined,
       primary_platform,
       secondary_platform: secondary_platform || undefined,
-      target_posts_per_week: Number(target_posts_per_week),
+      posts_per_week: Number(target_posts_per_week),
       timezone,
       topics_to_avoid: topics_to_avoid_s4.length > 0 ? topics_to_avoid_s4 : undefined,
     }
@@ -417,8 +417,8 @@ export default function OnboardingPage() {
   function buildSection5Payload() {
     return {
       phrases_to_avoid: phrases_to_avoid.length > 0 ? phrases_to_avoid : undefined,
-      visual_styles_to_avoid: visual_styles_to_avoid.trim() || undefined,
-      cultural_sensitivities: cultural_sensitivities.trim() || undefined,
+      visual_styles_to_avoid: visual_styles_to_avoid.trim() ? [visual_styles_to_avoid.trim()] : undefined,
+      sensitivities: cultural_sensitivities.trim() || undefined,
     }
   }
 
@@ -1025,11 +1025,21 @@ function Section3({
             value={visual_style}
             onChange={setVisualStyle}
             options={[
-              { value: 'photography', label: 'Photography' },
-              { value: 'illustration', label: 'Illustration' },
-              { value: 'abstract', label: 'Abstract' },
-              { value: '3d', label: '3D render' },
-              { value: 'flat', label: 'Flat design' },
+              { value: 'photography', label: 'Photography — realistic' },
+              { value: 'editorial', label: 'Editorial — magazine-style' },
+              { value: 'corporate', label: 'Corporate — clean & professional' },
+              { value: 'modern_minimal', label: 'Modern minimal — Stripe / Linear style' },
+              { value: 'illustration', label: 'Illustration — custom drawn' },
+              { value: 'iso_illustration', label: 'Isometric illustration — SaaS style' },
+              { value: 'flat_vector', label: 'Flat vector — bold colours' },
+              { value: 'abstract', label: 'Abstract — geometric shapes' },
+              { value: 'gradient_mesh', label: 'Gradient mesh — modern fintech' },
+              { value: '3d_render', label: '3D render — premium feel' },
+              { value: 'data_viz', label: 'Data visualisation — charts & graphs' },
+              { value: 'screenshot', label: 'Product screenshot mockup' },
+              { value: 'documentary', label: 'Documentary photography' },
+              { value: 'cinematic', label: 'Cinematic — film-like' },
+              { value: 'mixed_media', label: 'Mixed media — collage' },
             ]}
             placeholder="Select style…"
           />
@@ -1040,9 +1050,13 @@ function Section3({
             value={dark_light_preference}
             onChange={setDarkLightPreference}
             options={[
-              { value: 'dark', label: 'Dark backgrounds' },
-              { value: 'light', label: 'Light backgrounds' },
-              { value: 'neutral', label: 'No preference' },
+              { value: 'dark', label: 'Dark — bold & premium' },
+              { value: 'mostly_dark', label: 'Mostly dark with light accents' },
+              { value: 'light', label: 'Light — clean & airy' },
+              { value: 'mostly_light', label: 'Mostly light with dark accents' },
+              { value: 'high_contrast', label: 'High contrast — striking' },
+              { value: 'neutral', label: 'Neutral — context-driven' },
+              { value: 'monochrome', label: 'Monochrome — single hue' },
             ]}
             placeholder="Select preference…"
           />
@@ -1053,9 +1067,14 @@ function Section3({
             value={composition}
             onChange={setComposition}
             options={[
-              { value: 'busy', label: 'Busy — lots of detail' },
-              { value: 'balanced', label: 'Balanced' },
-              { value: 'minimal', label: 'Minimal — clean space' },
+              { value: 'minimal', label: 'Minimal — lots of whitespace' },
+              { value: 'clean', label: 'Clean — focused single subject' },
+              { value: 'balanced', label: 'Balanced — symmetric layout' },
+              { value: 'asymmetric', label: 'Asymmetric — modern & dynamic' },
+              { value: 'layered', label: 'Layered — depth & dimension' },
+              { value: 'grid', label: 'Grid-based — structured' },
+              { value: 'busy', label: 'Busy — rich detail' },
+              { value: 'editorial_layout', label: 'Editorial — text + visual blocks' },
             ]}
             placeholder="Select composition…"
           />
@@ -1066,9 +1085,12 @@ function Section3({
             value={human_faces}
             onChange={setHumanFaces}
             options={[
-              { value: 'yes', label: 'Yes — include people' },
-              { value: 'no', label: 'No — no people please' },
+              { value: 'yes', label: 'Yes — feature people prominently' },
+              { value: 'occasional', label: 'Occasionally — when relevant' },
+              { value: 'hands_only', label: 'Hands / body parts only' },
+              { value: 'silhouettes', label: 'Silhouettes / abstract figures' },
               { value: 'diverse_only', label: 'Yes — diverse representation' },
+              { value: 'no', label: 'No — no people' },
             ]}
             placeholder="Select preference…"
           />
@@ -1079,9 +1101,17 @@ function Section3({
             value={location_style}
             onChange={setLocationStyle}
             options={[
-              { value: 'real_locations', label: 'Real locations' },
-              { value: 'studio', label: 'Studio / neutral' },
+              { value: 'modern_office', label: 'Modern office / co-working' },
+              { value: 'enterprise_office', label: 'Enterprise office — corporate' },
+              { value: 'home_office', label: 'Home office / remote work' },
+              { value: 'urban', label: 'Urban — cityscapes' },
+              { value: 'industrial', label: 'Industrial / warehouse' },
+              { value: 'event_conference', label: 'Conference / event setting' },
+              { value: 'studio', label: 'Studio — neutral backdrop' },
+              { value: 'outdoor_natural', label: 'Outdoor / natural light' },
               { value: 'abstract', label: 'Abstract / conceptual' },
+              { value: 'product_focus', label: 'Product focus — no setting' },
+              { value: 'screen_first', label: 'Screen-first — UI / dashboards' },
             ]}
             placeholder="Select setting…"
           />

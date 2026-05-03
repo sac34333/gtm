@@ -1,4 +1,4 @@
-ï»¿import { validateJWT, requireRole } from '../_shared/auth.ts'
+import { validateJWT, requireRole } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { resolveApiKey, routeGeneration, routeVideoGeneration } from '../_shared/providers/router.ts'
@@ -152,7 +152,7 @@ Deno.serve(async (req: Request) => {
 
     const startTime = Date.now()
 
-    // Call provider â€” video always async, image can be sync or async
+    // Call provider — video always async, image can be sync or async
     let result: any
     try {
       if (assetType === 'video') {
@@ -173,7 +173,7 @@ Deno.serve(async (req: Request) => {
     const generationTimeMs = Date.now() - startTime
     const storagePath = `assets/${org_id}/${jobId}.${assetType === 'video' ? 'mp4' : 'png'}`
 
-    // Synchronous completion â€” image models that return outputUrl immediately
+    // Synchronous completion — image models that return outputUrl immediately
     if (result.outputUrl && assetType === 'image') {
       await db.from('generation_jobs').update({
         status: 'completed',
@@ -190,7 +190,7 @@ Deno.serve(async (req: Request) => {
       }), { status: 200, headers: corsHeaders })
     }
 
-    // Async â€” video or slow image model
+    // Async — video or slow image model
     // Store the external job reference for poll-job-status to use
     const externalJobId = result.request_id ?? result.operationName ?? result.jobId ?? null
     if (externalJobId) {

@@ -1,10 +1,14 @@
 import { createServiceClient } from '../_shared/db.ts'
 
 Deno.serve(async (req: Request) => {
-  // Cron-triggered — verify service role key
+  // Cron-triggered — accept CRON_SECRET or service role key
+  const cronSecretHeader = req.headers.get('x-cron-secret') ?? ''
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
   const authHeader = req.headers.get('Authorization') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  if (!authHeader.includes(serviceRoleKey)) {
+  const cronOk = cronSecret.length > 0 && cronSecretHeader === cronSecret
+  const srOk = serviceRoleKey.length > 0 && authHeader.includes(serviceRoleKey)
+  if (!cronOk && !srOk) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
   }
 

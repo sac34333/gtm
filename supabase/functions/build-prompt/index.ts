@@ -1,4 +1,4 @@
-﻿import { validateJWT } from '../_shared/auth.ts'
+import { validateJWT } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 
@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
 
     const db = createServiceClient()
 
-    // Fetch brand context — direct SELECT, no pgvector in v1
+    // Fetch brand context � direct SELECT, no pgvector in v1
     const { data: brand, error: brandError } = await db
       .from('brand_contexts')
       .select('*')

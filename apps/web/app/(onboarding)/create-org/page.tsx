@@ -19,9 +19,19 @@ export default function CreateOrgPage() {
     if (!orgName.trim()) return
     setLoading(true)
 
+    // Derive slug: lowercase, a-z 0-9, hyphens, 3-30 chars
+    const baseSlug = orgName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 24)
+    const slug = (baseSlug.length >= 3 ? baseSlug : `org-${baseSlug}`)
+      + '-' + Math.random().toString(36).slice(2, 7)
+
     const supabase = getSupabaseBrowserClient()
     const { data, error } = await supabase.functions.invoke('create-org', {
-      body: { name: orgName.trim() },
+      body: { name: orgName.trim(), slug },
     })
 
     if (error || data?.error) {

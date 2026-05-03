@@ -1,4 +1,4 @@
-﻿import { createServiceClient } from '../_shared/db.ts'
+import { createServiceClient } from '../_shared/db.ts'
 import { decrypt } from '../_shared/encryption.ts'
 
 // Image jobs: timeout at 60 polls (60 min). Video jobs: 600 polls (10 hrs).
@@ -38,7 +38,7 @@ async function sendVideoCompletionEmail(
       body: JSON.stringify({
         from: 'GTM Engine <noreply@gtmengine.qubitlyventures.com>',
         to: [userEmail],
-        subject: 'Your video is ready! 🎬',
+        subject: 'Your video is ready! ??',
         html: `<h2>Your AI video is ready</h2>
 <p>Your <strong>${job.model_id}</strong> video has been generated successfully.</p>
 <p><a href="${appUrl}/create/${job.id}" style="background:#4F46E5;color:white;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block;">View your video</a></p>
@@ -52,9 +52,13 @@ async function sendVideoCompletionEmail(
 
 Deno.serve(async (req: Request) => {
   // Cron-triggered: verify service role key in Authorization header
+  const cronSecretHeader = req.headers.get('x-cron-secret') ?? ''
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
   const authHeader = req.headers.get('Authorization') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  if (!authHeader.includes(serviceRoleKey)) {
+  const cronOk = cronSecret.length > 0 && cronSecretHeader === cronSecret
+  const srOk = serviceRoleKey.length > 0 && authHeader.includes(serviceRoleKey)
+  if (!cronOk && !srOk) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
   }
 

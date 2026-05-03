@@ -1,9 +1,9 @@
-﻿import { validateJWT, extractOrgId, requireRole } from '../_shared/auth.ts'
+import { validateJWT, extractOrgId, requireRole } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { decrypt } from '../_shared/encryption.ts'
 
-// Module-level cache: org_id → {data, timestamp}
+// Module-level cache: org_id ? {data, timestamp}
 const cache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_TTL_MS = 10 * 60 * 1000 // 10 minutes
 

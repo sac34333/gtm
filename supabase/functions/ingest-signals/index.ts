@@ -24,10 +24,14 @@ const FREQUENCY_INTERVALS: Record<string, number> = {
 }
 
 Deno.serve(async (req: Request) => {
-  // Cron-triggered: verify service role key in Authorization header
+  // Cron-triggered: accept either CRON_SECRET (x-cron-secret header) or service role key (Authorization)
+  const cronSecretHeader = req.headers.get('x-cron-secret') ?? ''
+  const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
   const authHeader = req.headers.get('Authorization') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  if (!authHeader.includes(serviceRoleKey)) {
+  const cronOk = cronSecret.length > 0 && cronSecretHeader === cronSecret
+  const srOk = serviceRoleKey.length > 0 && authHeader.includes(serviceRoleKey)
+  if (!cronOk && !srOk) {
     return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
   }
 

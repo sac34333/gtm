@@ -70,11 +70,13 @@ Deno.serve(async (req: Request) => {
     if (signal_ingestion_enabled === true && !org.last_signal_ingestion_at) {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')
-        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+        const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+        const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
         await fetch(`${supabaseUrl}/functions/v1/ingest-signals`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${serviceKey}`,
+            'x-cron-secret': cronSecret,
             'Content-Type': 'application/json',
           },
         })

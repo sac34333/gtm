@@ -1,4 +1,4 @@
-﻿import { validateJWT } from '../_shared/auth.ts'
+import { validateJWT } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 
