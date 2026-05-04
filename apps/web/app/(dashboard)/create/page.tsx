@@ -138,7 +138,7 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
     setChipKeys(prev => prev.includes(key) ? prev.filter(c => c !== key) : [...prev, key])
   }
   function toggleToggle(key: string) {
-    setToggleKeys(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
+    setToggleKeys(prev => { const next = new Set(prev); if (next.has(key)) { next.delete(key) } else { next.add(key) } return next })
   }
 
   async function applyRefinements() {

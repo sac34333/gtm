@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(url)
   }
 
-  let response = NextResponse.redirect(new URL(safeNext, origin))
+  const response = NextResponse.redirect(new URL(safeNext, origin))
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

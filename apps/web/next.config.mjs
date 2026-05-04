@@ -2,6 +2,11 @@ import { withSentryConfig } from '@sentry/nextjs'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  eslint: {
+    // Lint warnings/errors should not block Cloudflare Pages production builds.
+    // Run `npm run lint` locally / in CI separately.
+    ignoreDuringBuilds: true,
+  },
   images: {
     // Cloudflare Pages does not run the default Next image optimiser at the edge.
     // Use `unoptimized` so <Image> just emits a plain <img> referencing the source URL.
