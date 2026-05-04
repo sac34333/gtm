@@ -55,6 +55,7 @@ Deno.serve(async (req: Request) => {
     const allowedFields = [
       'name', 'status', 'campaign_type', 'description',
       'channel_mix', 'start_date', 'end_date', 'job_id',
+      'duration_days', 'working_days_only',
     ] as const
 
     for (const field of allowedFields) {

@@ -65,6 +65,8 @@ export default function NewCampaignPage() {
   const [description, setDescription] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [durationDays, setDurationDays] = useState<number>(14)
+  const [workingDaysOnly, setWorkingDaysOnly] = useState<boolean>(true)
 
   // Step 2
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['linkedin_message', 'email'])
@@ -156,6 +158,8 @@ export default function NewCampaignPage() {
           start_date: startDate || undefined,
           end_date: endDate || undefined,
           job_id: selectedJobId || undefined,
+          duration_days: durationDays,
+          working_days_only: workingDaysOnly,
         }),
       })
 
@@ -275,6 +279,51 @@ export default function NewCampaignPage() {
                 <Input id="end" type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
                   className="bg-slate-900 border-slate-700 text-white" />
               </div>
+            </div>
+
+            {/* Campaign length */}
+            <div className="space-y-2">
+              <Label className="text-slate-300">Campaign length</Label>
+              <div className="flex flex-wrap gap-2">
+                {[7, 14, 21, 30].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDurationDays(d)}
+                    className={`px-3 h-9 rounded-lg text-sm font-medium border transition-colors ${
+                      durationDays === d
+                        ? 'bg-indigo-600 border-indigo-500 text-white'
+                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-600'
+                    }`}
+                  >
+                    {d} days
+                  </button>
+                ))}
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={90}
+                    value={[7, 14, 21, 30].includes(durationDays) ? '' : durationDays}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10)
+                      if (Number.isFinite(v) && v >= 1 && v <= 90) setDurationDays(v)
+                    }}
+                    placeholder="Custom"
+                    className="w-24 h-9 bg-slate-900 border-slate-700 text-white"
+                  />
+                  <span className="text-xs text-slate-500">days (1-90)</span>
+                </div>
+              </div>
+              <label className="flex items-center gap-2 mt-2 text-sm text-slate-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={workingDaysOnly}
+                  onChange={(e) => setWorkingDaysOnly(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0"
+                />
+                Working days only (skip weekends)
+              </label>
             </div>
           </div>
         )}

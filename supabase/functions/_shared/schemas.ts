@@ -212,6 +212,8 @@ export const CreateCampaignBodySchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   job_id: z.string().uuid().optional(),
+  duration_days: z.number().int().min(1).max(90).optional(),
+  working_days_only: z.boolean().optional(),
 })
 
 export const AddCampaignProspectsBodySchema = z.object({
@@ -229,6 +231,8 @@ export const UpdateCampaignBodySchema = z.object({
   start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
   job_id: z.string().uuid().optional().nullable(),
+  duration_days: z.number().int().min(1).max(90).optional(),
+  working_days_only: z.boolean().optional(),
 })
 
 export const GenerateCampaignBriefBodySchema = z.object({

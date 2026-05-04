@@ -46,6 +46,8 @@ Deno.serve(async (req: Request) => {
         start_date: body.start_date ?? null,
         end_date: body.end_date ?? null,
         job_id: body.job_id ?? null,
+        ...(body.duration_days !== undefined ? { duration_days: body.duration_days } : {}),
+        ...(body.working_days_only !== undefined ? { working_days_only: body.working_days_only } : {}),
       })
       .select('id')
       .single()

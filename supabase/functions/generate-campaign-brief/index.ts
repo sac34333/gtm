@@ -407,6 +407,10 @@ Deno.serve(async (req: Request) => {
     // Resolve job_id, channel_mix, prospect list
     const jobId = body.job_id ?? campaign.job_id
     const channelMix: string[] = body.channel_mix ?? campaign.channel_mix ?? ['linkedin_message', 'email']
+    // Resolve campaign length. Falls back to 14 for older campaigns whose row
+    // pre-dates the duration_days column. workingDaysOnly defaults to true.
+    const durationDays: number = Math.max(1, Math.min(90, Number(campaign.duration_days ?? 14)))
+    const workingDaysOnly: boolean = campaign.working_days_only !== false
 
     let prospectIds: string[] = body.prospect_ids ?? []
     if (prospectIds.length === 0) {
@@ -509,8 +513,14 @@ Deno.serve(async (req: Request) => {
       },
     }
     const arc = arcMap[campaignType] ?? arcMap.awareness
+    // The arcMap day ranges are written for a 14-day campaign. If the user
+    // chose a different duration, instruct the LLM to compress/expand each
+    // phase proportionally so the same narrative arc fits the actual length.
+    const durationGuidance = durationDays === 14
+      ? ''
+      : `\nDURATION: This campaign is ${durationDays} days long (not 14). The PHASING above describes a 14-day arc — compress or expand each phase proportionally so the same narrative shape fits ${durationDays} days. e.g. for a 7-day campaign, halve every phase range; for a 30-day campaign, roughly double each phase range. Do NOT keep the literal day numbers from the PHASING text.`
     const phaseGuidance = `OBJECTIVE: ${arc.objective}
-PHASING: ${arc.phases}
+PHASING: ${arc.phases}${durationGuidance}
 POST TYPES TO ROTATE: ${arc.postTypes}
 CTA STYLE: ${arc.ctaStyle}`
 
@@ -637,7 +647,7 @@ ${phaseGuidance}
 - Every channel-content piece must reference the asset or its core promise concretely (no generic "exciting product" copy).
 - Vary post times across the day per channel (do NOT use the same time for every entry).
 - Use realistic time slots: LinkedIn posts 07:30-09:30 or 17:00-18:00 local; Email 10:00-11:00 or 13:00-15:00 local; Twitter 12:00-13:00 or 17:00-18:00 or 20:00-22:00 local.
-- Skip Saturday & Sunday entirely.
+- ${workingDaysOnly ? 'Skip Saturday & Sunday entirely.' : 'Weekends are allowed — distribute posts across all 7 days.'}
 - Hashtags: branded must include a campaign-specific tag derived from the campaign name; provide 8-15 unique hashtags total across categories.
 - Email subjects: < 55 chars, no emoji, no spam triggers, curiosity-driven.
 - LinkedIn posts: 800-1300 chars with paragraph breaks (use \\n\\n in JSON strings).
@@ -680,7 +690,7 @@ ${contentSchema}
   }
 }
 
-Generate exactly 14 schedule entries starting ${new Date().toISOString().slice(0, 10)} (skip weekends).
+Generate exactly ${durationDays} schedule entries starting ${new Date().toISOString().slice(0, 10)}${workingDaysOnly ? ' (skip Saturday & Sunday — only working days)' : ' (include weekends)'}.
 Generate at least 2 variants per channel under "content" for any channel in scope.
 Generate at least 8 hashtags total across the sets.
 Only include "timing_recommendations" entries for channels in scope: ${channelList}.`
