@@ -4,6 +4,10 @@ import './globals.css'
 import { Providers } from './providers'
 import { Toaster } from 'sonner'
 
+// Run the entire app on the Edge runtime so it can be deployed to
+// Cloudflare Pages via @cloudflare/next-on-pages.
+export const runtime = 'edge'
+
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {

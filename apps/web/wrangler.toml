@@ -1,0 +1,7 @@
+name = "gtm-engine"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+# next-on-pages emits a Worker bundle into .vercel/output/static/_worker.js
+# The pages_build_output_dir tells Wrangler / Cloudflare Pages where to upload from.
+pages_build_output_dir = ".vercel/output/static"
