@@ -45,13 +45,20 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: corsHeaders })
     }
 
-    // 2. Look up pending org_members row for this user
-    const { data: pendingMember, error: memberError } = await serviceClient
+    // 2. Look up pending org_members row for this user.
+    // If the invite carries an org_id in user_metadata (set by invite-user), use it
+    // to disambiguate when the user has pending invites from multiple orgs.
+    const invitedOrgId = (user.user_metadata as { org_id?: string } | null)?.org_id ?? null
+
+    let lookup = serviceClient
       .from('org_members')
       .select('org_id, role')
       .eq('user_id', user.id)
       .eq('status', 'pending')
-      .maybeSingle()
+
+    if (invitedOrgId) lookup = lookup.eq('org_id', invitedOrgId)
+
+    const { data: pendingMember, error: memberError } = await lookup.maybeSingle()
 
     if (memberError) {
       console.error('org_members lookup error:', memberError?.code)

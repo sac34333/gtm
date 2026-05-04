@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { AlertCircle, CheckCircle2, CreditCard, Zap, ImageIcon, Video, Users } from 'lucide-react'
+import { AlertCircle, CheckCircle2, CreditCard, Zap, ImageIcon, Video, Users, Target } from 'lucide-react'
 import { format } from 'date-fns'
 
 // ─── Plan definitions ─────────────────────────────────────────────────────────
@@ -20,6 +20,7 @@ const PLANS = [
     seats: 2,
     images: 5,
     videos: 2,
+    prospects: '2 runs × 20 = 40/mo',
     description: 'Try the product. Limited quotas.',
     badge: 'bg-slate-700 text-slate-200 border-slate-600',
     accent: 'border-slate-700',
@@ -31,6 +32,7 @@ const PLANS = [
     seats: 5,
     images: 'Use your keys',
     videos: 'Use your keys',
+    prospects: '50 runs × 500 = 25,000/mo',
     description: 'You pay providers directly. We handle ingestion + UI.',
     badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
     accent: 'border-amber-500/40',
@@ -42,6 +44,7 @@ const PLANS = [
     seats: 10,
     images: 300,
     videos: 30,
+    prospects: '15 runs × 200 = 3,000/mo',
     description: 'We cover all AI costs. Switch any model. BYOK optional.',
     badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
     accent: 'border-indigo-500/40',
@@ -88,6 +91,7 @@ async function createCheckoutSession(planId: string): Promise<string> {
 interface OrgBillingData {
   id: string
   plan_tier: string
+  byok_mode: boolean
   seat_limit: number
   image_quota: number
   video_quota: number
@@ -97,28 +101,67 @@ interface OrgBillingData {
   dodo_customer_id: string | null
 }
 
-async function fetchOrgBilling(): Promise<{ org: OrgBillingData; role: string; seatCount: number }> {
+// Mirror server-side PROSPECT_LIMITS in supabase/functions/icp-enrich/index.ts.
+// Runs are counted per 30-day window across all tiers.
+const ICP_LIMITS: Record<string, { runs: number; max_per_run: number }> = {
+  starter:          { runs: 2,  max_per_run: 20  },
+  fully_subscribed: { runs: 15, max_per_run: 200 },
+}
+const ICP_BYOK_LIMITS = { runs: 50, max_per_run: 500 }
+
+function getIcpLimits(planTier: string, byok: boolean) {
+  if (byok) return ICP_BYOK_LIMITS
+  return ICP_LIMITS[planTier] ?? ICP_LIMITS.starter
+}
+
+async function fetchOrgBilling(): Promise<{
+  org: OrgBillingData
+  role: string
+  seatCount: number
+  icpRunsUsed: number
+  icpProspectsUsed: number
+}> {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('not_authenticated')
   const orgId = (user.app_metadata as { org_id?: string })?.org_id
   if (!orgId) throw new Error('no_org')
 
-  const [{ data: org, error }, { data: member }, { count }] = await Promise.all([
+  const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+
+  const [{ data: org, error }, { data: member }, { count }, { data: prospectRows }] = await Promise.all([
     supabase
       .from('orgs')
-      .select('id, plan_tier, seat_limit, image_quota, video_quota, image_used, video_used, quota_reset_at, dodo_customer_id')
+      .select('id, plan_tier, byok_mode, seat_limit, image_quota, video_quota, image_used, video_used, quota_reset_at, dodo_customer_id')
       .eq('id', orgId)
       .single(),
     supabase.from('org_members').select('role').eq('org_id', orgId).eq('user_id', user.id).single(),
     supabase.from('org_members').select('id', { count: 'exact', head: true }).eq('org_id', orgId).eq('status', 'active'),
+    supabase
+      .from('prospects')
+      .select('created_at, enrichment_source')
+      .eq('org_id', orgId)
+      .gte('created_at', monthAgo)
+      .limit(20000),
   ])
 
   if (error || !org) throw new Error('Failed to load billing data')
+
+  // Count distinct web_search runs (minute-bucket) in the 30-day window — matches icp-enrich logic.
+  const buckets = new Set<string>()
+  let prospectsUsed = 0
+  for (const row of (prospectRows ?? []) as Array<{ created_at: string; enrichment_source: string | null }>) {
+    prospectsUsed++
+    if (row.enrichment_source === 'web_search') {
+      buckets.add(String(row.created_at).slice(0, 16))
+    }
+  }
 
   return {
     org: org as OrgBillingData,
     role: member?.role ?? 'member',
     seatCount: count ?? 0,
+    icpRunsUsed: buckets.size,
+    icpProspectsUsed: prospectsUsed,
   }
 }
 
@@ -176,12 +219,14 @@ export default function SettingsBillingPage() {
     )
   }
 
-  const { org, role, seatCount } = data
+  const { org, role, seatCount, icpRunsUsed = 0, icpProspectsUsed = 0 } = data
   const isOwner = role === 'owner'
   const isUnlimited = org.image_quota >= 999_999
   const imagePercent = isUnlimited ? 0 : Math.min(100, (org.image_used / Math.max(org.image_quota, 1)) * 100)
   const videoPercent = Math.min(100, (org.video_used / Math.max(org.video_quota, 1)) * 100)
   const seatPercent = Math.min(100, (seatCount / Math.max(org.seat_limit, 1)) * 100)
+  const icpLimits = getIcpLimits(org.plan_tier, Boolean(org.byok_mode))
+  const icpPercent = Math.min(100, (icpRunsUsed / Math.max(icpLimits.runs, 1)) * 100)
   const currentPlan = PLANS.find(p => p.id === org.plan_tier) ?? PLANS[0]
   const resetDate = org.quota_reset_at ? format(new Date(org.quota_reset_at), 'MMM d, yyyy') : null
 
@@ -206,10 +251,18 @@ export default function SettingsBillingPage() {
           </span>
         </div>
 
-        <div className="grid sm:grid-cols-3 gap-4 pt-2">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
           <UsageMeter icon={ImageIcon} label="Images" used={org.image_used} limit={isUnlimited ? null : org.image_quota} percent={imagePercent} />
           <UsageMeter icon={Video} label="Videos" used={org.video_used} limit={org.video_quota} percent={videoPercent} />
           <UsageMeter icon={Users} label="Seats" used={seatCount} limit={org.seat_limit} percent={seatPercent} />
+          <UsageMeter
+            icon={Target}
+            label="ICP runs"
+            used={icpRunsUsed}
+            limit={icpLimits.runs}
+            percent={icpPercent}
+            sublabel={`${icpProspectsUsed} prospects · up to ${icpLimits.max_per_run}/run`}
+          />
         </div>
 
         {resetDate && (
@@ -245,6 +298,7 @@ export default function SettingsBillingPage() {
                   <li>{plan.seats} seats</li>
                   <li>{typeof plan.images === 'number' ? `${plan.images} images/mo` : plan.images}</li>
                   <li>{typeof plan.videos === 'number' ? `${plan.videos} videos/mo` : plan.videos}</li>
+                  <li className="text-slate-500">ICP: {plan.prospects}</li>
                 </ul>
                 {isOwner && !isCurrent && plan.id !== 'starter' && (
                   <Button
@@ -286,12 +340,13 @@ export default function SettingsBillingPage() {
   )
 }
 
-function UsageMeter({ icon: Icon, label, used, limit, percent }: {
+function UsageMeter({ icon: Icon, label, used, limit, percent, sublabel }: {
   icon: React.ComponentType<{ className?: string }>
   label: string
   used: number
   limit: number | null
   percent: number
+  sublabel?: string
 }) {
   const isNearLimit = percent >= 80
   return (
@@ -305,6 +360,9 @@ function UsageMeter({ icon: Icon, label, used, limit, percent }: {
         </span>
       </div>
       <Progress value={limit === null ? 0 : percent} className="h-1.5 bg-slate-800" />
+      {sublabel && (
+        <p className="text-[10px] text-slate-500">{sublabel}</p>
+      )}
     </div>
   )
 }

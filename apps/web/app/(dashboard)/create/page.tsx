@@ -17,7 +17,8 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
-import { REFINEMENT_CHIP_MAP, STRENGTH_INSTRUCTIONS } from '@/lib/refinement-chips'
+import { BackButton } from '@/components/layout/back-button'
+import { SocialCopySection } from '@/components/generation/social-copy-section'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
@@ -92,10 +93,12 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
   open: boolean; onClose: () => void; originalJobId: string; originalTags: PromptTags
   originalImageUrl: string; onRefined: (jobId: string, url: string) => void
 }) {
-  const [chips, setChips] = useState<string[]>([])
+  type RefinementOption = { id: string; option_type: 'chip' | 'strength' | 'toggle'; option_key: string; label: string; instruction_text: string; position: number; org_id: string | null }
+  const [options, setOptions] = useState<RefinementOption[]>([])
+  const [loadingOptions, setLoadingOptions] = useState(true)
+  const [chipKeys, setChipKeys] = useState<string[]>([])
   const [strength, setStrength] = useState(2)
-  const [keepColours, setKeepColours] = useState(true)
-  const [keepSubject, setKeepSubject] = useState(true)
+  const [toggleKeys, setToggleKeys] = useState<Set<string>>(new Set(['keep_colours', 'keep_subject']))
   const [customText, setCustomText] = useState('')
   const [isRefining, setIsRefining] = useState(false)
   const [refinedUrl, setRefinedUrl] = useState<string | null>(null)
@@ -103,20 +106,64 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
   const [refineError, setRefineError] = useState<string | null>(null)
   const supabase = getSupabaseBrowserClient()
 
-  function toggleChip(chip: string) {
-    setChips(prev => prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip])
+  useEffect(() => {
+    if (!open) return
+    let active = true
+    ;(async () => {
+      setLoadingOptions(true)
+      const { data } = await supabase
+        .from('refinement_options')
+        .select('id, option_type, option_key, label, instruction_text, position, org_id')
+        .eq('is_active', true)
+        .order('position', { ascending: true })
+      if (!active) return
+      // Org rows override globals on (option_type, option_key)
+      const merged = new Map<string, RefinementOption>()
+      ;(data ?? []).forEach((row: any) => {
+        const k = row.option_type + ':' + row.option_key
+        const existing = merged.get(k)
+        if (!existing || (existing.org_id === null && row.org_id !== null)) merged.set(k, row)
+      })
+      setOptions(Array.from(merged.values()).sort((a, b) => a.position - b.position))
+      setLoadingOptions(false)
+    })()
+    return () => { active = false }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const chipOptions = options.filter(o => o.option_type === 'chip')
+  const strengthOptions = options.filter(o => o.option_type === 'strength')
+  const toggleOptions = options.filter(o => o.option_type === 'toggle')
+
+  function toggleChip(key: string) {
+    setChipKeys(prev => prev.includes(key) ? prev.filter(c => c !== key) : [...prev, key])
+  }
+  function toggleToggle(key: string) {
+    setToggleKeys(prev => { const next = new Set(prev); next.has(key) ? next.delete(key) : next.add(key); return next })
   }
 
   async function applyRefinements() {
-    if (chips.length === 0 && !customText.trim()) return
+    if (chipKeys.length === 0 && !customText.trim()) return
     setIsRefining(true); setRefineError(null)
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) return
       const headers = { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-      const chipInstructions = chips.map(c => REFINEMENT_CHIP_MAP[c] ?? c).join(' ')
-      const strengthNote = (STRENGTH_INSTRUCTIONS[strength] ?? '').replace('[chips selected]', chips.join(', '))
-      const refinedTags: PromptTags = { ...originalTags, additional_notes: [chipInstructions, customText.trim(), strengthNote, keepColours ? 'Keep the brand colours.' : '', keepSubject ? 'Keep the main subject/element.' : ''].filter(Boolean).join(' ') }
+
+      const chipLookup = new Map(chipOptions.map(o => [o.option_key, o]))
+      const strengthLookup = new Map(strengthOptions.map(o => [o.option_key, o]))
+      const toggleLookup = new Map(toggleOptions.map(o => [o.option_key, o]))
+
+      const chipInstructions = chipKeys.map(k => chipLookup.get(k)?.instruction_text ?? '').filter(Boolean).join(' ')
+      const selectedChipLabels = chipKeys.map(k => chipLookup.get(k)?.label ?? k).join(', ')
+      const strengthRow = strengthLookup.get('strength_' + strength)
+      const strengthNote = (strengthRow?.instruction_text ?? '').replace('[chips selected]', selectedChipLabels)
+      const toggleNotes = Array.from(toggleKeys).map(k => toggleLookup.get(k)?.instruction_text ?? '').filter(Boolean).join(' ')
+
+      const refinedTags: PromptTags = {
+        ...originalTags,
+        additional_notes: [chipInstructions, customText.trim(), strengthNote, toggleNotes].filter(Boolean).join(' '),
+      }
+
       const buildRes = await fetch(`${SUPABASE_URL}/functions/v1/build-prompt`, { method: 'POST', headers, body: JSON.stringify({ prompt_tags: refinedTags }) })
       if (!buildRes.ok) throw new Error('Failed to build refined prompt')
       const { content_job } = await buildRes.json()
@@ -161,30 +208,47 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-slate-400">What to fix</Label>
                 <div className="flex flex-wrap gap-2">
-                  {Object.keys(REFINEMENT_CHIP_MAP).map(chip => (
-                    <button key={chip} type="button" onClick={() => toggleChip(chip)}
-                      className={`px-3 py-1.5 rounded-full text-xs border transition-all ${chips.includes(chip) ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300' : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}>
-                      {chip}
+                  {loadingOptions ? (
+                    <span className="text-xs text-slate-500">Loading options…</span>
+                  ) : chipOptions.map(opt => (
+                    <button key={opt.option_key} type="button" onClick={() => toggleChip(opt.option_key)}
+                      className={`px-3 py-1.5 rounded-full text-xs border transition-all ${chipKeys.includes(opt.option_key) ? 'border-indigo-500 bg-indigo-500/20 text-indigo-300' : 'border-slate-700 bg-slate-800 text-slate-400 hover:border-slate-600'}`}>
+                      {opt.label}
                     </button>
                   ))}
-                  <button type="button" onClick={() => setCustomText(t => t || ' ')} className="px-3 py-1.5 rounded-full text-xs border border-dashed border-slate-600 text-slate-500 hover:border-slate-500">Something else…</button>
+                  <button type="button" onClick={() => setCustomText(t => t || ' ')} className="px-3 py-1.5 rounded-full text-xs border border-dashed border-slate-600 text-slate-300 hover:border-slate-400 hover:text-slate-100">+ Type your own</button>
                 </div>
-                {customText !== '' && <Input value={customText} onChange={e => setCustomText(e.target.value)} placeholder="Describe what to change…" className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 text-sm mt-2" />}
+                {customText !== '' && <Input value={customText} onChange={e => setCustomText(e.target.value)} placeholder="e.g. swap the laptop for a tablet, make the woman older, add a chart on the screen…" className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 text-sm mt-2" />}
               </div>
-              <div className="space-y-3">
+              <div className="space-y-3 pt-2">
                 <div className="flex justify-between items-center">
-                  <Label className="text-sm font-medium text-slate-400">How different from the original?</Label>
-                  <span className="text-xs text-indigo-400">{strength}/5</span>
+                  <Label className="text-sm font-medium text-slate-300">How different from the original?</Label>
+                  <span className="text-xs font-semibold text-indigo-400">{strength}/5</span>
                 </div>
-                <Slider min={1} max={5} step={1} value={[strength]} onValueChange={(v: number | readonly number[]) => setStrength(Array.isArray(v) ? (v as number[])[0] : (v as number))} className="py-1" />
-                <div className="flex justify-between text-xs text-slate-500"><span>Small tweak</span><span>Completely new</span></div>
+                <Slider
+                  min={1}
+                  max={5}
+                  step={1}
+                  value={[strength]}
+                  onValueChange={(v: number | readonly number[]) => setStrength(Array.isArray(v) ? (v as number[])[0] : (v as number))}
+                  className="py-2 [&_[data-slot=slider-thumb]]:!size-5 [&_[data-slot=slider-thumb]]:!bg-indigo-400 [&_[data-slot=slider-thumb]]:!border-indigo-200 [&_[data-slot=slider-thumb]]:shadow-lg [&_[data-slot=slider-track]]:!bg-slate-700 [&_[data-slot=slider-track]]:!h-1.5 [&_[data-slot=slider-range]]:!bg-indigo-500"
+                />
+                <div className="flex justify-between text-xs text-slate-500">
+                  <span>{strengthOptions.find(o => o.option_key === 'strength_1')?.label ?? 'Tiny tweak'}</span>
+                  <span>{strengthOptions.find(o => o.option_key === 'strength_5')?.label ?? 'Reimagine'}</span>
+                </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <SelectCard selected={keepColours} onClick={() => setKeepColours(v => !v)}><span className="text-xs text-slate-300 text-center leading-tight">Keep my<br />brand colours</span></SelectCard>
-                <SelectCard selected={keepSubject} onClick={() => setKeepSubject(v => !v)}><span className="text-xs text-slate-300 text-center leading-tight">Keep the<br />main subject</span></SelectCard>
-              </div>
+              {toggleOptions.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 pt-2">
+                  {toggleOptions.map(opt => (
+                    <SelectCard key={opt.option_key} selected={toggleKeys.has(opt.option_key)} onClick={() => toggleToggle(opt.option_key)}>
+                      <span className="text-xs text-slate-300 text-center leading-tight">{opt.label}</span>
+                    </SelectCard>
+                  ))}
+                </div>
+              )}
               {refineError && <p className="text-sm text-red-400 flex items-center gap-1.5"><AlertCircle className="w-4 h-4 shrink-0" />{refineError}</p>}
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-500" disabled={isRefining || (chips.length === 0 && !customText.trim())} onClick={applyRefinements}>
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-500" disabled={isRefining || (chipKeys.length === 0 && !customText.trim())} onClick={applyRefinements}>
                 {isRefining ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Refining…</> : 'Apply refinements'}
               </Button>
             </>
@@ -199,6 +263,7 @@ export default function CreatePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const signalId = searchParams.get('signal_id')
+  const parentJobId = searchParams.get('parent_job_id')
 
   const [tags, setTags] = useState<PromptTags>(DEFAULT_TAGS)
   const [assetType, setAssetType] = useState<AssetType>('image')
@@ -209,6 +274,8 @@ export default function CreatePage() {
   const [models, setModels] = useState<Model[]>([])
   const [selectedModelId, setSelectedModelId] = useState('')
   const [selectedProviderKey, setSelectedProviderKey] = useState('')
+  const [planTier, setPlanTier] = useState<string>('starter')
+  const [canChangeModels, setCanChangeModels] = useState(false)
   const [brand, setBrand] = useState<BrandContext | null>(null)
   const [quotaUsed, setQuotaUsed] = useState(0)
   const [quotaMax, setQuotaMax] = useState(50)
@@ -240,6 +307,8 @@ export default function CreatePage() {
       if (modelsRes.ok) {
         const data = await modelsRes.json()
         setModels(data.models ?? [])
+        setPlanTier(data.plan_tier ?? 'starter')
+        setCanChangeModels(!!data.can_change_models)
         const prefs: any[] = data.preferences ?? []
         const imgModels = (data.models ?? []).filter((m: Model) => m.model_type === 'image')
         const pref = prefs.find((p: any) => p.step_key === 'image_generation')
@@ -266,6 +335,26 @@ export default function CreatePage() {
     })
   }, [signalId])
 
+  // Pre-fill form from URL params (e.g. when arriving from Regenerate on a job page).
+  // Runs once on mount; brand-context defaults are then overridden by these explicit values.
+  useEffect(() => {
+    const incoming: Partial<PromptTags> & { asset_type?: string } = {}
+    const tagKeys: (keyof PromptTags)[] = [
+      'subject', 'mood', 'platform', 'aspect_ratio', 'visual_style',
+      'colour_palette', 'cta_text', 'negative_prompt', 'additional_notes',
+    ]
+    tagKeys.forEach(k => {
+      const v = searchParams.get(k as string)
+      if (v) (incoming as any)[k] = v
+    })
+    const at = searchParams.get('asset_type')
+    if (at === 'image' || at === 'video') setAssetType(at)
+    if (Object.keys(incoming).length > 0) {
+      setTags(prev => ({ ...prev, ...incoming }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => { if (showJson) setJsonText(JSON.stringify({ signal_id: signalId, prompt_tags: tags }, null, 2)) }, [tags, showJson, signalId])
 
   useEffect(() => {
@@ -282,12 +371,15 @@ export default function CreatePage() {
   }
 
   async function submitFeedback(thumb: 'up' | 'down') {
-    if (!generatedJobId || feedback !== null) return
-    setFeedback(thumb)
+    if (!generatedJobId) return
+    // Allow toggling: clicking same thumb again clears it; clicking the other swaps it.
+    const next: 'up' | 'down' | null = feedback === thumb ? null : thumb
+    setFeedback(next)
+    if (next === null) return // nothing to record on the server side; row stays as last value
     const { data: { session } } = await supabase.auth.getSession(); if (!session) return
     await fetch(`${SUPABASE_URL}/functions/v1/submit-feedback`, {
       method: 'POST', headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ job_id: generatedJobId, thumbs: thumb }),
+      body: JSON.stringify({ job_id: generatedJobId, thumbs: next }),
     })
   }
 
@@ -305,7 +397,7 @@ export default function CreatePage() {
         if (!buildRes.ok) { const err = await buildRes.json(); setError(err.error ?? 'Failed to build prompt'); return }
         const { content_job } = await buildRes.json()
         content_job.model_id = selectedModelId; content_job.provider_key = selectedProviderKey; content_job.asset_type = assetType
-        const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: selectedModelId, provider_key: selectedProviderKey }) })
+        const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: selectedModelId, provider_key: selectedProviderKey, ...(parentJobId ? { parent_job_id: parentJobId } : {}) }) })
         if (!genRes.ok) {
           const err = await genRes.json()
           if (genRes.status === 402 || err.error === 'quota_exceeded') {
@@ -332,6 +424,7 @@ export default function CreatePage() {
   return (
     <div className="min-h-screen bg-slate-950">
       <div className="max-w-7xl mx-auto px-4 py-8">
+        <BackButton href={signalId ? '/dashboard' : '/library'} label={signalId ? 'Back to signals' : 'Back to library'} />
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-slate-100">Create Asset</h1>
@@ -506,26 +599,48 @@ export default function CreatePage() {
               <Label className="text-sm font-medium text-slate-400">Asset type</Label>
               <div className="grid grid-cols-2 gap-3">
                 <SelectCard selected={assetType === 'image'} onClick={() => setAssetType('image')}>
-                  <ImageIcon className="w-6 h-6 text-slate-300" /><span className="text-sm font-medium text-slate-200">Image</span><span className="text-xs text-slate-500">Ready in ~20s</span>
+                  <ImageIcon className="w-6 h-6 text-slate-300" /><span className="text-sm font-medium text-slate-200">Image</span>
                 </SelectCard>
                 <SelectCard selected={assetType === 'video'} onClick={() => setAssetType('video')}>
-                  <Video className="w-6 h-6 text-slate-300" /><span className="text-sm font-medium text-slate-200">Video</span><span className="text-xs text-slate-500">Ready in 2–5 min</span>
+                  <Video className="w-6 h-6 text-slate-300" /><span className="text-sm font-medium text-slate-200">Video</span>
                 </SelectCard>
               </div>
             </div>
 
-            {/* Model selector */}
+            {/* Model selector — hidden when org can't change models (starter / byok).
+                Shows a passive "Using X" line so the user knows what's running. */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-2">
               <Label className="text-sm font-medium text-slate-400">AI Model</Label>
               {filteredModels.length === 0 ? (
-                <p className="text-sm text-slate-500 py-1">No {assetType} models available.</p>
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-300">
+                    {assetType === 'video'
+                      ? 'Video generation isn\u2019t available on your current plan.'
+                      : 'No image models available on your current plan.'}
+                  </p>
+                  <a href="/settings/billing" className="inline-flex text-xs text-indigo-300 hover:text-indigo-200 underline underline-offset-2">Upgrade plan →</a>
+                </div>
+              ) : canChangeModels ? (
+                <>
+                  <select value={selectedModelId} onChange={e => { const m = filteredModels.find(x => x.model_id === e.target.value); if (m) { setSelectedModelId(m.model_id); setSelectedProviderKey(m.provider_key) } }} className="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    {filteredModels.map(m => <option key={m.model_id} value={m.model_id}>{m.model_label}{m.default_for_step_key?.some(s => s.includes(assetType)) ? ' ★' : ''}</option>)}
+                  </select>
+                  {selectedModel && <p className="text-xs text-slate-500">{selectedModel.estimated_time_seconds ? `~${selectedModel.estimated_time_seconds}s · ` : ''}{selectedModel.cost_tier ?? ''}{selectedModel.org_has_key ? ' · Your key' : ' · Platform key'}</p>}
+                  <a href="/settings/models" className="text-xs text-slate-500 hover:text-indigo-400 underline underline-offset-2">Change default in Settings</a>
+                </>
               ) : (
-                <select value={selectedModelId} onChange={e => { const m = filteredModels.find(x => x.model_id === e.target.value); if (m) { setSelectedModelId(m.model_id); setSelectedProviderKey(m.provider_key) } }} className="w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                  {filteredModels.map(m => <option key={m.model_id} value={m.model_id}>{m.model_label}{m.default_for_step_key?.some(s => s.includes(assetType)) ? ' ★' : ''}</option>)}
-                </select>
+                <>
+                  <div className="flex items-center justify-between gap-2 px-3 py-2 bg-slate-800/60 border border-slate-700 rounded-md">
+                    <span className="text-sm text-slate-200 truncate">{selectedModel?.model_label ?? filteredModels[0]?.model_label}</span>
+                    <span className="text-[10px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded px-1.5 py-0.5 whitespace-nowrap">Default</span>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    {selectedModel?.estimated_time_seconds ? `~${selectedModel.estimated_time_seconds}s` : ''}
+                    {' · '}Optimised for your plan.
+                  </p>
+                  <a href="/settings/billing" className="text-xs text-slate-500 hover:text-indigo-400 underline underline-offset-2">Upgrade to choose models</a>
+                </>
               )}
-              {selectedModel && <p className="text-xs text-slate-500">{selectedModel.estimated_time_seconds ? `~${selectedModel.estimated_time_seconds}s · ` : ''}{selectedModel.cost_tier ?? ''}{selectedModel.org_has_key ? ' · Your key' : ' · Platform key'}</p>}
-              <a href="/settings/models" className="text-xs text-slate-500 hover:text-indigo-400 underline underline-offset-2">Change default in Settings</a>
             </div>
 
             {/* Error */}
@@ -557,26 +672,34 @@ export default function CreatePage() {
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
                 <img src={generatedImageUrl} alt="Generated asset" className="w-full rounded-lg border border-slate-700 object-cover" />
                 <div className="grid grid-cols-2 gap-2">
-                  <Button variant="outline" size="sm" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => { const a = document.createElement('a'); a.href = generatedImageUrl; a.download = `gtm-${generatedJobId.slice(0, 8)}.png`; a.click() }}>
+                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={async () => { try { const res = await fetch(generatedImageUrl); const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `gtm-${generatedJobId.slice(0, 8)}.png`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url) } catch {} }}>
                     <Download className="w-3.5 h-3.5 mr-1.5" />Download
                   </Button>
-                  <Button variant="outline" size="sm" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => setShowRefinement(true)}>
+                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={() => setShowRefinement(true)}>
                     <Wand2 className="w-3.5 h-3.5 mr-1.5" />Refine
                   </Button>
-                  <Button variant="outline" size="sm" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => router.push(`/icp?job_id=${generatedJobId}`)}>
+                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={() => router.push(`/icp?job_id=${generatedJobId}`)}>
                     <Target className="w-3.5 h-3.5 mr-1.5" />For campaign
                   </Button>
-                  <Button variant="outline" size="sm" className="border-slate-700 text-slate-300 hover:bg-slate-800" onClick={() => { setGeneratedImageUrl(null); setGeneratedJobId(null); setFeedback(null); handleGenerate() }}>
+                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={() => { setGeneratedImageUrl(null); setGeneratedJobId(null); setFeedback(null); handleGenerate() }}>
                     <RefreshCw className="w-3.5 h-3.5 mr-1.5" />Regenerate
                   </Button>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-800 pt-3">
                   <span className="text-xs text-slate-500">Was this image good?</span>
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => submitFeedback('up')} disabled={feedback !== null} className={`p-1.5 rounded transition-colors ${feedback === 'up' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}><ThumbsUp className="w-4 h-4" /></button>
-                    <button type="button" onClick={() => submitFeedback('down')} disabled={feedback !== null} className={`p-1.5 rounded transition-colors ${feedback === 'down' ? 'text-red-400' : 'text-slate-500 hover:text-slate-300'}`}><ThumbsDown className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => submitFeedback('up')} className={`p-1.5 rounded transition-colors ${feedback === 'up' ? 'text-emerald-400' : 'text-slate-500 hover:text-slate-300'}`}><ThumbsUp className="w-4 h-4" /></button>
+                    <button type="button" onClick={() => submitFeedback('down')} className={`p-1.5 rounded transition-colors ${feedback === 'down' ? 'text-red-400' : 'text-slate-500 hover:text-slate-300'}`}><ThumbsDown className="w-4 h-4" /></button>
                     <button type="button" onClick={() => router.push(`/create/${generatedJobId}`)} className="text-xs text-slate-500 hover:text-indigo-400 ml-2">Full view →</button>
                   </div>
+                </div>
+                <div className="border-t border-slate-800 pt-3">
+                  <SocialCopySection
+                    jobId={generatedJobId}
+                    captions={null}
+                    preferredPlatform={tags.platform ?? null}
+                    compact
+                  />
                 </div>
               </div>
             )}

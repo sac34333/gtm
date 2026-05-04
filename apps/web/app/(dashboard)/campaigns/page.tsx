@@ -11,6 +11,7 @@ import {
   Briefcase, AtSign, Mail, MessageSquare,
   Image as ImageIcon, ChevronRight, MoreHorizontal,
 } from 'lucide-react'
+import { BackButton } from '@/components/layout/back-button'
 
 interface Campaign {
   id: string
@@ -197,6 +198,8 @@ export default function CampaignsPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       <div className="max-w-screen-xl mx-auto px-6 py-10 space-y-8">
+
+        <BackButton href="/dashboard" label="Back to dashboard" />
 
         {/* Header */}
         <div className="flex items-center justify-between gap-4">

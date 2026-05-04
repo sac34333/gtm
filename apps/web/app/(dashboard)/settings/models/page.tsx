@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/client'
 import Link from 'next/link'
-import { Lock, RotateCcw, Eye, EyeOff, ExternalLink, AlertCircle, KeyRound, Sparkles, Zap, Image as ImageIcon, Video, FileText, Brain, Mail, FileSignature, Search, ShieldAlert } from 'lucide-react'
+import { Lock, RotateCcw, Eye, EyeOff, ExternalLink, AlertCircle, KeyRound, Sparkles, Zap, Image as ImageIcon, Video, FileText, Brain, Mail, FileSignature, Search, ShieldAlert, Megaphone, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -75,6 +75,8 @@ const STEP_CARDS: Array<{ step_key: string; label: string; description: string; 
   { step_key: 'video_generation', label: 'Video Generation', description: 'Used when you click Generate Video on /create.', model_type: 'video', icon: Video, note: null },
   { step_key: 'prompt_assembly', label: 'Prompt Assembly', description: 'Builds the final image / video prompt from your tags + brand context + signal.', model_type: 'text', icon: FileText, note: null },
   { step_key: 'outreach_copy', label: 'Outreach Copy', description: 'Personalises ICP outreach messages.', model_type: 'text', icon: Mail, note: null },
+  { step_key: 'icp_enrichment', label: 'ICP & Prospects', description: 'Finds real prospects matching your ICP via AI search across LinkedIn, Crunchbase and news.', model_type: 'text', icon: Users, note: 'Uses online / AI-search models. Perplexity Sonar recommended.' },
+  { step_key: 'social_caption', label: 'Social Captions', description: 'Auto-writes per-platform copy (LinkedIn, X, Instagram, WhatsApp) for every image and video.', model_type: 'text', icon: Megaphone, note: null },
   { step_key: 'campaign_brief', label: 'Campaign Brief', description: 'Writes the per-campaign PDF brief.', model_type: 'text', icon: FileSignature, note: null },
   { step_key: 'brand_embedding', label: 'Brand Embedding', description: 'Vector representation of your brand voice for semantic recall.', model_type: 'embedding', icon: Brain, note: null },
   { step_key: 'relevance_scoring', label: 'Relevance Scoring', description: 'Reserved for future on-demand AI rescoring of signals.', model_type: 'text', icon: Search, note: 'v1 uses zero-cost TF-IDF — this card is informational only.' },

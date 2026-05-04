@@ -81,10 +81,20 @@ export async function callOpenRouterImage(
   orgSlug: string,
   orgId: string,
   jobId: string,
+  referenceImageUrl?: string,
 ): Promise<{ bytes: Uint8Array; outputUrl: string }> {
+  // If a reference image is supplied, use multimodal message format so the
+  // model can EDIT the existing image instead of generating from scratch.
+  const userContent: any = referenceImageUrl
+    ? [
+        { type: 'text', text: compiledPrompt },
+        { type: 'image_url', image_url: { url: referenceImageUrl } },
+      ]
+    : compiledPrompt
+
   const body: any = {
     model: modelId,
-    messages: [{ role: 'user', content: compiledPrompt }],
+    messages: [{ role: 'user', content: userContent }],
     user: orgId,
     session_id: jobId,
     trace: {
@@ -92,6 +102,7 @@ export async function callOpenRouterImage(
       org_slug: orgSlug,
       step_key: 'image_generation',
       job_id: jobId,
+      mode: referenceImageUrl ? 'edit' : 'generate',
     },
   }
 
@@ -139,7 +150,7 @@ export async function callOpenRouterImage(
 
   // Upload to Supabase Storage
   const supabase = createServiceClient()
-  const storagePath = `assets/${orgId}/${jobId}.png`
+  const storagePath = `${orgId}/${jobId}.png`
   const { error: uploadError } = await supabase.storage
     .from('assets')
     .upload(storagePath, bytes, { contentType: 'image/png', upsert: true })

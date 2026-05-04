@@ -2,6 +2,53 @@ import { validateJWT } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 
+// ----- helpers -----
+function truncate(s: string | null | undefined, max: number): string {
+  if (!s) return ''
+  return s.length > max ? s.slice(0, max - 1).trimEnd() + '\u2026' : s
+}
+
+function dedupeTokens(s: string): string {
+  return Array.from(new Set(
+    s.split(/[,\n]/).map(t => t.trim().toLowerCase()).filter(Boolean)
+  )).join(', ')
+}
+
+function buildColoursBlock(brandColours: any, ptColourPalette?: string): string {
+  if (brandColours && typeof brandColours === 'object') {
+    const parts: string[] = []
+    if (brandColours.primary) parts.push(`Primary: ${brandColours.primary}`)
+    if (brandColours.secondary) parts.push(`Secondary: ${brandColours.secondary}`)
+    if (brandColours.accent) parts.push(`Accent: ${brandColours.accent}`)
+    if (parts.length) return parts.join('\n')
+  }
+  return ptColourPalette ?? '(use neutral, professional palette)'
+}
+
+function buildSignalBlock(signal: any): string {
+  if (!signal) return '(no specific trend context)'
+  const head = truncate(signal.headline, 120)
+  const sum = truncate(signal.summary, 200)
+  return sum ? `${head} \u2014 ${sum}` : head
+}
+
+function buildCtaBlock(ctaText?: string): string {
+  const cta = (ctaText ?? '').trim()
+  if (!cta) {
+    return 'Render NO text, captions, or letters anywhere in the image.'
+  }
+  return `Render ONLY this single CTA as clean sans-serif typography in the bottom-right or bottom-centre, high contrast, one line: "${cta}". No other text, captions, or labels anywhere else in the image.`
+}
+
+function fillTemplate(tpl: string, vars: Record<string, string>): string {
+  return tpl.replace(/\{\{(\w+)\}\}/g, (_, k) => vars[k] ?? '')
+}
+
+function isMostlyEmpty(s: string): boolean {
+  const stripped = s.replace(/\[[A-Z]+\]/g, '').replace(/\s+/g, ' ').trim()
+  return stripped.length < 5
+}
+
 Deno.serve(async (req: Request) => {
   const corsResp = handleCors(req)
   if (corsResp) return corsResp
@@ -20,7 +67,8 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json()
-    const { signal_id, prompt_tags } = body
+    const { signal_id, prompt_tags, step_key: requestedStep } = body
+    const stepKey = (requestedStep && typeof requestedStep === 'string') ? requestedStep : 'image_generation'
 
     if (!prompt_tags || typeof prompt_tags !== 'object') {
       return new Response(JSON.stringify({ error: 'prompt_tags_required' }), { status: 400, headers: corsHeaders })
@@ -31,7 +79,6 @@ Deno.serve(async (req: Request) => {
 
     const db = createServiceClient()
 
-    // Fetch brand context — direct SELECT, no pgvector in v1
     const { data: brand, error: brandError } = await db
       .from('brand_contexts')
       .select('*')
@@ -42,7 +89,6 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'brand_context_not_found' }), { status: 404, headers: corsHeaders })
     }
 
-    // Fetch signal if provided
     let signal: any = null
     if (signal_id && typeof signal_id === 'string') {
       const { data: sig } = await db
@@ -54,24 +100,21 @@ Deno.serve(async (req: Request) => {
       signal = sig
     }
 
-    // Get org slug
     const { data: org } = await db
       .from('orgs')
       .select('slug, plan_tier')
       .eq('id', org_id)
       .single()
 
-    // Resolve model for image_generation step
+    // Resolve model
     let modelId = 'google/gemini-3.1-flash-image-preview'
     let providerKey = 'openrouter'
-
     const { data: pref } = await db
       .from('org_model_preferences')
       .select('model_id, provider_key')
       .eq('org_id', org_id)
-      .eq('step_key', 'image_generation')
+      .eq('step_key', stepKey)
       .maybeSingle()
-
     if (pref) {
       modelId = pref.model_id
       providerKey = pref.provider_key
@@ -79,7 +122,7 @@ Deno.serve(async (req: Request) => {
       const { data: defaultModel } = await db
         .from('available_models')
         .select('model_id, provider_key')
-        .contains('default_for_step_key', ['image_generation'])
+        .contains('default_for_step_key', [stepKey])
         .eq('is_active', true)
         .maybeSingle()
       if (defaultModel) {
@@ -88,57 +131,87 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Brand fields
     const themes: string[] = Array.isArray(brand.active_themes) ? brand.active_themes : []
     const titles: string[] = Array.isArray(brand.decision_maker_titles) ? brand.decision_maker_titles : []
-    const voiceExamples: string[] = Array.isArray(brand.voice_examples)
-      ? brand.voice_examples.filter(Boolean)
-      : []
     const competitors: string[] = Array.isArray(brand.competitor_names) ? brand.competitor_names : []
     const topicsToAvoid: string[] = Array.isArray(brand.topics_to_avoid) ? brand.topics_to_avoid : []
     const visualStylesToAvoid: string[] = Array.isArray(brand.visual_styles_to_avoid) ? brand.visual_styles_to_avoid : []
     const phrasesToAvoid: string[] = Array.isArray(brand.phrases_to_avoid) ? brand.phrases_to_avoid : []
-
-    // Build brand context summary
-    let brandContextSummary = [
-      brand.one_sentence_pitch ?? '',
-      brand.extended_description ?? '',
-      themes.length ? `Themes: ${themes.join(', ')}` : '',
-      titles.length ? `Audience: ${titles.join(', ')}` : '',
-    ].filter(Boolean).join('\n')
-
-    if (brand.brand_guidelines_text) {
-      brandContextSummary = `Brand Guidelines:\n${brand.brand_guidelines_text}\n\n${brandContextSummary}`
-    }
+    const voiceExamples: string[] = Array.isArray(brand.voice_examples)
+      ? brand.voice_examples.filter(Boolean)
+      : []
 
     const pt = prompt_tags as Record<string, string>
 
-    // Build compiled prompt
-    const compiledPromptParts = [
-      `You are creating a B2B marketing image for ${brand.company_name ?? 'the company'}.`,
-      `Brand context: ${brandContextSummary}`,
-      voiceExamples.length ? `Voice examples: ${voiceExamples.join('\n---\n')}` : '',
-      signal ? `Trend context: ${signal.headline}: ${signal.summary ?? ''}` : '',
-      `Subject: ${pt.subject ?? ''}`,
-      pt.visual_style ? `Style: ${pt.visual_style}` : '',
-      pt.mood ? `Mood: ${pt.mood}` : '',
-      pt.colour_palette ? `Colour palette: ${pt.colour_palette}` : '',
-      pt.platform ? `Platform: ${pt.platform}` : '',
-      pt.aspect_ratio ? `Aspect ratio: ${pt.aspect_ratio}` : '',
-      pt.cta_text ? `CTA: ${pt.cta_text}` : '',
-      pt.additional_notes ? `Additional: ${pt.additional_notes}` : '',
-      competitors.length ? `Do not reference: ${competitors.join(', ')}` : '',
-    ].filter(Boolean)
-
-    const compiledPrompt = compiledPromptParts.join('\n')
-
-    // Build compiled negative
-    const negativeParts = [
+    // Combine + dedupe negatives as comma tokens
+    const negativeRaw = [
       pt.negative_prompt ?? '',
       topicsToAvoid.join(', '),
       visualStylesToAvoid.join(', '),
       phrasesToAvoid.join(', '),
-    ].filter(Boolean)
-    const compiledNegative = negativeParts.join(', ')
+    ].filter(Boolean).join(', ')
+    const negativeTokens = dedupeTokens(negativeRaw)
+
+    // Variable bag for template substitution
+    const vars: Record<string, string> = {
+      company_name: brand.company_name ?? 'the company',
+      one_sentence_pitch: brand.one_sentence_pitch ?? '',
+      extended_description: truncate(brand.extended_description, 400),
+      brand_guidelines_text: truncate(brand.brand_guidelines_text, 400),
+      active_themes: themes.join(', '),
+      decision_maker_titles: titles.join(', '),
+      competitors: competitors.join(', ') || '(none specified)',
+      brand_colours_block: buildColoursBlock(brand.brand_colours, pt.colour_palette),
+      signal_block: buildSignalBlock(signal),
+      subject: pt.subject ?? '',
+      visual_style: pt.visual_style ?? 'photography',
+      mood: pt.mood ?? 'professional',
+      platform: pt.platform ?? 'linkedin',
+      aspect_ratio: pt.aspect_ratio ?? '1:1',
+      cta_block: buildCtaBlock(pt.cta_text),
+      additional_notes: truncate(pt.additional_notes, 600),
+      negative_tokens: negativeTokens || '(none)',
+    }
+
+    // Load template sections from DB (org override > global)
+    const { data: sectionRows, error: tplError } = await db
+      .from('prompt_templates')
+      .select('section_key, position, template_text, org_id')
+      .eq('step_key', stepKey)
+      .eq('is_active', true)
+      .or(`org_id.is.null,org_id.eq.${org_id}`)
+      .order('position', { ascending: true })
+
+    if (tplError || !sectionRows || sectionRows.length === 0) {
+      return new Response(JSON.stringify({ error: 'no_prompt_template_configured' }), { status: 500, headers: corsHeaders })
+    }
+
+    // Org-specific row always overrides global for the same section_key
+    const sectionMap = new Map<string, { position: number; template_text: string; isOrg: boolean }>()
+    for (const row of sectionRows) {
+      const existing = sectionMap.get(row.section_key)
+      const isOrg = !!row.org_id
+      if (!existing || (isOrg && !existing.isOrg)) {
+        sectionMap.set(row.section_key, { position: row.position, template_text: row.template_text, isOrg })
+      }
+    }
+
+    const compiledSections = Array.from(sectionMap.values())
+      .sort((a, b) => a.position - b.position)
+      .map(v => fillTemplate(v.template_text, vars))
+      .filter(s => !isMostlyEmpty(s))
+
+    const compiledPrompt = compiledSections.join('\n\n')
+    const compiledNegative = negativeTokens
+
+    // Kept for backwards-compatibility
+    const brandContextSummary = [
+      vars.one_sentence_pitch,
+      vars.extended_description,
+      themes.length ? `Themes: ${themes.join(', ')}` : '',
+      titles.length ? `Audience: ${titles.join(', ')}` : '',
+    ].filter(Boolean).join('\n')
 
     const contentJob = {
       org_id,
@@ -157,8 +230,9 @@ Deno.serve(async (req: Request) => {
       brand_colours: brand.brand_colours ?? null,
       image_config: {
         aspect_ratio: pt.aspect_ratio ?? '1:1',
-        platform: pt.platform ?? 'LinkedIn',
+        platform: pt.platform ?? 'linkedin',
       },
+      template_sections_used: Array.from(sectionMap.keys()),
     }
 
     return new Response(JSON.stringify({ content_job: contentJob }), { status: 200, headers: corsHeaders })

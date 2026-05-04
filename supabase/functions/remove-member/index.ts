@@ -40,10 +40,10 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // Fetch target's role
+    // Fetch target's role + status
     const { data: targetMember } = await db
       .from('org_members')
-      .select('role')
+      .select('role, status')
       .eq('org_id', orgId)
       .eq('user_id', targetUserId)
       .single()
@@ -82,6 +82,21 @@ Deno.serve(async (req: Request) => {
         .delete()
         .eq('org_id', orgId)
         .eq('user_id', targetUserId)
+
+      // If the removed member never accepted (status=pending) and has no other org memberships,
+      // also delete the auth.users row so the email can be cleanly re-invited.
+      if (targetMember.status === 'pending') {
+        const { count: otherMemberships } = await db
+          .from('org_members')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', targetUserId)
+        if (!otherMemberships || otherMemberships === 0) {
+          const { error: deleteAuthError } = await db.auth.admin.deleteUser(targetUserId)
+          if (deleteAuthError) {
+            console.error('auth user cleanup failed:', deleteAuthError.message?.substring(0, 80))
+          }
+        }
+      }
     } else if (action === 'change_role') {
       // Only owner can change roles
       if (callerRole !== 'owner') {

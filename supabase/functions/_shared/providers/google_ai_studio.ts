@@ -116,7 +116,7 @@ async function _generateImage(
   if (!imagePart) throw new Error('google_ai_studio_no_image')
 
   const bytes = Uint8Array.from(atob(imagePart.inlineData.data), c => c.charCodeAt(0))
-  const storagePath = `assets/${orgId}/${jobId}.png`
+  const storagePath = `${orgId}/${jobId}.png`
 
   const { error: uploadError } = await supabase.storage
     .from('assets')

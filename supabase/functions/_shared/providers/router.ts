@@ -230,6 +230,7 @@ export async function routeGeneration(
           payload.org_slug,
           payload.org_id,
           payload.job_id,
+          payload.reference_image_url,
         )
       }
       const text = await callOpenRouter(modelId, payload.prompt, {}, apiKey, payload.org_slug)

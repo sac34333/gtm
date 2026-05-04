@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import {
   LayoutDashboard,
   Sparkles,
+  Library,
   Users,
   Megaphone,
   Settings,
@@ -21,6 +22,7 @@ type Org = Tables<'orgs'>
 const NAV_ITEMS = [
   { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { label: 'Create', href: '/create', icon: Sparkles },
+  { label: 'Library', href: '/library', icon: Library },
   { label: 'ICP', href: '/icp', icon: Users },
   { label: 'Campaigns', href: '/campaigns', icon: Megaphone },
   { label: 'Settings', href: '/settings', icon: Settings },

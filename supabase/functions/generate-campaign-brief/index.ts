@@ -308,7 +308,7 @@ Return ONLY the message text.`
     }
 
     // Upload PDF to storage (use campaign_id as filename for idempotency)
-    const storagePath = `briefs/${orgId}/${campaign_id}.pdf`
+    const storagePath = `${orgId}/${campaign_id}.pdf`
 
     // Upload PDF to storage
     const { error: uploadErr } = await db.storage

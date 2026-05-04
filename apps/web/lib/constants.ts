@@ -43,16 +43,86 @@ export const COUNTRIES = [
 ]
 
 // ─── Industries ───────────────────────────────────────────────────────────────
+// Aligned to standard B2B sales/firmographic taxonomies (LinkedIn, Apollo, ZoomInfo).
+// Ordered by typical buyer-relevance for AI / SaaS / consulting GTM.
 
 export const INDUSTRIES = [
-  'Technology',
+  // Tech & software
+  'Software / SaaS',
+  'Information Technology & Services',
+  'Computer Software',
+  'Internet',
+  'Artificial Intelligence',
+  'Cybersecurity',
+  'Cloud Infrastructure',
+  'Data & Analytics',
+  'DevTools / Developer Platforms',
+
+  // Financial & professional services
   'Financial Services',
-  'Healthcare',
-  'Manufacturing',
-  'Retail',
+  'Banking',
+  'Insurance',
+  'Investment Management',
+  'FinTech',
+  'Accounting',
+  'Management Consulting',
+  'Legal Services',
   'Professional Services',
-  'Media',
+  'Staffing & Recruiting',
+
+  // Marketing & media
+  'Marketing & Advertising',
+  'Public Relations & Communications',
+  'Media Production',
+  'Online Media',
+  'Publishing',
+  'Entertainment',
+
+  // Healthcare & life sciences
+  'Healthcare',
+  'Hospital & Health Care',
+  'Pharmaceuticals',
+  'Biotechnology',
+  'Medical Devices',
+  'Health Tech',
+
+  // Industrial & physical
+  'Manufacturing',
+  'Industrial Automation',
+  'Automotive',
+  'Aerospace & Defense',
+  'Construction',
+  'Real Estate',
+  'PropTech',
+  'Logistics & Supply Chain',
+  'Transportation',
+
+  // Consumer & commerce
+  'Retail',
+  'E-commerce',
+  'Consumer Goods',
+  'Food & Beverage',
+  'Hospitality',
+  'Travel & Leisure',
+
+  // Energy & resources
+  'Energy',
+  'Renewables / CleanTech',
+  'Oil & Gas',
+  'Utilities',
+  'Mining & Metals',
+
+  // Public & social
+  'Government / Public Sector',
   'Education',
+  'EdTech',
+  'Higher Education',
+  'Non-profit',
+  'Research',
+
+  // Telecom
+  'Telecommunications',
+
   'Other',
 ]
 

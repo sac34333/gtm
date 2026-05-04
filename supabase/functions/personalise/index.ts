@@ -86,7 +86,7 @@ Deno.serve(async (req: Request) => {
 
     // Resolve text model for outreach_copy step
     let providerKey = 'openrouter'
-    let modelId = 'google/gemini-flash-1.5'
+    let modelId = 'deepseek/deepseek-v4-flash'
 
     const { data: modelPref } = await db
       .from('org_model_preferences')

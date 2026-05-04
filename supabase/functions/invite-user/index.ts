@@ -34,46 +34,124 @@ Deno.serve(async (req: Request) => {
 
     const { email, role } = parseResult.data
 
-    // Seat limit check
-    const { data: org } = await db
-      .from('orgs')
-      .select('seat_limit, name')
-      .eq('id', orgId)
-      .single()
-
-    const { count: seatCount } = await db
-      .from('org_members')
-      .select('id', { count: 'exact', head: true })
-      .eq('org_id', orgId)
-      .in('status', ['active', 'pending'])
-
-    if (seatCount !== null && org && seatCount >= org.seat_limit) {
-      return new Response(JSON.stringify({ error: 'seat_limit_reached' }), {
-        status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
     const appUrl = Deno.env.get('APP_URL') ?? 'https://gtmengine.qubitlyventures.com'
 
-    // Admin auth client for inviteUserByEmail
+    // Admin auth client for inviteUserByEmail / generateLink
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     )
 
+    // Look up existing auth.users row for this email (if any)
+    let targetUserId: string | null = null
+    {
+      const { data: existingId } = await db.rpc('admin_get_user_id_by_email', { p_email: email })
+      if (existingId) targetUserId = existingId as string
+    }
+
+    // Check whether this email is ALREADY a member of THIS org (any status)
+    // If so, this is a resend flow — skip the seat reservation.
+    let isResend = false
+    if (targetUserId) {
+      const { data: existingMembership } = await db
+        .from('org_members')
+        .select('org_id, status')
+        .eq('user_id', targetUserId)
+        .maybeSingle()
+
+      if (existingMembership) {
+        if (existingMembership.org_id === orgId) {
+          if (existingMembership.status === 'active') {
+            return new Response(JSON.stringify({ error: 'already_member' }), {
+              status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+          }
+          isResend = true
+        } else if (existingMembership.status === 'active') {
+          return new Response(JSON.stringify({ error: 'user_in_other_org' }), {
+            status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          })
+        }
+      }
+    }
+
+    // Atomic seat check via row-locked RPC (only for fresh invites, not resends).
+    // Prevents two concurrent invites from both passing when only 1 seat is free.
+    if (!isResend) {
+      const { data: hasSeat, error: reserveError } = await db.rpc('try_reserve_seat', { p_org_id: orgId })
+      if (reserveError) {
+        console.error('try_reserve_seat error:', reserveError.message)
+        return new Response(JSON.stringify({ error: 'internal_error' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+      if (!hasSeat) {
+        return new Response(JSON.stringify({ error: 'seat_limit_reached' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+    }
+
+    if (targetUserId) {
+      await db
+        .from('org_members')
+        .upsert(
+          {
+            org_id: orgId,
+            user_id: targetUserId,
+            role,
+            status: 'pending',
+            invited_by: user.id,
+            email,
+          },
+          { onConflict: 'org_id,user_id', ignoreDuplicates: false },
+        )
+
+      // Generate a fresh invite magic link
+      const { error: linkError } = await adminClient.auth.admin.generateLink({
+        type: 'invite',
+        email,
+        options: {
+          redirectTo: `${appUrl}/invite/accept`,
+          data: { org_id: orgId, invited_role: role },
+        },
+      })
+
+      if (linkError) {
+        const lower = linkError.message?.toLowerCase() ?? ''
+        let code = 'invite_failed'
+        if (lower.includes('rate') || lower.includes('limit')) code = 'rate_limit'
+        else if (lower.includes('invalid') && lower.includes('email')) code = 'email_address_invalid'
+        return new Response(JSON.stringify({ error: code, detail: linkError.message }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      return new Response(
+        JSON.stringify({ invited: true, email, resent: true }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
+
+    // Fresh invite — no existing auth.users row
     const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       email,
       {
-        redirectTo: `${appUrl}/onboarding`,
+        redirectTo: `${appUrl}/invite/accept`,
         data: { org_id: orgId, invited_role: role },
       },
     )
 
     if (inviteError) {
       console.error('invite-user inviteUserByEmail failed:', inviteError.message)
-      return new Response(JSON.stringify({ error: 'invite_failed' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      const lower = inviteError.message?.toLowerCase() ?? ''
+      let code = 'invite_failed'
+      if (lower.includes('invalid') && lower.includes('email')) code = 'email_address_invalid'
+      else if (lower.includes('already') || lower.includes('registered') || lower.includes('exists')) code = 'email_already_registered'
+      else if (lower.includes('rate') || lower.includes('limit')) code = 'rate_limit'
+      return new Response(JSON.stringify({ error: code, detail: inviteError.message }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 

@@ -519,6 +519,7 @@ export type Database = {
       generation_jobs: {
         Row: {
           asset_type: string | null
+          captions: Json | null
           completed_at: string | null
           content_job_json: Json | null
           created_at: string
@@ -544,6 +545,7 @@ export type Database = {
         }
         Insert: {
           asset_type?: string | null
+          captions?: Json | null
           completed_at?: string | null
           content_job_json?: Json | null
           created_at?: string
@@ -569,6 +571,7 @@ export type Database = {
         }
         Update: {
           asset_type?: string | null
+          captions?: Json | null
           completed_at?: string | null
           content_job_json?: Json | null
           created_at?: string
@@ -612,6 +615,62 @@ export type Database = {
             columns: ["signal_id"]
             isOneToOne: false
             referencedRelation: "signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      icp_enrichment_runs: {
+        Row: {
+          created_at: string
+          criteria: Json
+          error_message: string | null
+          id: string
+          max_results: number
+          model_id: string | null
+          org_id: string
+          prospect_ids: string[] | null
+          prospects_found: number
+          source: string
+          status: string
+          user_id: string | null
+          warning: string | null
+        }
+        Insert: {
+          created_at?: string
+          criteria: Json
+          error_message?: string | null
+          id?: string
+          max_results: number
+          model_id?: string | null
+          org_id: string
+          prospect_ids?: string[] | null
+          prospects_found?: number
+          source?: string
+          status?: string
+          user_id?: string | null
+          warning?: string | null
+        }
+        Update: {
+          created_at?: string
+          criteria?: Json
+          error_message?: string | null
+          id?: string
+          max_results?: number
+          model_id?: string | null
+          org_id?: string
+          prospect_ids?: string[] | null
+          prospects_found?: number
+          source?: string
+          status?: string
+          user_id?: string | null
+          warning?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "icp_enrichment_runs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
             referencedColumns: ["id"]
           },
         ]
@@ -1043,6 +1102,53 @@ export type Database = {
           },
         ]
       }
+      prompt_templates: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          org_id: string | null
+          position: number
+          section_key: string
+          step_key: string
+          template_text: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          org_id?: string | null
+          position?: number
+          section_key: string
+          step_key: string
+          template_text: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          org_id?: string | null
+          position?: number
+          section_key?: string
+          step_key?: string
+          template_text?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prompt_templates_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospects: {
         Row: {
           company_description: string | null
@@ -1116,6 +1222,53 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "prospects_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refinement_options: {
+        Row: {
+          created_at: string
+          id: string
+          instruction_text: string
+          is_active: boolean
+          label: string
+          option_key: string
+          option_type: string
+          org_id: string | null
+          position: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          instruction_text: string
+          is_active?: boolean
+          label: string
+          option_key: string
+          option_type: string
+          org_id?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          instruction_text?: string
+          is_active?: boolean
+          label?: string
+          option_key?: string
+          option_type?: string
+          org_id?: string | null
+          position?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refinement_options_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "orgs"
@@ -1221,7 +1374,9 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      admin_get_user_id_by_email: { Args: { p_email: string }; Returns: string }
+      current_org_id: { Args: never; Returns: string }
+      try_reserve_seat: { Args: { p_org_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

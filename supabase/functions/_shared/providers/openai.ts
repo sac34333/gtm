@@ -143,7 +143,7 @@ export async function callOpenAIImage(
 
   const { createServiceClient: sc } = await import('../db.ts')
   const supabase = sc()
-  const storagePath = `assets/${orgId}/${jobId}.png`
+  const storagePath = `${orgId}/${jobId}.png`
 
   const { error: uploadError } = await supabase.storage
     .from('assets')

@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Settings, Cpu, BarChart3, CreditCard, Users } from 'lucide-react'
+import { BackButton } from '@/components/layout/back-button'
 
 const TABS = [
   { href: '/settings', label: 'General', icon: Settings, exact: true },
@@ -17,6 +18,9 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="min-h-screen bg-slate-950">
+      <div className="mx-auto max-w-5xl px-6 pt-6">
+        <BackButton href="/dashboard" label="Back to dashboard" />
+      </div>
       <div className="border-b border-slate-800 bg-slate-950 sticky top-0 z-10">
         <div className="mx-auto max-w-5xl px-6">
           <nav className="flex gap-1 overflow-x-auto -mb-px">

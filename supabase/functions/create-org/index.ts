@@ -121,6 +121,8 @@ Deno.serve(async (req: Request) => {
         user_id: user.id,
         role: 'owner',
         status: 'active',
+        email: user.email ?? null,
+        joined_at: new Date().toISOString(),
       })
 
     if (memberError) {

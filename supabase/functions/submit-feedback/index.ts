@@ -50,9 +50,11 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'job_not_found' }), { status: 404, headers: corsHeaders })
     }
 
+    // Upsert: one row per (job_id, user_id). Lets users change their vote
+    // and prevents duplicate rows when frontend state resets.
     const { data: feedback, error: insertError } = await db
       .from('generation_feedback')
-      .insert({
+      .upsert({
         org_id,
         job_id,
         user_id: user.id,
@@ -61,7 +63,7 @@ Deno.serve(async (req: Request) => {
         feedback_text: note ?? null,
         tags_changed: tags_changed ?? null,
         regenerated: regenerated ?? false,
-      })
+      }, { onConflict: 'job_id,user_id' })
       .select('id')
       .single()
 

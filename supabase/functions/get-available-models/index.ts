@@ -25,6 +25,15 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify(cached.data), { status: 200, headers: corsHeaders })
     }
 
+    // Fetch org plan to determine which models to expose
+    const { data: org } = await db
+      .from('orgs')
+      .select('plan_tier, byok_mode')
+      .eq('id', orgId)
+      .single()
+    const planTier = (org?.plan_tier ?? 'starter') as string
+    const isStarter = planTier === 'starter'
+
     // Fetch all active models
     const { data: models, error } = await db
       .from('available_models')
@@ -113,10 +122,37 @@ Deno.serve(async (req: Request) => {
 
     const recommended = allModels.filter((m: any) => m.is_recommended)
 
+    // Build flat models array (used by /create page) with availability filter:
+    // - Starter plan: only platform-available models (key_source in platform/user_or_platform), or models where org has its own key
+    // - BYOK / Fully Subscribed: all active models, with org_has_key flag for client to display
+    const flatModels = allModels
+      .map((m: any) => {
+        const orgHasKey = orgKeyMap.has(m.provider_key)
+        const platformAvailable = m.key_source === 'platform' || m.key_source === 'user_or_platform'
+        return {
+          ...m,
+          org_has_key: orgHasKey,
+          platform_available: platformAvailable,
+          available: orgHasKey || platformAvailable,
+        }
+      })
+      .filter((m: any) => {
+        if (!m.available) return false
+        if (isStarter) {
+          // Starter: only show models that work without BYOK (platform key only).
+          // BYOK keys typically aren't configured on starter, but if they are, allow them.
+          return m.platform_available || m.org_has_key
+        }
+        return true
+      })
+
     const responseData = {
       providers: providersResult,
       recommended,
       preferences: prefs ?? [],
+      models: flatModels,
+      plan_tier: planTier,
+      can_change_models: planTier === 'fully_subscribed',
       cached_at: new Date().toISOString(),
     }
 

@@ -5,6 +5,27 @@ import { decrypt } from '../_shared/encryption.ts'
 const IMAGE_POLL_TIMEOUT = 60
 const VIDEO_POLL_TIMEOUT = 600
 
+// Fire-and-forget invocation of generate-captions for a completed job.
+// Authenticated via x-cron-secret. Errors swallowed.
+async function triggerCaptions(jobId: string): Promise<void> {
+  const url = Deno.env.get('SUPABASE_URL')
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  if (!url || !cronSecret) return
+  try {
+    await fetch(`${url}/functions/v1/generate-captions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-secret': cronSecret,
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`,
+      },
+      body: JSON.stringify({ job_id: jobId }),
+    })
+  } catch {
+    // ignore
+  }
+}
+
 async function sendVideoCompletionEmail(
   db: any,
   job: any,
@@ -191,7 +212,7 @@ Deno.serve(async (req: Request) => {
 
           // Upload to storage
           const ext = isVideo ? 'mp4' : 'png'
-          const storagePath = `assets/${job.org_id}/${job.id}.${ext}`
+          const storagePath = `${job.org_id}/${job.id}.${ext}`
           const contentType = isVideo ? 'video/mp4' : 'image/png'
 
           await db.storage.from('assets').upload(storagePath, bytes, { contentType, upsert: true })
@@ -201,7 +222,11 @@ Deno.serve(async (req: Request) => {
             output_url: storagePath,
             completed_at: new Date().toISOString(),
             generation_time_ms: generationTimeMs,
+            captions: { _status: 'pending' },
           }).eq('id', job.id)
+
+          // Fire-and-forget caption generation
+          triggerCaptions(job.id).catch(() => {})
 
           // Broadcast via Realtime
           try {

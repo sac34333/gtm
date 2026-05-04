@@ -139,7 +139,7 @@ export async function callFal(
   // Upload to Supabase Storage
   const supabase = createServiceClient()
   const ext = payload.asset_type === 'video' ? 'mp4' : 'png'
-  const storagePath = `assets/${orgId}/${jobId}.${ext}`
+  const storagePath = `${orgId}/${jobId}.${ext}`
   const contentType = ext === 'mp4' ? 'video/mp4' : 'image/png'
 
   const { error: uploadError } = await supabase.storage

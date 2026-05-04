@@ -3,6 +3,28 @@ import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { resolveApiKey, routeGeneration, routeVideoGeneration } from '../_shared/providers/router.ts'
 
+// Fire-and-forget invocation of generate-captions for a completed job.
+// Authenticated via x-cron-secret (service-to-service). Non-blocking â€” errors
+// are swallowed so a captions failure can never block the asset reveal.
+async function triggerCaptions(jobId: string): Promise<void> {
+  const url = Deno.env.get('SUPABASE_URL')
+  const cronSecret = Deno.env.get('CRON_SECRET')
+  if (!url || !cronSecret) return
+  try {
+    await fetch(`${url}/functions/v1/generate-captions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-cron-secret': cronSecret,
+        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`,
+      },
+      body: JSON.stringify({ job_id: jobId }),
+    })
+  } catch {
+    // ignore â€” captions are best-effort
+  }
+}
+
 Deno.serve(async (req: Request) => {
   const corsResp = handleCors(req)
   if (corsResp) return corsResp
@@ -24,7 +46,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json()
-    let { content_job, model_id, provider_key } = body
+    let { content_job, model_id, provider_key, parent_job_id } = body
 
     if (!content_job || typeof content_job !== 'object') {
       return new Response(JSON.stringify({ error: 'content_job_required' }), { status: 400, headers: corsHeaders })
@@ -92,6 +114,26 @@ Deno.serve(async (req: Request) => {
     // Resolve API key
     const apiKey = await resolveApiKey(org_id, provider_key, modelRow?.key_source ?? 'user_or_platform')
 
+    // If this is a refinement (parent_job_id set), fetch parent image as a
+    // signed URL so the model can EDIT pixels instead of regenerating.
+    let referenceImageUrl: string | undefined
+    let resolvedParentId: string | null = null
+    if (parent_job_id && typeof parent_job_id === 'string') {
+      const { data: parent } = await db
+        .from('generation_jobs')
+        .select('id, output_url, asset_type, org_id, status')
+        .eq('id', parent_job_id)
+        .eq('org_id', org_id)
+        .maybeSingle()
+
+      if (parent && parent.status === 'completed' && parent.output_url && parent.asset_type === 'image') {
+        resolvedParentId = parent.id
+        const path = String(parent.output_url).replace(/^assets\//, '')
+        const { data: signed } = await db.storage.from('assets').createSignedUrl(path, 3600)
+        if (signed?.signedUrl) referenceImageUrl = signed.signedUrl
+      }
+    }
+
     // Write generation_jobs row
     const { data: job, error: jobError } = await db
       .from('generation_jobs')
@@ -106,6 +148,7 @@ Deno.serve(async (req: Request) => {
         prompt_tags: content_job.prompt_tags ?? null,
         signal_id: content_job.signal_id ?? null,
         asset_type: assetType,
+        parent_job_id: resolvedParentId,
         started_at: new Date().toISOString(),
       })
       .select('id')
@@ -148,11 +191,12 @@ Deno.serve(async (req: Request) => {
       provider_key,
       asset_type: assetType,
       key_source_used: modelRow?.key_source ?? 'platform',
+      reference_image_url: referenceImageUrl,
     }
 
     const startTime = Date.now()
 
-    // Call provider — video always async, image can be sync or async
+    // Call provider ï¿½ video always async, image can be sync or async
     let result: any
     try {
       if (assetType === 'video') {
@@ -171,16 +215,20 @@ Deno.serve(async (req: Request) => {
     }
 
     const generationTimeMs = Date.now() - startTime
-    const storagePath = `assets/${org_id}/${jobId}.${assetType === 'video' ? 'mp4' : 'png'}`
+    const storagePath = `${org_id}/${jobId}.${assetType === 'video' ? 'mp4' : 'png'}`
 
-    // Synchronous completion — image models that return outputUrl immediately
+    // Synchronous completion ï¿½ image models that return outputUrl immediately
     if (result.outputUrl && assetType === 'image') {
       await db.from('generation_jobs').update({
         status: 'completed',
         output_url: storagePath,
         completed_at: new Date().toISOString(),
         generation_time_ms: generationTimeMs,
+        captions: { _status: 'pending' },
       }).eq('id', jobId)
+
+      // Fire-and-forget caption generation (don't block the image reveal)
+      triggerCaptions(jobId).catch(() => {})
 
       return new Response(JSON.stringify({
         job_id: jobId,
@@ -190,7 +238,7 @@ Deno.serve(async (req: Request) => {
       }), { status: 200, headers: corsHeaders })
     }
 
-    // Async — video or slow image model
+    // Async ï¿½ video or slow image model
     // Store the external job reference for poll-job-status to use
     const externalJobId = result.request_id ?? result.operationName ?? result.jobId ?? null
     if (externalJobId) {
