@@ -17,7 +17,7 @@ const PERKS = [
   '12+ live signal sources out of the box',
   'AI image, video & social media content generation',
   'ICP enrichment & 1:1 personalisation',
-  'Bring your own keys (OpenRouter, Fal, LinkIn, Hunter,…)',
+  'Bring your own keys (OpenRouter, Fal, LinkedIn, Hunter,…)',
 ]
 
 function MarketingPane() {

@@ -1,4 +1,5 @@
 import { createServiceClient } from '../db.ts'
+import { recordUsage } from '../observability.ts'
 import { fetchWithRetry } from './router.ts'
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
@@ -15,6 +16,7 @@ export async function callOpenRouter(
     systemPrompt?: string
     responseFormat?: any
     maxTokens?: number
+    keySourceUsed?: 'platform' | 'user'
   },
   apiKey: string,
   orgSlug: string,
@@ -22,6 +24,7 @@ export async function callOpenRouter(
   jobId?: string,
   stepKey?: string,
 ): Promise<string> {
+  const start = Date.now()
   const messages = []
   if (opts.systemPrompt) {
     messages.push({ role: 'system', content: opts.systemPrompt })
@@ -61,12 +64,34 @@ export async function callOpenRouter(
 
   if (!res.ok) {
     const errText = await res.text()
+    if (orgId) {
+      await recordUsage(createServiceClient(), {
+        org_id: orgId, provider_key: 'openrouter', model_id: modelId,
+        step_key: stepKey, job_id: jobId,
+        key_source_used: opts.keySourceUsed ?? 'platform',
+        latency_ms: Date.now() - start, success: false,
+        error_code: `openrouter_${res.status}`,
+      })
+    }
     throw new Error(`OpenRouter error ${res.status}: ${errText}`)
   }
 
   const data = await res.json()
   const content = data.choices?.[0]?.message?.content
   if (!content) throw new Error('openrouter_no_output')
+
+  if (orgId) {
+    await recordUsage(createServiceClient(), {
+      org_id: orgId, provider_key: 'openrouter', model_id: modelId,
+      step_key: stepKey, job_id: jobId,
+      key_source_used: opts.keySourceUsed ?? 'platform',
+      prompt_tokens: data.usage?.prompt_tokens,
+      completion_tokens: data.usage?.completion_tokens,
+      total_tokens: data.usage?.total_tokens,
+      latency_ms: Date.now() - start, success: true,
+    })
+  }
+
   return content
 }
 
@@ -86,6 +111,7 @@ export async function callOpenRouterImage(
   jobId: string,
   referenceImageUrl?: string,
 ): Promise<{ bytes: Uint8Array; outputUrl: string }> {
+  const start = Date.now()
   // If a reference image is supplied, use multimodal message format so the
   // model can EDIT the existing image instead of generating from scratch.
   const userContent: any = referenceImageUrl
@@ -132,6 +158,13 @@ export async function callOpenRouterImage(
 
   if (!res.ok) {
     const errText = await res.text()
+    await recordUsage(createServiceClient(), {
+      org_id: orgId, provider_key: 'openrouter', model_id: modelId,
+      step_key: 'image_generation', job_id: jobId,
+      key_source_used: 'platform',
+      latency_ms: Date.now() - start, success: false,
+      error_code: `openrouter_image_${res.status}`,
+    })
     throw new Error(`OpenRouter image error ${res.status}: ${errText}`)
   }
 
@@ -141,6 +174,16 @@ export async function callOpenRouterImage(
 
   const imageUrl: string = images[0].image_url?.url ?? images[0].url
   if (!imageUrl) throw new Error('openrouter_image_no_output')
+
+  await recordUsage(createServiceClient(), {
+    org_id: orgId, provider_key: 'openrouter', model_id: modelId,
+    step_key: 'image_generation', job_id: jobId,
+    key_source_used: 'platform',
+    prompt_tokens: data.usage?.prompt_tokens,
+    completion_tokens: data.usage?.completion_tokens,
+    total_tokens: data.usage?.total_tokens,
+    latency_ms: Date.now() - start, success: true,
+  })
 
   // Decode base64 data URL
   let bytes: Uint8Array
