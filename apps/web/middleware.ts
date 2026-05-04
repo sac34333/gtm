@@ -29,7 +29,15 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname
 
   // Public routes — no auth required
-  const publicRoutes = ['/', '/login', '/signup', '/invite/accept']
+  const publicRoutes = [
+    '/',
+    '/login',
+    '/signup',
+    '/invite/accept',
+    '/forgot-password',
+    '/reset-password',
+    '/auth/callback',
+  ]
   if (publicRoutes.some(r => pathname === r || pathname.startsWith(r + '/'))) {
     return supabaseResponse
   }

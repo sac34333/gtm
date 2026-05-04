@@ -88,10 +88,10 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
   return (
     <Link href={`/campaigns/${campaign.id}`} className="block group">
       <div className="flex items-center gap-4 px-5 py-4 rounded-xl border border-slate-800 bg-slate-900/40
-        hover:border-slate-700 hover:bg-slate-900/60 transition-all cursor-pointer">
+        hover:border-slate-700 hover:bg-slate-900/60 hover:-translate-y-0.5 hover:shadow-glow-indigo transition-all duration-300 cursor-pointer">
         {/* Asset thumbnail */}
-        <div className="w-12 h-12 rounded-lg bg-slate-800 border border-slate-700/50 flex items-center justify-center shrink-0">
-          <ImageIcon className="w-5 h-5 text-slate-600" />
+        <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-indigo-500/30 via-violet-500/20 to-fuchsia-500/30 border border-white/10 flex items-center justify-center shrink-0">
+          <ImageIcon className="w-5 h-5 text-indigo-200/80" />
         </div>
 
         {/* Name + type */}
@@ -104,7 +104,7 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
           <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-500">
             <span>{date}</span>
             {campaign.start_date && (
-              <span>{campaign.start_date}{campaign.end_date ? ` â†’ ${campaign.end_date}` : ''}</span>
+              <span>{campaign.start_date}{campaign.end_date ? ` → ${campaign.end_date}` : ''}</span>
             )}
           </div>
         </div>
@@ -123,7 +123,7 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
         {/* Copy progress */}
         <div className="hidden lg:block min-w-[120px]">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-slate-500">{approved}/{total || 'â€“'} copies</span>
+            <span className="text-xs text-slate-500">{approved}/{total || '–'} copies</span>
             {total > 0 && <span className="text-xs text-slate-500">{progress}%</span>}
           </div>
           {total > 0 && (
@@ -196,7 +196,7 @@ export default function CampaignsPage() {
   })
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen text-slate-100">
       <div className="max-w-screen-xl mx-auto px-6 py-10 space-y-8">
 
         <BackButton href="/dashboard" label="Back to dashboard" />
@@ -204,7 +204,7 @@ export default function CampaignsPage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">Campaigns</h1>
+            <h1 className="text-2xl font-bold gtm-title tracking-tight">Campaigns</h1>
             <p className="text-slate-400 text-sm mt-1">Manage multi-channel outreach campaigns with AI-generated content.</p>
           </div>
           <Link href="/campaigns/new">
@@ -273,7 +273,7 @@ export default function CampaignsPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-3 gtm-stagger">
             {filtered.map(c => <CampaignRow key={c.id} campaign={c} />)}
           </div>
         )}

@@ -1,7 +1,7 @@
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { validateJWT, extractOrgId } from '../_shared/auth.ts'
 import { createServiceClient } from '../_shared/db.ts'
-import { resolveApiKey, routeTextGeneration } from '../_shared/providers/router.ts'
+import { resolveApiKey, routeTextGeneration, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
 import { GenerateCampaignBriefBodySchema } from '../_shared/schemas.ts'
 
 /** Resolve the default model for a given step_key */
@@ -18,120 +18,348 @@ async function resolveDefaultModel(
 }
 
 interface PostingDay {
+  day: number
   recommended_date: string
-  platform: string
-  time_utc: string
+  phase: string              // pre_launch | launch | sustain | recap
+  channel: string            // linkedin_post / email / twitter / etc.
+  post_type: string          // teaser, announcement, use_case, founder_pov, social_proof, recap
+  theme: string              // short title
+  hook: string               // opening line idea
   time_local: string
+  time_utc: string
+  // legacy aliases (back-compat with v1 schema)
+  platform?: string
 }
+
+interface LinkedInPost { hook: string; body: string; cta: string; hashtags?: string[] }
+interface TwitterPost { tweet: string; thread?: string[] }
+interface EmailVariant { subject: string; preview: string; body: string; cta: string }
+interface DmVariant { opener: string; body: string; ask: string }
+interface TimingRec { best_days?: string[]; best_times?: string[]; rationale?: string }
 
 interface BriefData {
+  // Top-level positioning
+  executive_summary?: string
+  key_messages?: string[]
+  primary_cta?: string
+
+  // 14-day launch arc
   posting_schedule: PostingDay[]
-  caption_variants: { primary_platform: string[]; secondary_platform: string[] }
-  hashtag_sets: { general: string[]; regional: string[] }
-  timing_recommendations: Record<string, string>
+
+  // Per-channel content (any subset depending on channel_mix)
+  content?: {
+    linkedin_post?: LinkedInPost[]
+    linkedin_message?: DmVariant[]
+    twitter?: TwitterPost[]
+    email?: EmailVariant[]
+    cold_dm?: DmVariant[]
+  }
+
+  // Hashtag bank — split for strategic use
+  hashtag_sets: {
+    branded?: string[]
+    industry?: string[]
+    general?: string[]
+    regional?: string[]
+    niche?: string[]
+  }
+
+  // Channel intelligence
+  timing_recommendations: Record<string, TimingRec | string>
+
+  // Backward-compat legacy fields (v1)
+  caption_variants?: Record<string, string[]>
+  hashtags?: string[]
+  best_time_to_post?: Record<string, string>
 }
 
-async function generatePdf(brief: BriefData, brand: any, campaignInfo: any): Promise<Uint8Array> {
+// Sanitise non-Latin1 chars so pdf-lib StandardFont (Helvetica) doesn't crash.
+function sanitisePdfText(text: string): string {
+  return (text ?? '')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/\u2026/g, '...')
+    .replace(/[\u00A0]/g, ' ')
+    .replace(/[^\x00-\xFF]/g, '?')
+}
+
+// Approximate Helvetica char width — used for word wrapping.
+function widthOf(text: string, size: number): number {
+  // Helvetica avg char width factor ~0.5 of font size, slightly higher for bold.
+  return text.length * size * 0.5
+}
+
+async function generatePdf(brief: BriefData, brand: any, campaignInfo: any, campaignName: string): Promise<Uint8Array> {
   const { PDFDocument, rgb, StandardFonts } = await import('npm:pdf-lib')
 
   const pdfDoc = await PDFDocument.create()
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
+  const italicFont = await pdfDoc.embedFont(StandardFonts.HelveticaOblique)
 
-  const addPage = () => {
-    const page = pdfDoc.addPage([595, 842]) // A4
-    return page
-  }
-
+  const PAGE_W = 595
+  const PAGE_H = 842
   const MARGIN = 50
-  const PAGE_WIDTH = 595
-  const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2
-  const LINE_H = 16
-  const SECTION_GAP = 20
+  const CONTENT_W = PAGE_W - MARGIN * 2
 
-  let page = addPage()
-  let y = 792
+  let page = pdfDoc.addPage([PAGE_W, PAGE_H])
+  let y = PAGE_H - MARGIN
 
-  const writeText = (text: string, x: number, size: number, isBold = false, color = rgb(0, 0, 0)) => {
-    if (y < 60) {
-      page = addPage()
-      y = 792
+  function ensureSpace(needed: number) {
+    if (y - needed < MARGIN) {
+      page = pdfDoc.addPage([PAGE_W, PAGE_H])
+      y = PAGE_H - MARGIN
     }
-    page.drawText(text.slice(0, 100), { x, y, size, font: isBold ? boldFont : font, color })
-    y -= LINE_H
   }
 
-  const writeLine = () => { y -= 4 }
-  const writeSection = (title: string) => {
-    y -= SECTION_GAP
-    writeText(title, MARGIN, 13, true, rgb(0.18, 0.22, 0.78))
-    writeText('─'.repeat(60), MARGIN, 8, false, rgb(0.7, 0.7, 0.7))
+  function drawLine(text: string, opts: {
+    x?: number; size?: number; bold?: boolean; italic?: boolean; color?: any; gap?: number
+  } = {}) {
+    const { x = MARGIN, size = 10, bold = false, italic = false, color = rgb(0.1, 0.1, 0.1), gap } = opts
+    const lh = gap ?? Math.round(size * 1.4)
+    ensureSpace(lh)
+    const f = bold ? boldFont : italic ? italicFont : font
+    page.drawText(sanitisePdfText(text), { x, y, size, font: f, color })
+    y -= lh
   }
 
-  // Header
-  writeText(`Campaign Brief — ${brand.company_name ?? 'Your Company'}`, MARGIN, 18, true)
-  writeLine()
-  writeText(`Asset: ${campaignInfo?.asset_type ?? 'image'} — ${campaignInfo?.prompt_tags?.subject ?? 'Campaign Asset'}`, MARGIN, 11)
-  writeText(`Generated: ${new Date().toLocaleDateString()}`, MARGIN, 10, false, rgb(0.4, 0.4, 0.4))
-  writeLine()
-
-  // Posting schedule
-  writeSection('14-Day Posting Schedule')
-  for (const day of (brief.posting_schedule ?? []).slice(0, 14)) {
-    writeText(
-      `${day.recommended_date}  |  ${day.platform}  |  ${day.time_local} local  |  ${day.time_utc} UTC`,
-      MARGIN + 10, 10,
-    )
-  }
-
-  // Caption variants — primary platform
-  const primaryPlatform = brand.primary_platform ?? 'LinkedIn'
-  writeSection(`Caption Variants — ${primaryPlatform}`)
-  const primaryCaptions: string[] = (brief.caption_variants as any)?.[primaryPlatform] ??
-    Object.values(brief.caption_variants ?? {})?.[0] as string[] ?? []
-  primaryCaptions.forEach((caption: string, i: number) => {
-    writeText(`Option ${i + 1}:`, MARGIN + 10, 10, true)
-    // Word-wrap long captions
-    const words = caption.split(' ')
+  function drawWrapped(text: string, opts: {
+    x?: number; size?: number; bold?: boolean; italic?: boolean; color?: any; maxWidth?: number; gap?: number
+  } = {}) {
+    const { x = MARGIN, size = 10, bold = false, italic = false, color = rgb(0.1, 0.1, 0.1), maxWidth, gap } = opts
+    const lh = gap ?? Math.round(size * 1.4)
+    const w = maxWidth ?? (PAGE_W - x - MARGIN)
+    const safe = sanitisePdfText(text)
+    const words = safe.split(/\s+/)
     let line = ''
+    const f = bold ? boldFont : italic ? italicFont : font
     for (const word of words) {
-      if ((line + word).length > 80) {
-        writeText(line.trim(), MARGIN + 20, 10)
-        line = word + ' '
+      const tentative = line ? line + ' ' + word : word
+      if (widthOf(tentative, size) > w && line) {
+        ensureSpace(lh)
+        page.drawText(line, { x, y, size, font: f, color })
+        y -= lh
+        line = word
       } else {
-        line += word + ' '
+        line = tentative
       }
     }
-    if (line.trim()) writeText(line.trim(), MARGIN + 20, 10)
-    writeLine()
-  })
-
-  // Caption variants — secondary platform
-  const secondaryPlatform = brand.secondary_platform ?? 'Twitter'
-  writeSection(`Caption Variants — ${secondaryPlatform}`)
-  const secondaryCaptions: string[] = (brief.caption_variants as any)?.[secondaryPlatform] ??
-    Object.values(brief.caption_variants ?? {})?.[1] as string[] ?? []
-  secondaryCaptions.forEach((caption: string, i: number) => {
-    writeText(`Option ${i + 1}: ${caption.slice(0, 90)}`, MARGIN + 10, 10)
-    writeLine()
-  })
-
-  // Hashtags
-  writeSection('Hashtags')
-  writeText('General:', MARGIN + 10, 10, true)
-  writeText((brief.hashtag_sets?.general ?? []).join('  '), MARGIN + 20, 9)
-  writeLine()
-  writeText('Regional:', MARGIN + 10, 10, true)
-  writeText((brief.hashtag_sets?.regional ?? []).join('  '), MARGIN + 20, 9)
-
-  // Timing recommendations
-  writeSection('Timing Recommendations')
-  for (const [platform, rec] of Object.entries(brief.timing_recommendations ?? {})) {
-    writeText(`${platform}: ${String(rec).slice(0, 80)}`, MARGIN + 10, 10)
+    if (line) {
+      ensureSpace(lh)
+      page.drawText(line, { x, y, size, font: f, color })
+      y -= lh
+    }
   }
 
-  const pdfBytes = await pdfDoc.save()
-  return pdfBytes
+  function spacer(h = 10) { y -= h }
+
+  function drawDivider(color = rgb(0.85, 0.85, 0.92)) {
+    ensureSpace(8)
+    page.drawLine({
+      start: { x: MARGIN, y: y - 2 },
+      end: { x: PAGE_W - MARGIN, y: y - 2 },
+      thickness: 0.6,
+      color,
+    })
+    y -= 10
+  }
+
+  function drawSectionHeading(title: string) {
+    spacer(10)
+    ensureSpace(28)
+    drawLine(title, { size: 14, bold: true, color: rgb(0.18, 0.22, 0.78), gap: 18 })
+    drawDivider(rgb(0.18, 0.22, 0.78))
+  }
+
+  function drawSubHeading(title: string, color = rgb(0.25, 0.25, 0.4)) {
+    spacer(4)
+    drawLine(title, { size: 11, bold: true, color, gap: 16 })
+  }
+
+  function labelValue(label: string, value: string) {
+    drawLine(label, { size: 9, bold: true, color: rgb(0.4, 0.4, 0.5), gap: 12 })
+    drawWrapped(value, { x: MARGIN, size: 10, color: rgb(0.15, 0.15, 0.15), gap: 13 })
+  }
+
+  // ── Cover ─────────────────────────────────────────────────────────────────
+  page.drawRectangle({ x: 0, y: PAGE_H - 120, width: PAGE_W, height: 120, color: rgb(0.07, 0.09, 0.27) })
+  y = PAGE_H - 50
+  drawLine(`Campaign Brief`, { x: MARGIN, size: 11, color: rgb(0.7, 0.75, 0.95), gap: 18 })
+  drawLine(campaignName, { x: MARGIN, size: 22, bold: true, color: rgb(1, 1, 1), gap: 28 })
+  drawLine(brand.company_name ?? 'Your Company', { x: MARGIN, size: 11, color: rgb(0.85, 0.85, 0.95), gap: 16 })
+  y = PAGE_H - 140
+
+  // Meta
+  spacer(10)
+  const assetLine = campaignInfo?.prompt_tags?.subject
+    ? `${campaignInfo.asset_type ?? 'asset'}: ${campaignInfo.prompt_tags.subject}`
+    : 'No creative asset linked'
+  drawLine(`Asset  ${assetLine}`, { size: 9, color: rgb(0.45, 0.45, 0.55), gap: 13 })
+  drawLine(`Generated  ${new Date().toLocaleDateString()}`, { size: 9, color: rgb(0.45, 0.45, 0.55), gap: 13 })
+
+  // ── Audience profile ───────────────────────────────────────────────────────
+  const audienceProfile = (brief as any).audience_profile
+  if (audienceProfile?.summary) {
+    drawSectionHeading('Audience')
+    drawLine(`${audienceProfile.total ?? 0} prospect(s) enrolled from your ICP`, { size: 9, color: rgb(0.4, 0.4, 0.5), gap: 14 })
+    // The summary is a multi-line string built with newlines + padding; split + render line-by-line.
+    for (const raw of String(audienceProfile.summary).split('\n')) {
+      const line = raw.trim()
+      if (!line) continue
+      drawWrapped(line, { size: 10, gap: 13, color: rgb(0.2, 0.2, 0.25) })
+    }
+  }
+
+  // ── Executive summary ──────────────────────────────────────────────────────
+  if (brief.executive_summary) {
+    drawSectionHeading('Executive Summary')
+    drawWrapped(brief.executive_summary, { size: 11, gap: 16 })
+  }
+
+  // ── Key messages ───────────────────────────────────────────────────────────
+  if (brief.key_messages?.length) {
+    drawSectionHeading('Key Messages')
+    for (const msg of brief.key_messages) {
+      drawWrapped(`-  ${msg}`, { size: 10, gap: 14 })
+    }
+    if (brief.primary_cta) {
+      spacer(6)
+      drawLine('Primary CTA', { size: 9, bold: true, color: rgb(0.4, 0.4, 0.5), gap: 12 })
+      drawWrapped(brief.primary_cta, { size: 11, bold: true, color: rgb(0.18, 0.22, 0.78), gap: 16 })
+    }
+  }
+
+  // ── 14-day launch arc ──────────────────────────────────────────────────────
+  if (brief.posting_schedule?.length) {
+    drawSectionHeading('14-Day Launch Arc')
+    let lastPhase = ''
+    for (const day of brief.posting_schedule.slice(0, 14)) {
+      const phase = day.phase ?? 'sustain'
+      if (phase !== lastPhase) {
+        spacer(4)
+        drawLine(phase.replace(/_/g, ' ').toUpperCase(), { size: 9, bold: true, color: rgb(0.5, 0.3, 0.7), gap: 13 })
+        lastPhase = phase
+      }
+      const channel = day.channel ?? day.platform ?? '-'
+      const time = `${day.time_local ?? ''}${day.time_utc ? ` (${day.time_utc} UTC)` : ''}`
+      drawLine(
+        `Day ${day.day ?? '-'}  ${day.recommended_date}  |  ${channel}  |  ${day.post_type ?? ''}  |  ${time}`,
+        { size: 10, bold: true, gap: 13 }
+      )
+      if (day.theme) drawWrapped(`Theme: ${day.theme}`, { x: MARGIN + 14, size: 9.5, color: rgb(0.3, 0.3, 0.4), gap: 13 })
+      if (day.hook)  drawWrapped(`Hook:  ${day.hook}`,   { x: MARGIN + 14, size: 9.5, italic: true, color: rgb(0.3, 0.3, 0.4), gap: 13 })
+      spacer(4)
+    }
+  }
+
+  // ── Channel content ────────────────────────────────────────────────────────
+  const c = brief.content ?? {}
+
+  if (c.linkedin_post?.length) {
+    drawSectionHeading('LinkedIn Posts')
+    c.linkedin_post.forEach((p, i) => {
+      drawSubHeading(`Variant ${i + 1}`)
+      labelValue('Hook', p.hook)
+      labelValue('Body', p.body)
+      labelValue('CTA',  p.cta)
+      if (p.hashtags?.length) labelValue('Hashtags', p.hashtags.join(' '))
+      spacer(6)
+    })
+  }
+
+  if (c.email?.length) {
+    drawSectionHeading('Email Variants')
+    c.email.forEach((e, i) => {
+      drawSubHeading(`Variant ${i + 1}`)
+      labelValue('Subject',  e.subject)
+      labelValue('Preview',  e.preview)
+      labelValue('Body',     e.body)
+      labelValue('CTA',      e.cta)
+      spacer(6)
+    })
+  }
+
+  if (c.twitter?.length) {
+    drawSectionHeading('Twitter / X')
+    c.twitter.forEach((t, i) => {
+      drawSubHeading(`Tweet ${i + 1}`)
+      drawWrapped(t.tweet, { size: 10, gap: 14 })
+      if (t.thread?.length) {
+        spacer(2)
+        drawLine('Thread continuation:', { size: 9, color: rgb(0.4, 0.4, 0.5), gap: 12 })
+        t.thread.forEach((tw, j) => {
+          drawWrapped(`${j + 2}/  ${tw}`, { x: MARGIN + 12, size: 9.5, color: rgb(0.3, 0.3, 0.4), gap: 13 })
+        })
+      }
+      spacer(6)
+    })
+  }
+
+  if (c.linkedin_message?.length) {
+    drawSectionHeading('LinkedIn DM Templates')
+    c.linkedin_message.forEach((d, i) => {
+      drawSubHeading(`Template ${i + 1}`)
+      labelValue('Opener', d.opener)
+      labelValue('Body',   d.body)
+      labelValue('Ask',    d.ask)
+      spacer(6)
+    })
+  }
+
+  if (c.cold_dm?.length) {
+    drawSectionHeading('Cold DM Templates')
+    c.cold_dm.forEach((d, i) => {
+      drawSubHeading(`Template ${i + 1}`)
+      labelValue('Opener', d.opener)
+      labelValue('Body',   d.body)
+      labelValue('Ask',    d.ask)
+      spacer(6)
+    })
+  }
+
+  // ── Hashtag bank ───────────────────────────────────────────────────────────
+  const sets = brief.hashtag_sets ?? {}
+  const hasAny = (sets.branded?.length || sets.industry?.length || sets.general?.length || sets.regional?.length || sets.niche?.length)
+  if (hasAny) {
+    drawSectionHeading('Hashtag Bank')
+    const groups: Array<[string, string[] | undefined]> = [
+      ['Branded',  sets.branded],
+      ['Industry', sets.industry],
+      ['General',  sets.general],
+      ['Niche',    sets.niche],
+      ['Regional', sets.regional],
+    ]
+    for (const [label, tags] of groups) {
+      if (!tags?.length) continue
+      drawLine(label, { size: 9, bold: true, color: rgb(0.4, 0.4, 0.5), gap: 12 })
+      drawWrapped(tags.map(t => t.startsWith('#') ? t : '#' + t).join('  '), { size: 10, gap: 14 })
+      spacer(2)
+    }
+  }
+
+  // ── Timing recommendations ─────────────────────────────────────────────────
+  if (brief.timing_recommendations && Object.keys(brief.timing_recommendations).length) {
+    drawSectionHeading('Channel Timing & Best Practices')
+    for (const [channel, rec] of Object.entries(brief.timing_recommendations)) {
+      drawSubHeading(channel.replace(/_/g, ' '))
+      if (typeof rec === 'string') {
+        drawWrapped(rec, { size: 10, gap: 14 })
+      } else {
+        if (rec?.best_days?.length)  labelValue('Best days',   rec.best_days.join(', '))
+        if (rec?.best_times?.length) labelValue('Best times',  rec.best_times.join(', '))
+        if (rec?.rationale)          labelValue('Why',         rec.rationale)
+      }
+      spacer(4)
+    }
+  }
+
+  // ── Footer on last page ────────────────────────────────────────────────────
+  spacer(20)
+  drawDivider(rgb(0.85, 0.85, 0.92))
+  drawLine(`Generated by GTM Engine - ${brand.company_name ?? ''}`, { size: 8, color: rgb(0.55, 0.55, 0.6), gap: 12 })
+
+  return await pdfDoc.save()
 }
 
 Deno.serve(async (req: Request) => {
@@ -222,35 +450,240 @@ Deno.serve(async (req: Request) => {
 
     const channelList = channelMix.join(', ')
 
-    const briefPrompt = `Create a 14-day B2B marketing campaign brief. Return ONLY valid JSON, no markdown.
+    // Build per-channel content schema sections only for selected channels.
+    const contentSchemaParts: string[] = []
+    if (channelMix.includes('linkedin_post')) {
+      contentSchemaParts.push(`    "linkedin_post": [
+      { "hook": "scroll-stopping first line under 90 chars", "body": "full post 800-1300 chars, line breaks with \\n\\n, no fluff", "cta": "single clear CTA", "hashtags": ["#tag1","#tag2","#tag3"] }
+    ]`)
+    }
+    if (channelMix.includes('linkedin_message')) {
+      contentSchemaParts.push(`    "linkedin_message": [
+      { "opener": "personal hook that does NOT use 'Hi {{name}}' as the only personalisation", "body": "120-180 chars, references something concrete about their work or company", "ask": "soft, low-friction ask (e.g. 'open to a 15-min chat next week?')" }
+    ]`)
+    }
+    if (channelMix.includes('email')) {
+      contentSchemaParts.push(`    "email": [
+      { "subject": "under 55 chars, curiosity-driven, no spam triggers (NO emojis, NO ALL CAPS, NO 'free')", "preview": "preheader 60-90 chars that earns the open", "body": "120-180 word body in 3-4 short paragraphs, problem-agitate-solve framework, clear PS line", "cta": "specific next-step CTA (e.g. 'book a 15-min demo')" }
+    ]`)
+    }
+    if (channelMix.includes('twitter') || channelMix.includes('twitter_x')) {
+      contentSchemaParts.push(`    "twitter": [
+      { "tweet": "under 280 chars, hook + payoff + CTA, conversational", "thread": ["follow-up tweet 2 if relevant", "tweet 3"] }
+    ]`)
+    }
+    if (channelMix.includes('cold_dm')) {
+      contentSchemaParts.push(`    "cold_dm": [
+      { "opener": "casual one-liner, no formal greeting", "body": "60-100 chars, value-first not pitch-first", "ask": "low-bar ask, optional emoji" }
+    ]`)
+    }
 
-Company: ${brand.company_name ?? 'Company'}
-Campaign: ${campaign.name}
-Type: ${campaign.campaign_type ?? 'awareness'}
-Asset: ${assetDescription}
-Channels: ${channelList}
-Timezone: ${timezone}
-Country: ${brand.country_code ?? 'US'}
-Themes: ${(brand.active_themes ?? []).join(', ')}
+    const contentSchema = contentSchemaParts.length ? contentSchemaParts.join(',\n') : '    /* (no channel selected) */'
 
-Return exactly this JSON structure:
+    // Build phased calendar guidance based on campaign type.
+    const campaignType = (campaign.campaign_type ?? 'awareness').toLowerCase()
+    const arcMap: Record<string, { phases: string; postTypes: string; objective: string; ctaStyle: string }> = {
+      product_launch: {
+        objective: 'Drive launch-day awareness, demos, and first conversions for a new product/feature.',
+        phases: 'Day 1-3 = pre_launch (teaser, build curiosity, "something is coming"); Day 4-5 = launch (announcement, hero post, demo video, founder POV); Day 6-10 = sustain (use cases, customer story, social proof, founder behind-the-scenes, comparison vs status quo); Day 11-14 = recap (results so far, FAQ, soft re-engagement, last-chance CTA).',
+        postTypes: 'teaser, announcement, demo, founder_pov, use_case, social_proof, comparison, recap',
+        ctaStyle: 'Strong, time-bound CTAs ("Book a demo", "Try it today", "Join the waitlist").',
+      },
+      lead_gen: {
+        objective: 'Convert cold and warm prospects into booked meetings or trial signups.',
+        phases: 'Day 1-3 = problem_framing (hook on the pain you solve, agitate the cost of doing nothing); Day 4-7 = solution (your wedge, proof points, mini case studies); Day 8-11 = proof (named customer wins, ROI numbers, objection-handlers); Day 12-14 = ask (clear CTAs, scarcity if real, soft re-engagement of non-responders).',
+        postTypes: 'problem, agitate, solution, case_study, social_proof, objection_handler, ask, recap',
+        ctaStyle: 'Direct conversion CTAs ("Book 15 min", "Get the playbook", "See pricing"). Every email and DM ends with one clear ask.',
+      },
+      nurture: {
+        objective: 'Warm existing pipeline, stay top-of-mind, and move stuck deals forward without being pushy.',
+        phases: 'Day 1-3 = value_share (insight, framework, or industry POV they will actually use); Day 4-7 = relevance (use case relevant to their stage / role / industry); Day 8-11 = peer_proof (similar customer story, before/after, named logos); Day 12-14 = soft_ask (re-open conversation with a low-friction next step).',
+        postTypes: 'insight, framework, industry_pov, use_case, customer_story, before_after, peer_proof, soft_ask',
+        ctaStyle: 'Low-friction, value-first CTAs ("Want the template?", "Worth a 10-min sync?", "Open to a quick walkthrough?"). Avoid "book a demo" until day 12+.',
+      },
+      awareness: {
+        objective: 'Build brand visibility, establish category POV, and earn audience trust over 14 days.',
+        phases: 'Day 1-3 = warm_up (industry POV, contrarian take, problem framing); Day 4-7 = peak (main narrative, value prop variations, founder voice); Day 8-11 = sustain (proof, mini case studies, user-generated quotes, behind-the-scenes); Day 12-14 = recap (engagement post, summary thread, soft CTA to follow / subscribe).',
+        postTypes: 'industry_pov, contrarian, founder_pov, mini_case, behind_the_scenes, ugc_quote, recap, engagement_question',
+        ctaStyle: 'Soft brand CTAs ("Follow for more", "Subscribe", "DM us your take"). Avoid hard sales asks.',
+      },
+    }
+    const arc = arcMap[campaignType] ?? arcMap.awareness
+    const phaseGuidance = `OBJECTIVE: ${arc.objective}
+PHASING: ${arc.phases}
+POST TYPES TO ROTATE: ${arc.postTypes}
+CTA STYLE: ${arc.ctaStyle}`
+
+    // Build a structured audience profile from enrolled prospects so the LLM can
+    // tune positioning, hooks, hashtags, and subject lines to the actual ICP.
+    const buildAudienceProfile = (rows: any[]): { summary: string; topIndustries: string[] } => {
+      if (!rows.length) return { summary: 'No prospects enrolled yet — write to a generic ICP for this brand.', topIndustries: [] }
+
+      const tally = (vals: (string | null | undefined)[]): [string, number][] => {
+        const counts: Record<string, number> = {}
+        for (const v of vals) {
+          if (!v || typeof v !== 'string') continue
+          const key = v.trim()
+          if (!key) continue
+          counts[key] = (counts[key] ?? 0) + 1
+        }
+        return Object.entries(counts).sort((a, b) => b[1] - a[1])
+      }
+
+      const total = rows.length
+      const pct = (n: number) => `${Math.round((n / total) * 100)}%`
+
+      // Seniority bucket from job_title
+      const seniorityOf = (title: string | null | undefined): string => {
+        const t = (title ?? '').toLowerCase()
+        if (/\b(ceo|cto|cmo|cfo|coo|chief|founder|co-founder|owner|president)\b/.test(t)) return 'C-suite / Founder'
+        if (/\bvp\b|vice president/.test(t)) return 'VP'
+        if (/\b(director|head of)\b/.test(t)) return 'Director / Head'
+        if (/\b(manager|lead|principal|sr\.|senior)\b/.test(t)) return 'Manager / Senior IC'
+        if (t) return 'IC / Other'
+        return 'Unknown'
+      }
+
+      // Company-size band from company_size string (handles "1-10", "50-200", "1000+", "Enterprise")
+      const sizeBandOf = (sz: string | null | undefined): string => {
+        const s = (sz ?? '').toLowerCase().replace(/[, ]/g, '')
+        if (!s) return 'Unknown'
+        const firstNum = parseInt(s.match(/\d+/)?.[0] ?? '0', 10)
+        if (/enterprise/.test(s) || firstNum >= 1000) return 'Enterprise (1000+)'
+        if (firstNum >= 200) return 'Mid-market (200-1000)'
+        if (firstNum >= 50) return 'Growth (50-200)'
+        if (firstNum >= 10) return 'SMB (10-50)'
+        if (firstNum > 0) return 'Startup (1-10)'
+        return 'Unknown'
+      }
+
+      const industries = tally(rows.map(r => r.industry)).slice(0, 5)
+      const seniorities = tally(rows.map(r => seniorityOf(r.job_title))).slice(0, 4)
+      const sizeBands = tally(rows.map(r => sizeBandOf(r.company_size))).slice(0, 4)
+      const countries = tally(rows.map(r => r.country)).slice(0, 4)
+      const titles = tally(rows.map(r => r.job_title)).slice(0, 6)
+
+      const icpScores = rows.map(r => Number(r.icp_score)).filter(n => Number.isFinite(n) && n > 0)
+      const avgIcp = icpScores.length ? (icpScores.reduce((a, b) => a + b, 0) / icpScores.length).toFixed(2) : null
+
+      const fitReasons = rows
+        .map(r => r.icp_fit_reason)
+        .filter((r: any) => typeof r === 'string' && r.trim().length > 0)
+        .slice(0, 3)
+
+      const sampleCompanies = rows
+        .map(r => r.company_name)
+        .filter((c: any) => typeof c === 'string' && c.trim())
+        .slice(0, 6)
+
+      const fmt = (entries: [string, number][]) =>
+        entries.map(([k, n]) => `${k} (${pct(n)})`).join(', ') || '(unknown)'
+
+      const summary = [
+        `${total} prospect(s) enrolled.`,
+        `Top industries: ${fmt(industries)}.`,
+        `Seniority mix: ${fmt(seniorities)}.`,
+        `Company size: ${fmt(sizeBands)}.`,
+        `Geo: ${fmt(countries)}.`,
+        `Common titles: ${titles.map(([k]) => k).join('; ') || '(none)'}.`,
+        sampleCompanies.length ? `Sample companies: ${sampleCompanies.join(', ')}.` : '',
+        avgIcp ? `Average ICP fit score: ${avgIcp}.` : '',
+        fitReasons.length ? `Why they fit: ${fitReasons.map((r: string) => `"${r.slice(0, 140)}"`).join(' | ')}` : '',
+      ].filter(Boolean).join('\n             ')
+
+      return { summary, topIndustries: industries.map(([k]) => k) }
+    }
+
+    const audience = buildAudienceProfile(prospects ?? [])
+    const prospectInsight = audience.summary
+    const audienceIndustryHashtags = audience.topIndustries
+      .slice(0, 3)
+      .map(ind => '#' + ind.replace(/[^A-Za-z0-9]/g, ''))
+      .filter(t => t.length > 1)
+
+    const briefPrompt = `You are a senior B2B marketing strategist producing a publication-grade campaign brief.
+Return ONLY valid JSON. No markdown, no code fences, no commentary.
+
+# CONTEXT
+Company:     ${brand.company_name ?? 'Company'}
+Campaign:    ${campaign.name}
+Type:        ${campaign.campaign_type ?? 'awareness'}
+Asset:       ${assetDescription}
+Channels:    ${channelList}
+Timezone:    ${timezone}
+Country:     ${brand.country_code ?? 'US'}
+Brand voice: tone_formal_conversational=${brand.tone_formal_conversational ?? 5}/10, tone_safe_bold=${brand.tone_safe_bold ?? 5}/10, emoji=${brand.emoji_usage ?? 'minimal'}, cta=${brand.cta_style ?? 'soft ask'}
+${(brand.voice_examples ?? [])[0] ? `Voice example: "${(brand.voice_examples[0] as string).slice(0, 200)}"` : ''}
+Themes:      ${(brand.active_themes ?? []).join(', ') || '(none specified)'}
+${(brand.competitor_names ?? []).length ? `Do NOT name these competitors: ${brand.competitor_names.join(', ')}` : ''}
+
+# AUDIENCE (enrolled prospects from this campaign's ICP)
+${prospectInsight}
+
+${audienceIndustryHashtags.length ? `Industry hashtag seed (use these or close variants in hashtag_sets.industry): ${audienceIndustryHashtags.join(', ')}` : ''}
+
+# AUDIENCE-AWARENESS RULES
+- Tune the executive_summary, key_messages, and primary_cta to the dominant seniority + industry mix above.
+- Hooks for LinkedIn posts and email subjects must reference pains specific to the top industry/seniority (e.g. don't pitch "scale your engineering team" if 70% are CMOs at 1-10 person startups).
+- Email subject lines must use language a person at that seniority would actually open (founders/CEOs prefer short + direct; VPs prefer outcome-driven; ICs prefer how-to).
+- LinkedIn post tone matches the dominant seniority (founder/exec voice for C-suite audiences; practitioner voice for IC/manager audiences).
+- DM openers must reference something true of the dominant prospect profile (industry, role, or company stage) — never generic "saw your profile".
+- hashtag_sets.industry MUST include the seed industries above; hashtag_sets.regional MUST reflect the dominant geo above.
+
+# CAMPAIGN ARC GUIDANCE
+${phaseGuidance}
+
+# RULES
+- Every channel-content piece must reference the asset or its core promise concretely (no generic "exciting product" copy).
+- Vary post times across the day per channel (do NOT use the same time for every entry).
+- Use realistic time slots: LinkedIn posts 07:30-09:30 or 17:00-18:00 local; Email 10:00-11:00 or 13:00-15:00 local; Twitter 12:00-13:00 or 17:00-18:00 or 20:00-22:00 local.
+- Skip Saturday & Sunday entirely.
+- Hashtags: branded must include a campaign-specific tag derived from the campaign name; provide 8-15 unique hashtags total across categories.
+- Email subjects: < 55 chars, no emoji, no spam triggers, curiosity-driven.
+- LinkedIn posts: 800-1300 chars with paragraph breaks (use \\n\\n in JSON strings).
+- Honour brand voice (tone, emoji, CTA style).
+
+# REQUIRED JSON SHAPE
 {
+  "executive_summary": "2-3 sentence positioning that ties the asset to the campaign goal and target audience",
+  "key_messages": ["3-5 sharp positioning lines, each <= 140 chars"],
+  "primary_cta": "the single most important action you want the audience to take",
   "posting_schedule": [
-    {"recommended_date": "YYYY-MM-DD", "platform": "channel_name", "time_utc": "HH:MM", "time_local": "HH:MM TZ"}
+    {
+      "day": 1,
+      "recommended_date": "YYYY-MM-DD",
+      "phase": "the phase label for this day from the PHASING section above (e.g. pre_launch, launch, sustain, recap, problem_framing, solution, proof, ask, value_share, relevance, peer_proof, soft_ask, warm_up, peak)",
+      "channel": "one of the channels in scope",
+      "post_type": "teaser | announcement | use_case | founder_pov | social_proof | comparison | recap | educational",
+      "theme": "5-8 word title for this post",
+      "hook": "the opening line idea for this specific post",
+      "time_local": "HH:MM ${timezone}",
+      "time_utc": "HH:MM"
+    }
   ],
-  "caption_variants": {
-    ${channelMix.map((ch: string) => `"${ch}": ["caption1", "caption2", "caption3"]`).join(',\n    ')}
+  "content": {
+${contentSchema}
   },
   "hashtag_sets": {
-    "general": ["#tag1", "#tag2", "#tag3"],
-    "industry": ["#industry1", "#industry2"],
-    "regional": ["#regional1"]
+    "branded":  ["#CompanyName", "#CampaignSpecificTag"],
+    "industry": ["#YourIndustry1", "#YourIndustry2", "#YourIndustry3"],
+    "general":  ["#B2B", "#GTM"],
+    "niche":    ["#NicheTopic1", "#NicheTopic2"],
+    "regional": ["#${(brand.country_code ?? 'US').toUpperCase()}Tech"]
   },
   "timing_recommendations": {
-    ${channelMix.map((ch: string) => `"${ch}": "Best days/times for this channel"`).join(',\n    ')}
+    "linkedin_post":    { "best_days": ["Tue","Wed","Thu"], "best_times": ["07:30-09:00","17:00-18:00"], "rationale": "why these slots work for LinkedIn organic reach" },
+    "email":            { "best_days": ["Tue","Wed","Thu"], "best_times": ["10:00-11:00","13:00-15:00"], "rationale": "open + click windows for B2B inbox" },
+    "twitter":          { "best_days": ["Tue","Wed","Thu","Fri"], "best_times": ["12:00-13:00","17:00-18:00","20:00-22:00"], "rationale": "lunch / commute / evening engagement spikes" },
+    "linkedin_message": { "best_days": ["Tue","Wed","Thu"], "best_times": ["09:00-11:00","14:00-16:00"], "rationale": "highest InMail response rates" },
+    "cold_dm":          { "best_days": ["Tue","Wed"], "best_times": ["10:00-12:00"], "rationale": "before mid-day distraction" }
   }
 }
-Generate exactly 14 schedule entries starting ${new Date().toISOString().slice(0, 10)}.`
+
+Generate exactly 14 schedule entries starting ${new Date().toISOString().slice(0, 10)} (skip weekends).
+Generate at least 2 variants per channel under "content" for any channel in scope.
+Generate at least 8 hashtags total across the sets.
+Only include "timing_recommendations" entries for channels in scope: ${channelList}.`
 
     const briefRaw = await routeTextGeneration(
       providerKey,
@@ -275,11 +708,44 @@ Generate exactly 14 schedule entries starting ${new Date().toISOString().slice(0
       })
     }
 
+    // Back-compat shims so the existing /campaigns/[id] Calendar tab keeps rendering.
+    const allHashtags: string[] = []
+    const sets = briefData.hashtag_sets ?? {}
+    for (const k of ['branded', 'industry', 'general', 'niche', 'regional'] as const) {
+      const arr = (sets as any)[k]
+      if (Array.isArray(arr)) for (const t of arr) if (typeof t === 'string' && !allHashtags.includes(t)) allHashtags.push(t)
+    }
+    if (allHashtags.length) (briefData as any).hashtags = allHashtags
+
+    const flatTimes: Record<string, string> = {}
+    for (const [ch, rec] of Object.entries(briefData.timing_recommendations ?? {})) {
+      if (typeof rec === 'string') flatTimes[ch] = rec
+      else if (rec && typeof rec === 'object') {
+        const days = (rec.best_days ?? []).join('/')
+        const times = (rec.best_times ?? []).join(', ')
+        flatTimes[ch] = [days, times].filter(Boolean).join(' · ')
+      }
+    }
+    if (Object.keys(flatTimes).length) (briefData as any).best_time_to_post = flatTimes
+
+    // Stash audience profile on the brief so PDF + frontend can render it.
+    ;(briefData as any).audience_profile = {
+      total: (prospects ?? []).length,
+      summary: prospectInsight,
+      top_industries: audience.topIndustries,
+    }
+
     // Generate PDF using pdf-lib
-    const pdfBytes = await generatePdf(briefData, brand, { asset_type: job?.asset_type, prompt_tags: job?.content_job_json?.prompt_tags })
+    const pdfBytes = await generatePdf(
+      briefData,
+      brand,
+      { asset_type: job?.asset_type, prompt_tags: job?.content_job_json?.prompt_tags },
+      campaign.name ?? 'Campaign Brief',
+    )
 
     // Generate outreach copies per prospect per channel
     let copyCount = 0
+    const successfulProspectIds = new Set<string>()
     for (const prospect of prospects ?? []) {
       for (const channel of channelMix) {
         try {
@@ -303,8 +769,42 @@ Return ONLY the message text.`
             status: 'draft',
           }, { onConflict: 'org_id,campaign_id,prospect_id,platform', ignoreDuplicates: false })
           copyCount++
+          successfulProspectIds.add((prospect as any).id)
         } catch { /* continue on individual copy failure */ }
       }
+    }
+
+    // Auto-advance prospect status: new -> contacted (do NOT overwrite manual statuses
+    // like replied/qualified/disqualified). Mirrors the personalise function's behaviour
+    // so a prospect's lifecycle stays in sync whether outreach is generated 1-by-1 or
+    // in bulk via a campaign brief.
+    //
+    // Two-pass:
+    //   1. Always stamp last_contacted_at + contacted_via='campaign' + last_campaign_id
+    //      for EVERY prospect that got a copy (even if status is already past 'new').
+    //      This keeps the "last touched" timeline accurate on re-runs.
+    //   2. Promote status 'new' -> 'contacted' only.
+    if (successfulProspectIds.size > 0) {
+      const ids = Array.from(successfulProspectIds)
+      const now = new Date().toISOString()
+
+      // Pass 1: attribution + timestamp (all touched prospects)
+      await db.from('prospects')
+        .update({
+          contacted_via: 'campaign',
+          last_contacted_at: now,
+          last_campaign_id: campaign_id,
+          updated_at: now,
+        })
+        .in('id', ids)
+        .eq('org_id', orgId)
+
+      // Pass 2: lifecycle promotion (only those still at 'new')
+      await db.from('prospects')
+        .update({ status: 'contacted' })
+        .in('id', ids)
+        .eq('org_id', orgId)
+        .eq('status', 'new')
     }
 
     // Upload PDF to storage (use campaign_id as filename for idempotency)
@@ -322,13 +822,16 @@ Return ONLY the message text.`
       })
     }
 
-    // Update existing campaign_briefs row (do NOT insert new)
+    // Update existing campaign_briefs row (do NOT insert new).
+    // Auto-promote draft -> active now that the campaign has a brief, copies, and prospects.
+    // Never overwrite manual transitions (paused/completed).
     await db.from('campaign_briefs')
       .update({
         brief_data: briefData,
         pdf_url: storagePath,
         updated_at: new Date().toISOString(),
         ...(jobId ? { job_id: jobId } : {}),
+        ...(campaign.status === 'draft' ? { status: 'active' } : {}),
       })
       .eq('id', campaign_id)
 
@@ -346,6 +849,14 @@ Return ONLY the message text.`
     )
   } catch (err) {
     if (err instanceof Response) return err
+    if (err instanceof ProviderError) {
+      const body = userMessageFor(err)
+      const httpStatus = err.code === 'auth_failed' ? 401 : err.retryable ? 503 : 502
+      return new Response(
+        JSON.stringify(body),
+        { status: httpStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
     console.error('generate-campaign-brief error:', (err as Error).message)
     return new Response(
       JSON.stringify({ error: 'internal_error' }),

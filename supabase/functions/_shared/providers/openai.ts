@@ -1,6 +1,8 @@
 import { createServiceClient } from '../db.ts'
 import { recordUsage } from '../observability.ts'
 
+import { fetchWithRetry } from './router.ts'
+
 const OPENAI_BASE = 'https://api.openai.com/v1'
 
 export async function callOpenAI(
@@ -27,13 +29,15 @@ export async function callOpenAI(
     body.response_format = opts.responseFormat
   }
 
-  const res = await fetch(`${OPENAI_BASE}/chat/completions`, {
+  const res = await fetchWithRetry(`${OPENAI_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(body),
+    timeoutMs: 60_000,
+    provider: 'OpenAI',
   })
 
   const latency = Date.now() - start
@@ -78,13 +82,15 @@ export async function embedText(
 ): Promise<number[]> {
   const start = Date.now()
 
-  const res = await fetch(`${OPENAI_BASE}/embeddings`, {
+  const res = await fetchWithRetry(`${OPENAI_BASE}/embeddings`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ model: modelId, input: text }),
+    timeoutMs: 30_000,
+    provider: 'OpenAI Embeddings',
   })
 
   if (!res.ok) {
@@ -121,13 +127,15 @@ export async function callOpenAIImage(
   jobId: string,
 ): Promise<{ bytes: Uint8Array; outputUrl: string }> {
   const start = Date.now()
-  const res = await fetch(`${OPENAI_BASE}/images/generations`, {
+  const res = await fetchWithRetry(`${OPENAI_BASE}/images/generations`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ model: 'gpt-image-2', prompt, size, response_format: 'b64_json', n: 1 }),
+    timeoutMs: 120_000,
+    provider: 'OpenAI Images',
   })
 
   if (!res.ok) {

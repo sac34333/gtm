@@ -1,6 +1,8 @@
 import { createServiceClient } from '../db.ts'
 import { recordUsage } from '../observability.ts'
 
+import { fetchWithRetry } from './router.ts'
+
 const ANTHROPIC_BASE = 'https://api.anthropic.com/v1'
 
 export async function callAnthropic(
@@ -35,10 +37,12 @@ export async function callAnthropic(
     body.response_format = { type: 'json', json_schema: opts.jsonSchema }
   }
 
-  const res = await fetch(`${ANTHROPIC_BASE}/messages`, {
+  const res = await fetchWithRetry(`${ANTHROPIC_BASE}/messages`, {
     method: 'POST',
     headers,
     body: JSON.stringify(body),
+    timeoutMs: 90_000,
+    provider: 'Anthropic',
   })
 
   const latency = Date.now() - start

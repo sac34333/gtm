@@ -475,11 +475,17 @@ export default function OnboardingPage() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-slate-950 px-4 py-10 flex justify-center">
-      <div className="w-full max-w-xl space-y-8">
+    <main className="relative min-h-screen px-4 py-10 flex justify-center overflow-hidden">
+      {/* Ambient backdrop for onboarding too */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(30,27,75,0.55),_transparent_60%)]" />
+        <div className="absolute -top-32 left-1/4 h-[420px] w-[420px] rounded-full bg-indigo-600/25 blur-[120px] animate-float" />
+        <div className="absolute bottom-0 right-1/4 h-[360px] w-[360px] rounded-full bg-fuchsia-600/20 blur-[120px] animate-float" style={{ animationDelay: '-3s' }} />
+      </div>
+      <div className="w-full max-w-xl space-y-8 gtm-fade-up">
         {/* Header */}
         <div>
-          <h1 className="text-2xl font-bold text-slate-100">Set up your brand</h1>
+          <h1 className="text-2xl font-bold gtm-title tracking-tight">Set up your brand</h1>
           <p className="text-slate-400 mt-1 text-sm">
             Help us personalise your GTM content. You can update this any time in Settings.
           </p>

@@ -114,7 +114,7 @@ export default function SettingsUsagePage() {
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">AI Usage</h1>
+        <h1 className="text-2xl font-bold gtm-title tracking-tight">AI Usage</h1>
         <p className="text-slate-400 text-sm mt-1">Track AI model calls and estimated costs.</p>
       </div>
 

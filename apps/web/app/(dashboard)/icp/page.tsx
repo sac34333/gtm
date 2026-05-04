@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { INDUSTRIES, ICP_COMPANY_SIZES, COUNTRIES } from '@/lib/constants'
@@ -49,12 +49,17 @@ function criteriaEqual(a: ICPCriteria, b: ICPCriteria): boolean {
 export default function ICPPage() {
   const searchParams = useSearchParams()
   const jobId = searchParams.get('job_id') ?? undefined
+  const initialCampaignFilter = searchParams.get('campaign') ?? 'all'
 
   const supabase = getSupabaseBrowserClient()
 
   const [criteria, setCriteria] = useState<ICPCriteria>(EMPTY_CRITERIA)
   const [savedCriteria, setSavedCriteria] = useState<ICPCriteria>(EMPTY_CRITERIA)
   const [prospects, setProspects] = useState<any[]>([])
+  const [campaigns, setCampaigns] = useState<{ id: string; name: string }[]>([])
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [viaFilter, setViaFilter] = useState<string>('all')
+  const [campaignFilter, setCampaignFilter] = useState<string>(initialCampaignFilter)
   const [loadingProspects, setLoadingProspects] = useState(true)
   const [enriching, setEnriching] = useState(false)
   const [rescoring, setRescoring] = useState(false)
@@ -126,8 +131,16 @@ export default function ICPPage() {
 
         const { data: rows } = await supabase
           .from('prospects')
-          .select('id,first_name,last_name,email,job_title,company_name,industry,country,enrichment_source,enrichment_data,icp_score,icp_fit_reason,status,linkedin_url,created_at')
+          .select('id,first_name,last_name,email,job_title,company_name,industry,country,enrichment_source,enrichment_data,icp_score,icp_fit_reason,status,linkedin_url,created_at,contacted_via,last_contacted_at,last_campaign_id')
           .order('icp_score', { ascending: false })
+
+        // Fetch campaign id->name lookup so the ProspectTable can render "via <name>"
+        // and the filter dropdown can show readable labels.
+        const { data: camps } = await supabase
+          .from('campaign_briefs')
+          .select('id,name')
+          .order('created_at', { ascending: false })
+        if (camps && active) setCampaigns(camps as { id: string; name: string }[])
 
         if (rows && active) {
           setProspects(rows)
@@ -234,15 +247,41 @@ export default function ICPPage() {
 
   const isDirty = !criteriaEqual(criteria, savedCriteria)
 
+  // Augment prospects with last_campaign_name for the table caption,
+  // then apply the status / contact-source / campaign filter dropdowns.
+  const campaignNameById = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const c of campaigns) m.set(c.id, c.name)
+    return m
+  }, [campaigns])
+
+  const filteredProspects = useMemo(() => {
+    return prospects
+      .map(p => ({
+        ...p,
+        last_campaign_name: p.last_campaign_id ? (campaignNameById.get(p.last_campaign_id) ?? null) : null,
+      }))
+      .filter(p => {
+        if (statusFilter !== 'all' && (p.status ?? 'new') !== statusFilter) return false
+        if (viaFilter === 'none') {
+          if (p.contacted_via != null) return false
+        } else if (viaFilter !== 'all') {
+          if (p.contacted_via !== viaFilter) return false
+        }
+        if (campaignFilter !== 'all' && p.last_campaign_id !== campaignFilter) return false
+        return true
+      })
+  }, [prospects, campaignNameById, statusFilter, viaFilter, campaignFilter])
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen text-slate-100">
       <div className="max-w-screen-xl mx-auto px-6 py-10 space-y-8">
 
         <BackButton href="/dashboard" label="Back to dashboard" />
 
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-white">ICP & Prospects</h1>
+            <h1 className="text-2xl font-bold gtm-title tracking-tight">ICP & Prospects</h1>
             <p className="text-slate-400 text-sm mt-1">Define your ideal customer profile and enrich prospect data.</p>
           </div>
           <div className="flex items-center gap-2">
@@ -398,7 +437,7 @@ export default function ICPPage() {
           {enrichResult && (
             enrichResult.total > 0 ? (
               <div className="rounded-lg bg-emerald-900/20 border border-emerald-700/40 text-emerald-300 text-sm px-4 py-3">
-                Found <strong>{enrichResult.total}</strong> prospects from: {enrichResult.sources.join(', ')}
+                Found <strong>{enrichResult.total}</strong> new prospects via AI search.
               </div>
             ) : (
               <div className="rounded-lg bg-amber-900/20 border border-amber-700/40 text-amber-300 text-sm px-4 py-3">
@@ -409,13 +448,62 @@ export default function ICPPage() {
         </div>
 
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-3">
             <h2 className="text-base font-semibold text-slate-100">
               Prospects
               {prospects.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-slate-400">({prospects.length})</span>
+                <span className="ml-2 text-sm font-normal text-slate-400">
+                  ({filteredProspects.length}{filteredProspects.length !== prospects.length ? ` of ${prospects.length}` : ''})
+                </span>
               )}
             </h2>
+            {prospects.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <select
+                  value={statusFilter}
+                  onChange={e => setStatusFilter(e.target.value)}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="new">New</option>
+                  <option value="contacted">Contacted</option>
+                  <option value="replied">Replied</option>
+                  <option value="qualified">Qualified</option>
+                  <option value="disqualified">Disqualified</option>
+                </select>
+                <select
+                  value={viaFilter}
+                  onChange={e => setViaFilter(e.target.value)}
+                  className="text-xs px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 focus:outline-none focus:border-indigo-500"
+                >
+                  <option value="all">Any contact source</option>
+                  <option value="campaign">Via campaign</option>
+                  <option value="personal">Via personalise</option>
+                  <option value="manual">Manual</option>
+                  <option value="none">Not contacted</option>
+                </select>
+                {campaigns.length > 0 && (
+                  <select
+                    value={campaignFilter}
+                    onChange={e => setCampaignFilter(e.target.value)}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-slate-700 bg-slate-900 text-slate-300 focus:outline-none focus:border-indigo-500 max-w-[180px]"
+                  >
+                    <option value="all">Any campaign</option>
+                    {campaigns.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                )}
+                {(statusFilter !== 'all' || viaFilter !== 'all' || campaignFilter !== 'all') && (
+                  <button
+                    onClick={() => { setStatusFilter('all'); setViaFilter('all'); setCampaignFilter('all') }}
+                    className="text-xs text-slate-400 hover:text-slate-200 px-2"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
           </div>
 
           {loadingProspects ? (
@@ -425,7 +513,7 @@ export default function ICPPage() {
               ))}
             </div>
           ) : (
-            <ProspectTable prospects={prospects} jobId={jobId} />
+            <ProspectTable prospects={filteredProspects} jobId={jobId} />
           )}
         </div>
 

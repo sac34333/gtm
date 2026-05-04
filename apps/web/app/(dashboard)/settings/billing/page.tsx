@@ -209,7 +209,7 @@ export default function SettingsBillingPage() {
   if (isError || !data) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-12 space-y-4">
-        <h1 className="text-2xl font-semibold text-slate-100">Billing</h1>
+        <h1 className="text-2xl font-semibold gtm-title tracking-tight">Billing</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
           <p className="text-red-300">Failed to load billing data.</p>
@@ -234,7 +234,7 @@ export default function SettingsBillingPage() {
     <div className="mx-auto max-w-4xl px-6 py-8 space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-semibold text-slate-100">Billing</h1>
+        <h1 className="text-2xl font-semibold gtm-title tracking-tight">Billing</h1>
         <p className="text-slate-400 text-sm mt-1">Manage your plan and usage quotas.</p>
       </div>
 
@@ -276,13 +276,13 @@ export default function SettingsBillingPage() {
         {!isOwner && (
           <p className="text-xs text-slate-500">Only the org owner can change the plan.</p>
         )}
-        <div className="grid sm:grid-cols-3 gap-3">
+        <div className="grid sm:grid-cols-3 gap-3 gtm-stagger">
           {PLANS.map(plan => {
             const isCurrent = plan.id === org.plan_tier
             return (
               <div
                 key={plan.id}
-                className={`rounded-xl border p-4 space-y-3 bg-slate-900 ${isCurrent ? plan.accent : 'border-slate-800'}`}
+                className={`rounded-xl border p-4 space-y-3 bg-slate-900 transition-all duration-300 hover:-translate-y-0.5 ${isCurrent ? `${plan.accent} shadow-glow-indigo` : 'border-slate-800'}`}
               >
                 <div className="flex items-center justify-between gap-2">
                   <h3 className="font-semibold text-slate-100 text-sm">{plan.name}</h3>
@@ -292,7 +292,7 @@ export default function SettingsBillingPage() {
                     </span>
                   )}
                 </div>
-                <p className="text-xl font-bold text-slate-100">{plan.price}</p>
+                <p className={`text-xl font-bold ${isCurrent ? 'gtm-title-accent' : 'text-slate-100'}`}>{plan.price}</p>
                 <p className="text-[11px] text-slate-400 leading-relaxed min-h-[2.5rem]">{plan.description}</p>
                 <ul className="space-y-1 text-xs text-slate-400 pt-1 border-t border-slate-800">
                   <li>{plan.seats} seats</li>

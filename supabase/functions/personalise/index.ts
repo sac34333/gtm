@@ -1,7 +1,7 @@
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { validateJWT, extractOrgId } from '../_shared/auth.ts'
 import { createServiceClient } from '../_shared/db.ts'
-import { resolveApiKey, routeTextGeneration } from '../_shared/providers/router.ts'
+import { resolveApiKey, routeTextGeneration, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
 
 Deno.serve(async (req: Request) => {
   const corsResponse = handleCors(req)
@@ -182,10 +182,28 @@ Return only the outreach message text, no preamble.`
       })
     }
 
-    // Update prospect status
+    // Auto-advance prospect lifecycle to 'contacted' on first outreach copy.
+    // Don't downgrade prospects already at 'replied' / 'qualified' / 'disqualified'.
+    //
+    // Two-pass:
+    //   1. Always stamp last_contacted_at + contacted_via='personal' (overwrites any
+    //      prior 'campaign' attribution because this is a more recent personal touch).
+    //      last_campaign_id is NOT cleared — we keep history of the last bulk campaign.
+    //   2. Promote 'new' -> 'contacted' only.
+    const now = new Date().toISOString()
     await db.from('prospects')
-      .update({ status: 'outreach_drafted' })
+      .update({
+        contacted_via: 'personal',
+        last_contacted_at: now,
+        updated_at: now,
+      })
       .eq('id', prospect_id)
+      .eq('org_id', orgId)
+
+    await db.from('prospects')
+      .update({ status: 'contacted' })
+      .eq('id', prospect_id)
+      .eq('status', 'new')
 
     return new Response(
       JSON.stringify({ copy_text: copy.copy_text, copy_id: copy.id }),
@@ -193,6 +211,14 @@ Return only the outreach message text, no preamble.`
     )
   } catch (err) {
     if (err instanceof Response) return err
+    if (err instanceof ProviderError) {
+      const body = userMessageFor(err)
+      const httpStatus = err.code === 'auth_failed' ? 401 : err.retryable ? 503 : 502
+      return new Response(
+        JSON.stringify(body),
+        { status: httpStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
     console.error('personalise error:', (err as Error).message)
     return new Response(
       JSON.stringify({ error: 'internal_error' }),

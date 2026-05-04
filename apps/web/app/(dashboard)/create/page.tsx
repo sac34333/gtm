@@ -168,7 +168,13 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
       if (!buildRes.ok) throw new Error('Failed to build refined prompt')
       const { content_job } = await buildRes.json()
       const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, parent_job_id: originalJobId }) })
-      if (!genRes.ok) { const err = await genRes.json(); throw new Error(err.error ?? 'Generation failed') }
+      if (!genRes.ok) {
+        const err = await genRes.json()
+        const msg = err.retryable === true || genRes.status === 503 || genRes.status === 502
+          ? (err.error ?? 'AI provider is temporarily unavailable. Your quota was not deducted — please try again.')
+          : (err.error ?? 'Generation failed')
+        throw new Error(msg)
+      }
       const genData = await genRes.json()
       if (genData.status === 'completed' && genData.output_url) { setRefinedUrl(genData.output_url); setRefinedJobId(genData.job_id) }
     } catch (err: any) { setRefineError(err.message ?? 'Refinement failed') }
@@ -403,7 +409,12 @@ export default function CreatePage() {
           if (genRes.status === 402 || err.error === 'quota_exceeded') {
             setQuotaError(err); setShowUpgradeModal(true); return
           } else if (err.error === 'model_requires_paid_plan') setError('This model requires a paid plan.')
-          else setError(err.error ?? 'Generation failed'); return
+          // 503 / 502 / 401 from new ProviderError mapping (server included a friendly `error` string + retryable flag)
+          else if (err.retryable === true || genRes.status === 503 || genRes.status === 502) {
+            setError(err.error ?? 'AI provider is temporarily unavailable. Your quota was not deducted — please try again.')
+          } else if (genRes.status === 401 && err.code === 'auth_failed') {
+            setError(err.error ?? 'API key issue — check your provider key in Settings.')
+          } else setError(err.error ?? 'Generation failed'); return
         }
         const genData = await genRes.json()
         if (genData.status === 'completed' && genData.output_url) { setGeneratedImageUrl(genData.output_url); setGeneratedJobId(genData.job_id); setQuotaUsed(prev => prev + 1); return }
@@ -422,12 +433,12 @@ export default function CreatePage() {
   const quotaRemaining = assetType === 'image' ? quotaMax - quotaUsed : videoQuotaMax - videoQuotaUsed
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <BackButton href={signalId ? '/dashboard' : '/library'} label={signalId ? 'Back to signals' : 'Back to library'} />
         <div className="mb-6 flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Create Asset</h1>
+            <h1 className="text-2xl font-semibold gtm-title tracking-tight">Create Asset</h1>
             <p className="text-slate-400 mt-1 text-sm">AI-powered GTM content, guided by your brand.</p>
           </div>
           <div className="text-right text-xs mt-1 space-x-3">
@@ -660,10 +671,18 @@ export default function CreatePage() {
 
             {/* Generation in progress */}
             {isPending && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col items-center gap-3 text-center">
-                <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
-                <p className="text-sm text-slate-300 font-medium">{assetType === 'video' ? 'Submitting video job…' : 'Generating your image…'}</p>
-                {assetType === 'image' && <p className="text-xs text-slate-500 italic animate-pulse">"{tags.subject.slice(0, 60)}{tags.subject.length > 60 ? '…' : ''}"</p>}
+              <div className="relative overflow-hidden bg-slate-900 border border-slate-800 rounded-xl p-6 flex flex-col items-center gap-3 text-center">
+                <div className="absolute inset-0 gtm-mesh opacity-50" />
+                <div className="relative flex flex-col items-center gap-3">
+                  <div className="relative">
+                    <div className="absolute inset-0 rounded-full border-2 border-indigo-400/40 animate-ping" />
+                    <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-glow-violet">
+                      <Loader2 className="w-6 h-6 text-white animate-spin" />
+                    </div>
+                  </div>
+                  <p className="text-sm font-medium gtm-shimmer-text">{assetType === 'video' ? 'Submitting video job…' : 'Generating your image…'}</p>
+                  {assetType === 'image' && <p className="text-xs text-slate-300/80 italic">"{tags.subject.slice(0, 60)}{tags.subject.length > 60 ? '…' : ''}"</p>}
+                </div>
               </div>
             )}
 

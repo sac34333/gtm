@@ -17,12 +17,12 @@ export default async function DashboardPage() {
     .single()
 
   return (
-    <div className="min-h-screen bg-slate-950 p-6 lg:p-8">
+    <div className="min-h-screen p-6 lg:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-slate-100">Trend Intelligence</h1>
+            <h1 className="text-2xl font-bold gtm-title tracking-tight">Trend Intelligence</h1>
             <p className="text-slate-400 mt-1 text-sm">Signals ranked by relevance to your brand themes.</p>
           </div>
           {/* Usage meters */}

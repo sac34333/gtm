@@ -5,6 +5,25 @@ import { decrypt } from '../_shared/encryption.ts'
 const IMAGE_POLL_TIMEOUT = 60
 const VIDEO_POLL_TIMEOUT = 600
 
+/**
+ * Refund the quota that was deducted at dispatch time when an async job fails.
+ * GREATEST(x - 1, 0) prevents negative usage values from over-refunding.
+ * Idempotent at the row level — only refund once per job.
+ */
+async function refundQuotaForFailedJob(db: any, job: any): Promise<void> {
+  if (job.quota_refunded) return
+  try {
+    const isVideo = job.asset_type === 'video'
+    const column = isVideo ? 'video_used' : 'image_used'
+    const { data: org } = await db.from('orgs').select(column).eq('id', job.org_id).maybeSingle()
+    const current = (org?.[column] ?? 0) as number
+    await db.from('orgs').update({ [column]: Math.max(current - 1, 0) }).eq('id', job.org_id)
+    await db.from('generation_jobs').update({ quota_refunded: true }).eq('id', job.id)
+  } catch (e) {
+    console.error('quota refund failed for job', job.id, (e as Error).message)
+  }
+}
+
 // Fire-and-forget invocation of generate-captions for a completed job.
 // Authenticated via x-cron-secret. Errors swallowed.
 async function triggerCaptions(jobId: string): Promise<void> {
@@ -114,6 +133,7 @@ Deno.serve(async (req: Request) => {
             status: 'failed',
             error_message: 'Generation timed out',
           }).eq('id', job.id)
+          await refundQuotaForFailedJob(db, job)
           failed++
           continue
         }
@@ -145,6 +165,7 @@ Deno.serve(async (req: Request) => {
 
         if (!apiKey) {
           await db.from('generation_jobs').update({ status: 'failed', error_message: 'no_api_key' }).eq('id', job.id)
+          await refundQuotaForFailedJob(db, job)
           failed++
           continue
         }
@@ -248,6 +269,7 @@ Deno.serve(async (req: Request) => {
             status: 'failed',
             error_message: result.error ?? 'generation_failed',
           }).eq('id', job.id)
+          await refundQuotaForFailedJob(db, job)
           failed++
         }
       } catch (jobErr) {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, use } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Badge } from '@/components/ui/badge'
@@ -70,6 +70,55 @@ const COPY_STATUS_COLOR: Record<string, string> = {
   rejected: 'bg-red-900/30 border-red-700/40 text-red-300',
 }
 
+const CAMPAIGN_STATUS_OPTIONS = [
+  { value: 'draft',     label: 'Draft',     cls: 'bg-slate-800 border-slate-700 text-slate-400' },
+  { value: 'active',    label: 'Active',    cls: 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300' },
+  { value: 'paused',    label: 'Paused',    cls: 'bg-amber-900/30 border-amber-700/40 text-amber-300' },
+  { value: 'completed', label: 'Completed', cls: 'bg-slate-700/40 border-slate-600/40 text-slate-400' },
+] as const
+
+function CampaignStatusSelect({
+  campaignId, value, onChange,
+}: { campaignId: string; value: string | null; onChange: (next: string) => void }) {
+  const supabase = getSupabaseBrowserClient()
+  const [saving, setSaving] = useState(false)
+  const current = value ?? 'draft'
+  const opt = CAMPAIGN_STATUS_OPTIONS.find(o => o.value === current) ?? CAMPAIGN_STATUS_OPTIONS[0]
+
+  async function update(next: string) {
+    if (next === current || saving) return
+    setSaving(true)
+    onChange(next) // optimistic
+    const { error } = await supabase
+      .from('campaign_briefs')
+      .update({ status: next, updated_at: new Date().toISOString() })
+      .eq('id', campaignId)
+    setSaving(false)
+    if (error) {
+      onChange(current) // rollback
+    }
+  }
+
+  return (
+    <div className="relative inline-flex items-center">
+      <select
+        value={current}
+        onChange={(e) => update(e.target.value)}
+        disabled={saving}
+        className={`appearance-none cursor-pointer pl-2.5 pr-6 py-0.5 rounded-full border text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/40 ${opt.cls} ${saving ? 'opacity-60' : ''}`}
+        aria-label="Campaign status"
+      >
+        {CAMPAIGN_STATUS_OPTIONS.map(o => (
+          <option key={o.value} value={o.value} className="bg-slate-900 text-slate-200">
+            {o.label}
+          </option>
+        ))}
+      </select>
+      <ChevronRight className="w-3 h-3 absolute right-1.5 pointer-events-none rotate-90 opacity-60" />
+    </div>
+  )
+}
+
 // ─── Content Calendar Tab ────────────────────────────────────────────────────
 
 function CalendarTab({ campaign, onGenerateBrief, generating }: {
@@ -77,11 +126,34 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
   onGenerateBrief: () => void
   generating: boolean
 }) {
-  const schedule: any[] = campaign.brief_data?.posting_schedule ?? []
-  const hashtags: string[] = campaign.brief_data?.hashtags ?? []
-  const bestTimes: Record<string, string> = campaign.brief_data?.best_time_to_post ?? {}
+  const supabase = getSupabaseBrowserClient()
+  const brief = campaign.brief_data ?? null
+  const schedule: any[] = brief?.posting_schedule ?? []
+  const hashtagSets: Record<string, string[]> = brief?.hashtag_sets ?? {}
+  const flatHashtags: string[] = brief?.hashtags ?? []
+  const timing: Record<string, any> = brief?.timing_recommendations ?? brief?.best_time_to_post ?? {}
+  const summary: string | undefined = brief?.executive_summary
+  const keyMessages: string[] = brief?.key_messages ?? []
+  const primaryCta: string | undefined = brief?.primary_cta
+  const audienceProfile: { total?: number; summary?: string; top_industries?: string[] } | undefined = brief?.audience_profile
 
-  if (!campaign.brief_data && !generating) {
+  // Live "X of N contacted" counter — counts prospects whose last_campaign_id
+  // points at this campaign. Updates whenever a brief generation flips status.
+  const [contactedCount, setContactedCount] = useState<number | null>(null)
+  useEffect(() => {
+    let active = true
+    async function loadCount() {
+      const { count } = await supabase
+        .from('prospects')
+        .select('id', { count: 'exact', head: true })
+        .eq('last_campaign_id', campaign.id)
+      if (active) setContactedCount(count ?? 0)
+    }
+    loadCount()
+    return () => { active = false }
+  }, [supabase, campaign.id])
+
+  if (!brief && !generating) {
     return (
       <div className="py-16 text-center">
         <Calendar className="w-10 h-10 text-slate-700 mx-auto mb-3" />
@@ -103,45 +175,126 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
       <div className="py-16 text-center">
         <Loader2 className="w-8 h-8 text-indigo-400 animate-spin mx-auto mb-3" />
         <p className="text-slate-300">Generating campaign brief…</p>
-        <p className="text-slate-500 text-sm mt-1">This usually takes 15–30 seconds.</p>
       </div>
     )
   }
 
+  // Phase color tokens (covers all 4 campaign-type arcs)
+  const phaseStyles: Record<string, string> = {
+    // product_launch
+    pre_launch: 'bg-amber-900/30 border-amber-700/40 text-amber-300',
+    launch:     'bg-indigo-900/30 border-indigo-700/40 text-indigo-300',
+    sustain:    'bg-emerald-900/30 border-emerald-700/40 text-emerald-300',
+    recap:      'bg-violet-900/30 border-violet-700/40 text-violet-300',
+    // lead_gen
+    problem_framing: 'bg-rose-900/30 border-rose-700/40 text-rose-300',
+    solution:        'bg-indigo-900/30 border-indigo-700/40 text-indigo-300',
+    proof:           'bg-emerald-900/30 border-emerald-700/40 text-emerald-300',
+    ask:             'bg-amber-900/30 border-amber-700/40 text-amber-300',
+    // nurture
+    value_share: 'bg-sky-900/30 border-sky-700/40 text-sky-300',
+    relevance:   'bg-indigo-900/30 border-indigo-700/40 text-indigo-300',
+    peer_proof:  'bg-emerald-900/30 border-emerald-700/40 text-emerald-300',
+    soft_ask:    'bg-violet-900/30 border-violet-700/40 text-violet-300',
+    // awareness
+    warm_up: 'bg-amber-900/30 border-amber-700/40 text-amber-300',
+    peak:    'bg-indigo-900/30 border-indigo-700/40 text-indigo-300',
+  }
+
   return (
-    <div className="space-y-8">
-      {/* 14-day posting schedule grid */}
-      {schedule.length > 0 && (
-        <div>
-          <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-slate-500" /> Posting schedule
-          </h3>
-          <div className="grid grid-cols-7 gap-2">
-            {schedule.slice(0, 14).map((day: any, idx: number) => (
-              <div key={idx} className="rounded-lg border border-slate-800 bg-slate-900/40 px-2 py-3 text-center">
-                <div className="text-xs text-slate-500 mb-1">Day {idx + 1}</div>
-                <div className="text-xs font-medium text-white truncate">{day.channel ?? day.platform ?? '—'}</div>
-                {day.theme && <div className="text-xs text-slate-600 mt-0.5 truncate">{day.theme}</div>}
-              </div>
-            ))}
+    <div className="space-y-10">
+      {/* Audience profile — who this brief was tuned for */}
+      {audienceProfile?.summary && (
+        <div className="rounded-xl border border-indigo-900/40 bg-indigo-950/20 p-5">
+          <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Target className="w-4 h-4 text-indigo-400" />
+              <span className="text-xs uppercase tracking-wide text-indigo-300">Audience · {audienceProfile.total ?? 0} prospect(s) from your ICP</span>
+            </div>
+            {contactedCount !== null && (audienceProfile.total ?? 0) > 0 && (
+              <Link
+                href={`/icp?campaign=${campaign.id}`}
+                className="text-[11px] uppercase tracking-wide text-indigo-300 hover:text-indigo-200 inline-flex items-center gap-1"
+                title="View these prospects in the ICP list"
+              >
+                {contactedCount} of {audienceProfile.total ?? 0} contacted
+                <ChevronRight className="w-3 h-3" />
+              </Link>
+            )}
           </div>
+          <div className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">
+            {audienceProfile.summary}
+          </div>
+          {audienceProfile.top_industries && audienceProfile.top_industries.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {audienceProfile.top_industries.map(ind => (
+                <span key={ind} className="px-2 py-0.5 rounded-md text-[11px] bg-indigo-900/40 border border-indigo-800/50 text-indigo-300">{ind}</span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Best time to post */}
-      {Object.keys(bestTimes).length > 0 && (
+      {/* Executive summary + key messages */}
+      {(summary || keyMessages.length > 0) && (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+          {summary && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500 mb-1.5">Executive summary</div>
+              <p className="text-sm text-slate-200 leading-relaxed">{summary}</p>
+            </div>
+          )}
+          {keyMessages.length > 0 && (
+            <div>
+              <div className="text-xs uppercase tracking-wide text-slate-500 mb-2">Key messages</div>
+              <ul className="space-y-1.5">
+                {keyMessages.map((m, i) => (
+                  <li key={i} className="text-sm text-slate-300 flex gap-2">
+                    <span className="text-indigo-400 shrink-0">•</span>
+                    <span>{m}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {primaryCta && (
+            <div className="pt-2 border-t border-slate-800">
+              <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Primary CTA</div>
+              <p className="text-sm font-semibold text-indigo-300">{primaryCta}</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 14-day launch arc */}
+      {schedule.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-            <Clock className="w-4 h-4 text-slate-500" /> Best time to post
+            <Calendar className="w-4 h-4 text-slate-500" /> 14-day launch arc
           </h3>
-          <div className="flex flex-wrap gap-3">
-            {Object.entries(bestTimes).map(([channel, time]) => {
+          <div className="space-y-2">
+            {schedule.slice(0, 14).map((day: any, idx: number) => {
+              const channel = day.channel ?? day.platform ?? '—'
               const Icon = CHANNEL_ICONS[channel] ?? MessageSquare
+              const phase = (day.phase ?? '') as string
+              const phaseClass = phaseStyles[phase] ?? 'bg-slate-800 border-slate-700 text-slate-400'
               return (
-                <div key={channel} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-800 bg-slate-900/40">
-                  <Icon className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs text-slate-400">{channel}</span>
-                  <span className="text-xs text-white font-medium">{time}</span>
+                <div key={idx} className="flex items-start gap-3 px-4 py-3 rounded-lg border border-slate-800 bg-slate-900/40">
+                  <div className="text-center shrink-0 w-12">
+                    <div className="text-xs text-slate-500">Day</div>
+                    <div className="text-sm font-bold text-white">{day.day ?? idx + 1}</div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Icon className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-sm font-medium text-white">{channel.replace(/_/g, ' ')}</span>
+                      {phase && <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full border ${phaseClass}`}>{phase.replace(/_/g, ' ')}</span>}
+                      {day.post_type && <span className="text-[10px] text-slate-500 px-1.5 py-0.5 rounded border border-slate-700">{day.post_type}</span>}
+                      <span className="text-xs text-slate-500 ml-auto">{day.recommended_date} · {day.time_local ?? ''}</span>
+                    </div>
+                    {day.theme && <div className="text-xs text-slate-300 mt-1.5 font-medium">{day.theme}</div>}
+                    {day.hook && <div className="text-xs text-slate-500 mt-0.5 italic">{day.hook}</div>}
+                  </div>
                 </div>
               )
             })}
@@ -149,19 +302,78 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
         </div>
       )}
 
-      {/* Hashtags */}
-      {hashtags.length > 0 && (
+      {/* Channel timing recs */}
+      {Object.keys(timing).length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <Clock className="w-4 h-4 text-slate-500" /> Channel timing & best practices
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {Object.entries(timing).map(([channel, rec]) => {
+              const Icon = CHANNEL_ICONS[channel] ?? MessageSquare
+              const isObj = rec && typeof rec === 'object'
+              return (
+                <div key={channel} className="rounded-lg border border-slate-800 bg-slate-900/40 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="text-sm font-medium text-white">{channel.replace(/_/g, ' ')}</span>
+                  </div>
+                  {isObj ? (
+                    <div className="space-y-1 text-xs">
+                      {rec.best_days?.length > 0 && (
+                        <div className="text-slate-400"><span className="text-slate-500">Days:</span> {rec.best_days.join(', ')}</div>
+                      )}
+                      {rec.best_times?.length > 0 && (
+                        <div className="text-slate-400"><span className="text-slate-500">Times:</span> {rec.best_times.join(', ')}</div>
+                      )}
+                      {rec.rationale && (
+                        <div className="text-slate-500 italic mt-1">{rec.rationale}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400">{String(rec)}</div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Hashtag bank — grouped */}
+      {(Object.keys(hashtagSets).some(k => (hashtagSets as any)[k]?.length) || flatHashtags.length > 0) && (
         <div>
           <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
             <Hash className="w-4 h-4 text-slate-500" /> Hashtag bank
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {hashtags.map((tag: string) => (
-              <span key={tag} className="px-2 py-1 rounded-md text-xs bg-slate-800 border border-slate-700 text-slate-400">
-                {tag.startsWith('#') ? tag : `#${tag}`}
-              </span>
-            ))}
-          </div>
+          {Object.keys(hashtagSets).some(k => (hashtagSets as any)[k]?.length) ? (
+            <div className="space-y-3">
+              {(['branded', 'industry', 'general', 'niche', 'regional'] as const).map(group => {
+                const tags = (hashtagSets as any)[group] as string[] | undefined
+                if (!tags?.length) return null
+                return (
+                  <div key={group}>
+                    <div className="text-xs uppercase tracking-wide text-slate-500 mb-1.5">{group}</div>
+                    <div className="flex flex-wrap gap-2">
+                      {tags.map((tag: string) => (
+                        <span key={tag} className="px-2 py-1 rounded-md text-xs bg-slate-800 border border-slate-700 text-slate-300">
+                          {tag.startsWith('#') ? tag : `#${tag}`}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {flatHashtags.map((tag: string) => (
+                <span key={tag} className="px-2 py-1 rounded-md text-xs bg-slate-800 border border-slate-700 text-slate-400">
+                  {tag.startsWith('#') ? tag : `#${tag}`}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -380,8 +592,8 @@ function BriefTab({ campaign, onGenerateBrief, generating }: {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
-export default function CampaignDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params)
+export default function CampaignDetailPage({ params }: { params: { id: string } }) {
+  const { id } = params
   const supabase = getSupabaseBrowserClient()
 
   const [campaign, setCampaign] = useState<Campaign | null>(null)
@@ -447,7 +659,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
       )
       if (!res.ok) {
         const err = await res.json().catch(() => ({}))
-        throw new Error(err.error ?? 'Failed to generate brief')
+        const msg = err.retryable === true || res.status === 503 || res.status === 502
+          ? (err.error ?? 'AI provider is temporarily unavailable. Your campaign was not charged — please try again.')
+          : res.status === 401 && err.code === 'auth_failed'
+            ? (err.error ?? 'API key issue — check your provider key in Settings.')
+            : (err.error ?? 'Failed to generate brief')
+        throw new Error(msg)
       }
       await load()
     } catch (e: any) {
@@ -459,7 +676,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 p-10 space-y-6">
+      <div className="min-h-screen text-slate-100 p-10 space-y-6">
         <Skeleton className="h-8 w-64 bg-slate-800" />
         <Skeleton className="h-24 w-full bg-slate-800" />
         <Skeleton className="h-64 w-full bg-slate-800" />
@@ -469,7 +686,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
   if (!campaign) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen text-slate-100 flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-10 h-10 text-slate-700 mx-auto mb-3" />
           <p className="text-slate-300">Campaign not found</p>
@@ -486,7 +703,7 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
   const total = prospects.length * channels.length
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100">
+    <div className="min-h-screen text-slate-100">
       <div className="max-w-screen-xl mx-auto px-6 py-10 space-y-8">
 
         {/* Back link */}
@@ -497,25 +714,22 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-4">
-            <div className="w-12 h-12 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
-              <TypeIcon className="w-6 h-6 text-slate-400" />
+            <div className="relative w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shrink-0 shadow-glow-violet">
+              <TypeIcon className="w-7 h-7 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">{campaign.name}</h1>
+              <h1 className="text-2xl font-bold gtm-title tracking-tight">{campaign.name}</h1>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                 {typeCfg && (
                   <span className="text-xs text-slate-400 border border-slate-700 px-2 py-0.5 rounded-full">
                     {typeCfg.label}
                   </span>
                 )}
-                <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${
-                  campaign.status === 'active' ? 'bg-emerald-900/30 border-emerald-700/40 text-emerald-300' :
-                  campaign.status === 'paused' ? 'bg-amber-900/30 border-amber-700/40 text-amber-300' :
-                  campaign.status === 'completed' ? 'bg-slate-700/40 border-slate-600/40 text-slate-400' :
-                  'bg-slate-800 border-slate-700 text-slate-400'
-                }`}>
-                  {campaign.status ?? 'draft'}
-                </span>
+                <CampaignStatusSelect
+                  campaignId={campaign.id}
+                  value={campaign.status}
+                  onChange={(next) => setCampaign({ ...campaign, status: next })}
+                />
                 {channels.map(ch => {
                   const Icon = CHANNEL_ICONS[ch] ?? MessageSquare
                   return <Icon key={ch} className="w-3.5 h-3.5 text-slate-500" />
@@ -526,8 +740,12 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
 
           {/* Copy progress summary */}
           {total > 0 && (
-            <div className="hidden md:block min-w-[160px] shrink-0 text-right">
-              <div className="text-xs text-slate-500 mb-1">{approved}/{total} copies approved</div>
+            <div className="hidden md:block min-w-[180px] shrink-0 text-right space-y-1.5">
+              <div className="flex items-baseline justify-end gap-1">
+                <span className="text-2xl font-bold gtm-title-accent tabular-nums">{Math.round((approved / total) * 100)}</span>
+                <span className="text-sm text-slate-500">%</span>
+              </div>
+              <div className="text-[11px] text-slate-500">{approved} of {total} copies approved</div>
               <Progress value={total > 0 ? Math.round((approved / total) * 100) : 0} className="h-1.5 bg-slate-800" />
             </div>
           )}
@@ -555,10 +773,10 @@ export default function CampaignDetailPage({ params }: { params: Promise<{ id: s
               <button
                 key={key}
                 onClick={() => setActiveTab(key)}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-all duration-200 ${
                   activeTab === key
-                    ? 'border-indigo-500 text-white'
-                    : 'border-transparent text-slate-400 hover:text-slate-300'
+                    ? 'border-indigo-400 text-white drop-shadow-[0_0_10px_rgba(129,140,248,0.45)]'
+                    : 'border-transparent text-slate-400 hover:text-slate-200 hover:border-white/10'
                 }`}
               >
                 <Icon className="w-4 h-4" />

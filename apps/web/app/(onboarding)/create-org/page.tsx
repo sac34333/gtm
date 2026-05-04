@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { AuthShell } from '@/components/layout/auth-shell'
+import { Loader2 } from 'lucide-react'
 
 export default function CreateOrgPage() {
   const [orgName, setOrgName] = useState('')
@@ -47,16 +49,16 @@ export default function CreateOrgPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl">Create your organisation</CardTitle>
-          <CardDescription>Give your workspace a name to get started</CardDescription>
+    <AuthShell eyebrow="Get started">
+      <Card className="w-full bg-white/[0.04] backdrop-blur-xl border-white/[0.08] shadow-glass-lg">
+        <CardHeader className="space-y-1.5 pb-4">
+          <CardTitle className="text-2xl gtm-title">Create your organisation</CardTitle>
+          <CardDescription className="text-slate-400">Give your workspace a name to get started</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="org-name">Organisation name</Label>
+              <Label htmlFor="org-name" className="text-slate-300">Organisation name</Label>
               <Input
                 id="org-name"
                 type="text"
@@ -65,14 +67,15 @@ export default function CreateOrgPage() {
                 maxLength={80}
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
+                className="bg-slate-950/60 border-slate-700 text-slate-100 placeholder:text-slate-500"
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading || !orgName.trim()}>
-              {loading ? 'Creating…' : 'Create organisation'}
+            <Button type="submit" className="w-full bg-indigo-600 text-white font-medium" disabled={loading || !orgName.trim()}>
+              {loading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Creating…</> : 'Create organisation'}
             </Button>
           </form>
         </CardContent>
       </Card>
-    </main>
+    </AuthShell>
   )
 }

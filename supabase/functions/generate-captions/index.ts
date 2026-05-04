@@ -21,7 +21,7 @@
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { validateJWT } from '../_shared/auth.ts'
-import { resolveApiKey, routeTextGeneration } from '../_shared/providers/router.ts'
+import { resolveApiKey, routeTextGeneration, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
 
 const DEFAULT_PLATFORMS = ['linkedin', 'x', 'instagram', 'whatsapp']
 const ALLOWED_PLATFORMS = new Set(['linkedin', 'x', 'twitter', 'instagram', 'whatsapp'])
@@ -334,6 +334,11 @@ Deno.serve(async (req: Request) => {
     }), { status: 200, headers: corsHeaders })
 
   } catch (e) {
+    if (e instanceof ProviderError) {
+      const body = userMessageFor(e)
+      const httpStatus = e.code === 'auth_failed' ? 401 : e.retryable ? 503 : 502
+      return new Response(JSON.stringify(body), { status: httpStatus, headers: corsHeaders })
+    }
     console.error('generate-captions error:', (e as Error).message)
     return new Response(JSON.stringify({ error: 'internal_error' }), { status: 500, headers: corsHeaders })
   }

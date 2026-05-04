@@ -223,7 +223,7 @@ export function IngestionSettings({
                 size="sm"
                 onClick={handleFetchNow}
                 disabled={disabled || isFetching}
-                className="border-slate-700 text-slate-300 hover:bg-slate-800"
+                className="border-white/[0.12] bg-white/[0.04] text-slate-100 hover:bg-white/[0.08] hover:text-white hover:border-white/[0.2] disabled:opacity-60"
               >
                 {isFetching ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Fetching signals...</>

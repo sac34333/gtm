@@ -1,7 +1,7 @@
 import { validateJWT, requireRole } from '../_shared/auth.ts'
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
-import { resolveApiKey, routeGeneration, routeVideoGeneration } from '../_shared/providers/router.ts'
+import { resolveApiKey, routeGeneration, routeVideoGeneration, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
 
 // Fire-and-forget invocation of generate-captions for a completed job.
 // Authenticated via x-cron-secret (service-to-service). Non-blocking — errors
@@ -161,12 +161,10 @@ Deno.serve(async (req: Request) => {
 
     const jobId = job.id
 
-    // Increment quota
-    if (assetType === 'image') {
-      await db.from('orgs').update({ image_used: (org?.image_used ?? 0) + 1 }).eq('id', org_id)
-    } else {
-      await db.from('orgs').update({ video_used: (org?.video_used ?? 0) + 1 }).eq('id', org_id)
-    }
+    // NOTE: quota is intentionally NOT incremented here. We only deduct after the
+    // provider call succeeds (sync image) or after the async job is successfully
+    // dispatched (video / async image). On any provider failure, the user is NOT
+    // charged. For async failures detected later, poll-job-status performs a refund.
 
     // Build payload for provider
     // Update stored content_job_json to include resolved job_id and org_slug
@@ -209,9 +207,28 @@ Deno.serve(async (req: Request) => {
         await db.from('generation_jobs').update({ status: 'failed', error_message: 'provider_error' }).eq('id', jobId)
         return providerErr
       }
+      // Map ProviderError to a clean, actionable response.
+      // Quota was NEVER incremented at this point, so no refund is required.
+      if (providerErr instanceof ProviderError) {
+        const body = userMessageFor(providerErr)
+        await db.from('generation_jobs').update({
+          status: 'failed',
+          error_message: `${providerErr.code}: ${providerErr.message}`.slice(0, 500),
+        }).eq('id', jobId)
+        // 503 for transient (retryable), 502 for upstream-bad, 401 for auth
+        const httpStatus = providerErr.code === 'auth_failed' ? 401
+          : providerErr.retryable ? 503
+          : 502
+        return new Response(JSON.stringify({ ...body, job_id: jobId }), { status: httpStatus, headers: corsHeaders })
+      }
       const errMsg = providerErr instanceof Error ? providerErr.message : 'provider_error'
-      await db.from('generation_jobs').update({ status: 'failed', error_message: errMsg }).eq('id', jobId)
-      return new Response(JSON.stringify({ error: errMsg }), { status: 500, headers: corsHeaders })
+      await db.from('generation_jobs').update({ status: 'failed', error_message: errMsg.slice(0, 500) }).eq('id', jobId)
+      return new Response(JSON.stringify({
+        error: 'AI provider returned an unexpected error. Your quota was not deducted — please try again.',
+        retryable: true,
+        code: 'unknown',
+        job_id: jobId,
+      }), { status: 502, headers: corsHeaders })
     }
 
     const generationTimeMs = Date.now() - startTime
@@ -219,6 +236,9 @@ Deno.serve(async (req: Request) => {
 
     // Synchronous completion � image models that return outputUrl immediately
     if (result.outputUrl && assetType === 'image') {
+      // Provider succeeded — NOW deduct the image quota.
+      await db.from('orgs').update({ image_used: (org?.image_used ?? 0) + 1 }).eq('id', org_id)
+
       await db.from('generation_jobs').update({
         status: 'completed',
         output_url: storagePath,
@@ -249,6 +269,13 @@ Deno.serve(async (req: Request) => {
 
     // Video always returns pending
     if (assetType === 'video' || result.status === 'pending') {
+      // Async dispatch succeeded — deduct the appropriate quota.
+      // If the async job later fails, poll-job-status will refund.
+      if (assetType === 'video') {
+        await db.from('orgs').update({ video_used: (org?.video_used ?? 0) + 1 }).eq('id', org_id)
+      } else {
+        await db.from('orgs').update({ image_used: (org?.image_used ?? 0) + 1 }).eq('id', org_id)
+      }
       return new Response(JSON.stringify({
         job_id: jobId,
         status: 'pending',

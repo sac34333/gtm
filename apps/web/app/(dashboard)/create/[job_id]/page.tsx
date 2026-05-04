@@ -181,13 +181,13 @@ export default function JobResultPage() {
   }
 
   if (loading) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
     </div>
   )
 
   if (notFound || !job) return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center">
       <div className="text-center space-y-3">
         <p className="text-slate-400">Job not found.</p>
         <Button variant="outline" onClick={() => router.push('/create')} className="border-slate-700 text-slate-300">Create new</Button>
@@ -196,32 +196,36 @@ export default function JobResultPage() {
   )
 
   if (job.status === 'pending' || job.status === 'processing') return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-      <div className="text-center space-y-4 max-w-sm">
-        <div className="relative mx-auto w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-2 border-indigo-500/30 animate-ping" />
-          <div className="relative w-16 h-16 rounded-full bg-indigo-900/50 flex items-center justify-center">
-            <Loader2 className="h-7 w-7 animate-spin text-indigo-400" />
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="relative max-w-md w-full mx-4 overflow-hidden rounded-2xl border border-white/[0.07] bg-slate-900/40 backdrop-blur-xl p-8 text-center space-y-5 shadow-glass-lg">
+        <div className="absolute inset-0 gtm-mesh opacity-40 pointer-events-none" />
+        <div className="relative space-y-5">
+          <div className="relative mx-auto w-20 h-20">
+            <div className="absolute inset-0 rounded-full border-2 border-indigo-400/40 animate-ping" />
+            <div className="absolute inset-1 rounded-full border border-fuchsia-400/30 animate-ping" style={{ animationDelay: '-0.5s' }} />
+            <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 flex items-center justify-center shadow-glow-violet">
+              <Loader2 className="h-8 w-8 animate-spin text-white" />
+            </div>
           </div>
-        </div>
-        <div>
-          <p className="text-slate-100 font-semibold">
-            {job.asset_type === 'video' ? 'Generating your video…' : 'Generating your asset...'}
-          </p>
-          <p className="text-slate-500 text-sm mt-1">This page updates automatically.</p>
-        </div>
-        {job.asset_type === 'video' && (
-          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3 text-sm text-amber-300 text-left">
-            <p className="font-medium">Video generation is async</p>
-            <p className="mt-1 text-amber-400/80">You can leave this page — we'll email you when it's done and update the dashboard in real time.</p>
+          <div>
+            <p className="font-semibold text-lg gtm-shimmer-text">
+              {job.asset_type === 'video' ? 'Generating your video…' : 'Generating your asset…'}
+            </p>
+            <p className="text-slate-400 text-sm mt-1">This page updates automatically.</p>
           </div>
-        )}
+          {job.asset_type === 'video' && (
+            <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-3 text-sm text-amber-300 text-left">
+              <p className="font-medium">Video generation is async</p>
+              <p className="mt-1 text-amber-400/80">You can leave this page — we'll email you when it's done and update the dashboard in real time.</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
 
   if (job.status === 'failed') return (
-    <div className="min-h-screen bg-slate-950 px-4 py-8">
+    <div className="min-h-screen px-4 py-8">
       <div className="max-w-2xl mx-auto">
         <div className="bg-red-900/20 border border-red-700/50 rounded-xl p-6 space-y-4">
           <h1 className="text-red-300 font-semibold text-lg">Generation Failed</h1>
@@ -235,7 +239,7 @@ export default function JobResultPage() {
   )
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 py-8">
         <BackButton href="/library" label="Back to library" />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

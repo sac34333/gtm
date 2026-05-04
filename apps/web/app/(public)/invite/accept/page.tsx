@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
+import { AuthShell } from '@/components/layout/auth-shell'
 
 function AcceptInviteInner() {
   const searchParams = useSearchParams()
@@ -34,25 +35,36 @@ function AcceptInviteInner() {
 
   if (status === 'error') {
     return (
-      <p className="text-muted-foreground">
-        This invite link is invalid or has expired.{' '}
-        <a href="/login" className="underline">
-          Sign in
+      <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 backdrop-blur-xl p-6 text-center space-y-3">
+        <p className="text-rose-200 font-medium">This invite link is invalid or has expired.</p>
+        <a href="/login" className="inline-flex text-indigo-300 hover:text-indigo-200 underline underline-offset-4 text-sm">
+          Sign in instead →
         </a>
-      </p>
+      </div>
     )
   }
 
-  return <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+  return (
+    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl p-8 text-center space-y-3 shadow-glass-lg">
+      <Loader2 className="h-8 w-8 animate-spin text-indigo-300 mx-auto" />
+      <p className="text-sm gtm-shimmer-text font-medium">Accepting your invite…</p>
+    </div>
+  )
 }
 
 export default function AcceptInvitePage() {
   return (
-    <main className="flex min-h-screen items-center justify-center">
-      <Suspense fallback={<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />}>
+    <AuthShell eyebrow="Team invite">
+      <Suspense
+        fallback={
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl p-8 text-center shadow-glass-lg">
+            <Loader2 className="h-8 w-8 animate-spin text-indigo-300 mx-auto" />
+          </div>
+        }
+      >
         <AcceptInviteInner />
       </Suspense>
-    </main>
+    </AuthShell>
   )
 }
 

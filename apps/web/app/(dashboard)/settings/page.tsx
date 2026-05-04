@@ -21,7 +21,7 @@ export default async function SettingsPage() {
   return (
     <div className="mx-auto max-w-4xl px-6 py-8 space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-100">General Settings</h1>
+        <h1 className="text-2xl font-semibold gtm-title tracking-tight">General Settings</h1>
         <p className="text-slate-400 text-sm mt-1">Configure your organisation&apos;s signal ingestion and data sources.</p>
       </div>
 

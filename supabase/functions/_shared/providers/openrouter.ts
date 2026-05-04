@@ -1,4 +1,5 @@
 import { createServiceClient } from '../db.ts'
+import { fetchWithRetry } from './router.ts'
 
 const OPENROUTER_BASE = 'https://openrouter.ai/api/v1'
 
@@ -45,7 +46,7 @@ export async function callOpenRouter(
     body.response_format = opts.responseFormat
   }
 
-  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const res = await fetchWithRetry(`${OPENROUTER_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -54,6 +55,8 @@ export async function callOpenRouter(
       'X-Title': 'GTM Engine',
     },
     body: JSON.stringify(body),
+    timeoutMs: 60_000,
+    provider: 'OpenRouter',
   })
 
   if (!res.ok) {
@@ -114,7 +117,7 @@ export async function callOpenRouterImage(
     body.image_config = { aspect_ratio: imageConfig.aspect_ratio }
   }
 
-  const res = await fetch(`${OPENROUTER_BASE}/chat/completions`, {
+  const res = await fetchWithRetry(`${OPENROUTER_BASE}/chat/completions`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -123,6 +126,8 @@ export async function callOpenRouterImage(
       'X-Title': 'GTM Engine',
     },
     body: JSON.stringify(body),
+    timeoutMs: 120_000,
+    provider: 'OpenRouter Images',
   })
 
   if (!res.ok) {
@@ -186,7 +191,7 @@ export async function callOpenRouterVideo(
   }
   if (negativePrompt) body.negative_prompt = negativePrompt
 
-  const res = await fetch(`${OPENROUTER_BASE}/images/generations`, {
+  const res = await fetchWithRetry(`${OPENROUTER_BASE}/images/generations`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
@@ -195,6 +200,8 @@ export async function callOpenRouterVideo(
       'X-Title': 'GTM Engine',
     },
     body: JSON.stringify(body),
+    timeoutMs: 60_000,
+    provider: 'OpenRouter Video',
   })
 
   if (!res.ok) {

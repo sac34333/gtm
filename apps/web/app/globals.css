@@ -73,11 +73,215 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Richer base than pure black — slightly cool, with a hint of indigo. */
+    background-color: #07070d;
   }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* ──────────── GTM Engine UI Kit ──────────── */
+
+  /* Glass cards */
+  .gtm-glass {
+    @apply bg-white/[0.03] backdrop-blur-xl border border-white/[0.06] rounded-2xl shadow-glass;
+  }
+  .gtm-glass-hover {
+    @apply transition-all duration-300 hover:border-white/[0.14] hover:bg-white/[0.05] hover:shadow-glass-lg hover:-translate-y-0.5;
+  }
+  .gtm-glass-strong {
+    @apply bg-white/[0.06] backdrop-blur-2xl border border-white/[0.10] rounded-2xl shadow-glass-lg;
+  }
+
+  /* Gradient page titles */
+  .gtm-title {
+    @apply bg-gradient-to-br from-white via-slate-200 to-slate-400 bg-clip-text text-transparent;
+  }
+  .gtm-title-accent {
+    @apply bg-gradient-to-r from-indigo-300 via-violet-300 to-fuchsia-300 bg-clip-text text-transparent;
+  }
+
+  /* Primary AI gradient button */
+  .gtm-btn-primary {
+    @apply relative overflow-hidden bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 text-white font-medium shadow-glow-violet transition-all duration-300 hover:shadow-glow-fuchsia hover:brightness-110 active:brightness-95;
+  }
+
+  /* Subtle motion-on-mount */
+  .gtm-fade-up { @apply animate-fade-up; }
+  .gtm-fade-in { @apply animate-fade-in; }
+  .gtm-pop-in  { @apply animate-pop-in; }
+
+  /* Stagger helpers — apply to children with custom delays via inline style */
+  .gtm-stagger > * { opacity: 0; animation: fadeUp 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+  .gtm-stagger > *:nth-child(1)  { animation-delay: 0.02s; }
+  .gtm-stagger > *:nth-child(2)  { animation-delay: 0.06s; }
+  .gtm-stagger > *:nth-child(3)  { animation-delay: 0.10s; }
+  .gtm-stagger > *:nth-child(4)  { animation-delay: 0.14s; }
+  .gtm-stagger > *:nth-child(5)  { animation-delay: 0.18s; }
+  .gtm-stagger > *:nth-child(6)  { animation-delay: 0.22s; }
+  .gtm-stagger > *:nth-child(7)  { animation-delay: 0.26s; }
+  .gtm-stagger > *:nth-child(8)  { animation-delay: 0.30s; }
+  .gtm-stagger > *:nth-child(9)  { animation-delay: 0.34s; }
+  .gtm-stagger > *:nth-child(10) { animation-delay: 0.38s; }
+  .gtm-stagger > *:nth-child(n+11) { animation-delay: 0.42s; }
+
+  /* Shimmer text/border for AI-thinking states */
+  .gtm-shimmer-text {
+    background: linear-gradient(90deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,1) 50%, rgba(255,255,255,0.4) 100%);
+    background-size: 200% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: shimmer 2.4s linear infinite;
+  }
+
+  /* Animated mesh gradient (for generation loading) */
+  .gtm-mesh {
+    background:
+      radial-gradient(at 20% 30%, rgba(99, 102, 241, 0.45) 0px, transparent 50%),
+      radial-gradient(at 80% 20%, rgba(217, 70, 239, 0.35) 0px, transparent 50%),
+      radial-gradient(at 60% 80%, rgba(6, 182, 212, 0.30) 0px, transparent 50%),
+      radial-gradient(at 30% 70%, rgba(139, 92, 246, 0.40) 0px, transparent 50%);
+    background-size: 200% 200%;
+    animation: gradientPan 8s ease infinite;
+  }
+
+  /* Status pill family */
+  .gtm-pill {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset transition-colors;
+  }
+  .gtm-pill-emerald { @apply gtm-pill text-emerald-300 bg-emerald-500/10 ring-emerald-500/30; }
+  .gtm-pill-amber   { @apply gtm-pill text-amber-300   bg-amber-500/10   ring-amber-500/30; }
+  .gtm-pill-cyan    { @apply gtm-pill text-cyan-300    bg-cyan-500/10    ring-cyan-500/30; }
+  .gtm-pill-indigo  { @apply gtm-pill text-indigo-300  bg-indigo-500/10  ring-indigo-500/30; }
+  .gtm-pill-violet  { @apply gtm-pill text-violet-300  bg-violet-500/10  ring-violet-500/30; }
+  .gtm-pill-fuchsia { @apply gtm-pill text-fuchsia-300 bg-fuchsia-500/10 ring-fuchsia-500/30; }
+  .gtm-pill-rose    { @apply gtm-pill text-rose-300    bg-rose-500/10    ring-rose-500/30; }
+  .gtm-pill-slate   { @apply gtm-pill text-slate-300   bg-slate-500/10   ring-slate-500/30; }
+
+  /* Live status dot (use inside an emerald pill) */
+  .gtm-live-dot {
+    @apply relative flex h-1.5 w-1.5;
+  }
+  .gtm-live-dot::before {
+    content: '';
+    @apply absolute inline-flex h-full w-full rounded-full bg-emerald-400 animate-ping opacity-75;
+  }
+  .gtm-live-dot::after {
+    content: '';
+    @apply relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500;
+  }
+
+  /* Sidebar active item — gradient stripe + gentle bg */
+  .gtm-sidebar-active {
+    @apply relative bg-gradient-to-r from-indigo-500/15 via-indigo-500/5 to-transparent text-white;
+  }
+  .gtm-sidebar-active::before {
+    content: '';
+    @apply absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full;
+    background-image: linear-gradient(to bottom, #818cf8, #d946ef);
+    box-shadow: 0 0 12px rgba(129, 140, 248, 0.7);
+  }
+}
+
+/* ─────────────────────────────────────────────────────────
+   Legacy → Glass: scoped overrides that uplift existing
+   `bg-slate-900` + `border-slate-800` card surfaces site-wide
+   without us having to rewrite hundreds of class strings.
+   The combinator (.bg-slate-900.border-slate-800) ensures we
+   only hit "card-shaped" elements, not buttons or chrome.
+   ───────────────────────────────────────────────────────── */
+@layer components {
+  /* Cards: background + border combination */
+  .bg-slate-900.border-slate-800,
+  .bg-slate-900\/50.border-slate-800,
+  .bg-slate-900\/60.border-slate-800,
+  .bg-slate-900\/80.border-slate-800 {
+    background-color: rgba(255, 255, 255, 0.035) !important;
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    border-color: rgba(255, 255, 255, 0.07) !important;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 8px 32px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Solo border softening — applies to dividers, lists, tables */
+  .border-slate-800,
+  .border-slate-800\/50,
+  .border-slate-800\/60 {
+    border-color: rgba(255, 255, 255, 0.07) !important;
+  }
+  .border-slate-700,
+  .border-slate-700\/50 {
+    border-color: rgba(255, 255, 255, 0.11) !important;
+  }
+
+  /* Input/select surfaces — keep solid but cooler */
+  input.bg-slate-950,
+  textarea.bg-slate-950,
+  .bg-slate-950.border-slate-700 {
+    background-color: rgba(8, 8, 16, 0.55) !important;
+    backdrop-filter: blur(10px);
+  }
+
+  /* Table row hover — subtle white wash instead of slate-800 */
+  .hover\:bg-slate-800\/50:hover,
+  .hover\:bg-slate-800:hover {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+  }
+  .hover\:bg-slate-800\/60:hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+  }
+  .hover\:border-slate-700:hover {
+    border-color: rgba(255, 255, 255, 0.14) !important;
+  }
+  .hover\:border-indigo-500\/50:hover {
+    border-color: rgba(129, 140, 248, 0.55) !important;
+    box-shadow: 0 0 22px -6px rgba(129, 140, 248, 0.5);
+  }
+
+  /* Card hover lift — opt-in via group on parent links/buttons */
+  .group:hover .bg-slate-900\.gtm-card-hover,
+  .bg-slate-900.border-slate-800:hover {
+    transform: translateY(-1px);
+  }
+  .bg-slate-900.border-slate-800 {
+    transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                box-shadow 220ms ease,
+                border-color 220ms ease,
+                background-color 220ms ease;
+  }
+
+  /* Auto-pulse status dots & live indicators */
+  .bg-emerald-500.rounded-full.animate-pulse {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+    animation: pulseGlow 2.4s ease-in-out infinite;
+  }
+
+  /* Buttons that were just plain indigo — give them a gradient + glow */
+  button.bg-indigo-600,
+  a.bg-indigo-600,
+  .bg-indigo-600.text-white {
+    background-image: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%) !important;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+      0 8px 24px -8px rgba(139, 92, 246, 0.55);
+    transition: filter 200ms ease, box-shadow 200ms ease, transform 150ms ease;
+  }
+  button.bg-indigo-600:hover,
+  a.bg-indigo-600:hover,
+  .bg-indigo-600.text-white:hover {
+    filter: brightness(1.1);
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+      0 12px 32px -8px rgba(217, 70, 239, 0.6);
+  }
+  button.hover\:bg-indigo-500:hover,
+  a.hover\:bg-indigo-500:hover {
+    background-image: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #e879f9 100%) !important;
   }
 }

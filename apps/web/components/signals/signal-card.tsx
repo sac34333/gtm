@@ -88,7 +88,7 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
   }
 
   return (
-    <Card className={`bg-slate-900 border-slate-800 hover:border-slate-700 transition-colors ${isDismissed ? 'opacity-60' : ''}`}>
+    <Card className={`bg-slate-900 border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 hover:shadow-glow-indigo transition-all duration-300 ${isDismissed ? 'opacity-60' : ''}`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">

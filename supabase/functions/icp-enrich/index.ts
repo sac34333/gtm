@@ -7,7 +7,7 @@ import { enrichHunter } from '../_shared/enrichment/hunter.ts'
 import { enrichClearbit } from '../_shared/enrichment/clearbit.ts'
 import { scrapePublicProfile } from '../_shared/enrichment/web_scrape.ts'
 import { enrichWebSearch } from '../_shared/enrichment/web_search.ts'
-import { resolveApiKey } from '../_shared/providers/router.ts'
+import { resolveApiKey, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
 import type { ICPCriteria, Prospect } from '../_shared/enrichment/types.ts'
 
 // Hard caps to prevent runaway cost / abuse on the LLM-web-search path.
@@ -456,6 +456,14 @@ Deno.serve(async (req: Request) => {
     )
   } catch (err) {
     if (err instanceof Response) return err
+    if (err instanceof ProviderError) {
+      const body = userMessageFor(err)
+      const httpStatus = err.code === 'auth_failed' ? 401 : err.retryable ? 503 : 502
+      return new Response(
+        JSON.stringify(body),
+        { status: httpStatus, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      )
+    }
     console.error('icp-enrich error:', (err as Error).message)
     return new Response(
       JSON.stringify({ error: 'internal_error' }),

@@ -218,7 +218,7 @@ export default function SettingsTeamPage() {
   if (isError || !access) {
     return (
       <div className="mx-auto max-w-4xl px-6 py-12 space-y-4">
-        <h1 className="text-2xl font-semibold text-slate-100">Team</h1>
+        <h1 className="text-2xl font-semibold gtm-title tracking-tight">Team</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
           <p className="text-red-300">Failed to load team data.</p>
@@ -233,7 +233,7 @@ export default function SettingsTeamPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-100">Team</h1>
+          <h1 className="text-2xl font-semibold gtm-title tracking-tight">Team</h1>
           <p className="text-slate-400 text-sm mt-1">Manage members and roles for {access.orgName}.</p>
         </div>
         <div className="text-right">

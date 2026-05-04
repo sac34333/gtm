@@ -118,7 +118,7 @@ function ThumbCard({ stack }: { stack: StackedJob }) {
   return (
     <Link
       href={`/create/${job.id}`}
-      className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-indigo-500/50 transition-colors flex flex-col"
+      className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-indigo-500/50 transition-all duration-300 flex flex-col hover:-translate-y-1 hover:shadow-glow-indigo"
     >
       {/* Faux stack effect for cards with versions */}
       {hasVersions && (
@@ -226,12 +226,12 @@ export default function LibraryPage() {
   const stacksWithFeedback = stacks.map(s => ({ ...s, thumbs: feedbackMap[s.latest.id] ?? null }))
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen">
       <div className="mx-auto max-w-6xl px-6 py-8 space-y-6">
         <BackButton href="/dashboard" label="Back to dashboard" />
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-semibold text-slate-100">Library</h1>
+            <h1 className="text-2xl font-semibold gtm-title tracking-tight">Library</h1>
             <p className="text-slate-400 text-sm mt-1">All your generated images and videos. Refinements and regenerations are stacked together.</p>
           </div>
           <Link href="/create">
@@ -288,7 +288,7 @@ export default function LibraryPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 gtm-stagger">
             {stacksWithFeedback.map(stack => <ThumbCard key={stack.latest.id} stack={stack} />)}
           </div>
         )}

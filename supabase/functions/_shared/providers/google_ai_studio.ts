@@ -1,5 +1,6 @@
 import { createServiceClient } from '../db.ts'
 import { recordUsage } from '../observability.ts'
+import { fetchWithRetry } from './router.ts'
 
 const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta'
 
@@ -58,9 +59,9 @@ async function _generateText(
     }
   }
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `${GEMINI_BASE}/models/${modelId}:generateContent?key=${apiKey}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), timeoutMs: 60_000, provider: 'Google AI Studio' },
   )
 
   if (!res.ok) {
@@ -100,9 +101,9 @@ async function _generateImage(
     generationConfig: { responseModalities: ['IMAGE', 'TEXT'] },
   }
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `${GEMINI_BASE}/models/${modelId}:generateContent?key=${apiKey}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), timeoutMs: 120_000, provider: 'Google AI Studio Images' },
   )
 
   if (!res.ok) {
@@ -149,9 +150,9 @@ async function _submitVideoJob(
     generationConfig: { mediaResolution: 'MEDIA_RESOLUTION_MEDIUM' },
   }
 
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `${GEMINI_BASE}/models/${modelId}:generateVideo?key=${apiKey}`,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) },
+    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), timeoutMs: 60_000, provider: 'Google AI Studio Video' },
   )
 
   if (!res.ok) {
@@ -184,7 +185,7 @@ export async function callGoogleAIStudioVideo(
   negativePrompt: string,
   apiKey: string,
 ): Promise<{ operationName: string; status: string }> {
-  const res = await fetch(
+  const res = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predictLongRunning?key=${apiKey}`,
     {
       method: 'POST',
@@ -193,6 +194,8 @@ export async function callGoogleAIStudioVideo(
         instances: [{ prompt, negativePrompt }],
         parameters: { aspectRatio: '16:9', durationSeconds: 8 },
       }),
+      timeoutMs: 60_000,
+      provider: 'Google AI Studio Veo',
     },
   )
 

@@ -1,6 +1,8 @@
 import { createServiceClient } from '../db.ts'
 import { recordUsage } from '../observability.ts'
 
+import { fetchWithRetry } from './router.ts'
+
 const FAL_BASE = 'https://queue.fal.run'
 
 // Maps ContentJob aspect_ratio to fal model-specific params
@@ -91,13 +93,15 @@ export async function callFal(
   const input = buildFalInput(modelId, payload)
 
   // Submit to fal queue
-  const submitRes = await fetch(`${FAL_BASE}/${modelId}`, {
+  const submitRes = await fetchWithRetry(`${FAL_BASE}/${modelId}`, {
     method: 'POST',
     headers: {
       'Authorization': `Key ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ input }),
+    timeoutMs: 30_000,
+    provider: 'fal.ai',
   })
 
   if (!submitRes.ok) {
@@ -178,13 +182,15 @@ export async function callFalVideo(
   if (payload.aspect_ratio) input.aspect_ratio = payload.aspect_ratio
   if (payload.duration_seconds) input.duration_seconds = payload.duration_seconds
 
-  const submitRes = await fetch(`${FAL_BASE}/${modelId}`, {
+  const submitRes = await fetchWithRetry(`${FAL_BASE}/${modelId}`, {
     method: 'POST',
     headers: {
       'Authorization': `Key ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ input }),
+    timeoutMs: 30_000,
+    provider: 'fal.ai Video',
   })
 
   if (!submitRes.ok) {
