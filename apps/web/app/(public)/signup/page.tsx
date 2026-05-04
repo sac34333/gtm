@@ -15,9 +15,9 @@ import { Loader2, Check } from 'lucide-react'
 const PERKS = [
   'Free trial — no credit card required',
   '12+ live signal sources out of the box',
-  'AI image, video & copy generation',
+  'AI image, video & social media content generation',
   'ICP enrichment & 1:1 personalisation',
-  'Bring your own keys (OpenRouter, Fal, Apify…)',
+  'Bring your own keys (OpenRouter, Fal, LinkIn, Hunter,…)',
 ]
 
 function MarketingPane() {
