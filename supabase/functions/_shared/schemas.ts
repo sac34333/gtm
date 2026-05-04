@@ -236,4 +236,7 @@ export const GenerateCampaignBriefBodySchema = z.object({
   job_id: z.string().uuid().optional(),
   prospect_ids: z.array(z.string().uuid()).optional(),
   channel_mix: z.array(z.enum(['linkedin_message', 'linkedin_post', 'email', 'cold_dm', 'twitter'])).optional(),
+  // When true, skip brief generation + PDF and only (re)generate per-prospect outreach copies.
+  // Used to backfill copies on a campaign whose brief already exists.
+  copies_only: z.boolean().optional(),
 })

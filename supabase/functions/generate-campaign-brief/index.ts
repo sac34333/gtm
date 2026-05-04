@@ -685,63 +685,71 @@ Generate at least 2 variants per channel under "content" for any channel in scop
 Generate at least 8 hashtags total across the sets.
 Only include "timing_recommendations" entries for channels in scope: ${channelList}.`
 
-    const briefRaw = await routeTextGeneration(
-      providerKey,
-      modelId,
-      [{ role: 'user', content: briefPrompt }],
-      apiKey,
-      orgId,
-      orgSlug,
-      null,
-      'campaign_brief',
-      { responseFormat: { type: 'json_object' } },
-    )
+    // copies_only mode: skip the brief LLM call + PDF generation entirely and
+    // reuse the campaign's existing brief_data. Only the per-prospect copy loop
+    // below will run. Used to backfill outreach_copies after the unique-index
+    // fix without paying for another brief regeneration.
+    let briefData: BriefData | null = null
+    let pdfBytes: Uint8Array | null = null
 
-    let briefData: BriefData
-    try {
-      // Strip markdown code fences if present
-      const cleaned = briefRaw.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim()
-      briefData = JSON.parse(cleaned)
-    } catch {
-      return new Response(JSON.stringify({ error: 'brief_parse_failed' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
+    if (!body.copies_only) {
+      const briefRaw = await routeTextGeneration(
+        providerKey,
+        modelId,
+        [{ role: 'user', content: briefPrompt }],
+        apiKey,
+        orgId,
+        orgSlug,
+        null,
+        'campaign_brief',
+        { responseFormat: { type: 'json_object' } },
+      )
 
-    // Back-compat shims so the existing /campaigns/[id] Calendar tab keeps rendering.
-    const allHashtags: string[] = []
-    const sets = briefData.hashtag_sets ?? {}
-    for (const k of ['branded', 'industry', 'general', 'niche', 'regional'] as const) {
-      const arr = (sets as any)[k]
-      if (Array.isArray(arr)) for (const t of arr) if (typeof t === 'string' && !allHashtags.includes(t)) allHashtags.push(t)
-    }
-    if (allHashtags.length) (briefData as any).hashtags = allHashtags
-
-    const flatTimes: Record<string, string> = {}
-    for (const [ch, rec] of Object.entries(briefData.timing_recommendations ?? {})) {
-      if (typeof rec === 'string') flatTimes[ch] = rec
-      else if (rec && typeof rec === 'object') {
-        const days = (rec.best_days ?? []).join('/')
-        const times = (rec.best_times ?? []).join(', ')
-        flatTimes[ch] = [days, times].filter(Boolean).join(' · ')
+      try {
+        // Strip markdown code fences if present
+        const cleaned = briefRaw.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim()
+        briefData = JSON.parse(cleaned)
+      } catch {
+        return new Response(JSON.stringify({ error: 'brief_parse_failed' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
-    }
-    if (Object.keys(flatTimes).length) (briefData as any).best_time_to_post = flatTimes
 
-    // Stash audience profile on the brief so PDF + frontend can render it.
-    ;(briefData as any).audience_profile = {
-      total: (prospects ?? []).length,
-      summary: prospectInsight,
-      top_industries: audience.topIndustries,
-    }
+      // Back-compat shims so the existing /campaigns/[id] Calendar tab keeps rendering.
+      const allHashtags: string[] = []
+      const sets = briefData!.hashtag_sets ?? {}
+      for (const k of ['branded', 'industry', 'general', 'niche', 'regional'] as const) {
+        const arr = (sets as any)[k]
+        if (Array.isArray(arr)) for (const t of arr) if (typeof t === 'string' && !allHashtags.includes(t)) allHashtags.push(t)
+      }
+      if (allHashtags.length) (briefData as any).hashtags = allHashtags
 
-    // Generate PDF using pdf-lib
-    const pdfBytes = await generatePdf(
-      briefData,
-      brand,
-      { asset_type: job?.asset_type, prompt_tags: job?.content_job_json?.prompt_tags },
-      campaign.name ?? 'Campaign Brief',
-    )
+      const flatTimes: Record<string, string> = {}
+      for (const [ch, rec] of Object.entries(briefData!.timing_recommendations ?? {})) {
+        if (typeof rec === 'string') flatTimes[ch] = rec
+        else if (rec && typeof rec === 'object') {
+          const days = (rec.best_days ?? []).join('/')
+          const times = (rec.best_times ?? []).join(', ')
+          flatTimes[ch] = [days, times].filter(Boolean).join(' · ')
+        }
+      }
+      if (Object.keys(flatTimes).length) (briefData as any).best_time_to_post = flatTimes
+
+      // Stash audience profile on the brief so PDF + frontend can render it.
+      ;(briefData as any).audience_profile = {
+        total: (prospects ?? []).length,
+        summary: prospectInsight,
+        top_industries: audience.topIndustries,
+      }
+
+      // Generate PDF using pdf-lib
+      pdfBytes = await generatePdf(
+        briefData!,
+        brand,
+        { asset_type: job?.asset_type, prompt_tags: job?.content_job_json?.prompt_tags },
+        campaign.name ?? 'Campaign Brief',
+      )
+    }
 
     // Generate outreach copies per prospect per channel
     let copyCount = 0
@@ -759,7 +767,7 @@ Return ONLY the message text.`
             providerKey, modelId, [{ role: 'user', content: copyPrompt }],
             apiKey, orgId, orgSlug, null, 'outreach_copy',
           )
-          await db.from('outreach_copies').upsert({
+          const { error: upsertErr } = await db.from('outreach_copies').upsert({
             org_id: orgId,
             campaign_id,
             prospect_id: (prospect as any).id,
@@ -768,9 +776,15 @@ Return ONLY the message text.`
             platform: channel,
             status: 'draft',
           }, { onConflict: 'org_id,campaign_id,prospect_id,platform', ignoreDuplicates: false })
+          if (upsertErr) {
+            console.error('outreach_copies upsert failed:', upsertErr.message, { campaign_id, prospect_id: (prospect as any).id, platform: channel })
+            continue
+          }
           copyCount++
           successfulProspectIds.add((prospect as any).id)
-        } catch { /* continue on individual copy failure */ }
+        } catch (e) {
+          console.error('outreach copy generation failed:', (e as Error)?.message, { campaign_id, prospect_id: (prospect as any).id, platform: channel })
+        }
       }
     }
 
@@ -810,25 +824,26 @@ Return ONLY the message text.`
     // Upload PDF to storage (use campaign_id as filename for idempotency)
     const storagePath = `${orgId}/${campaign_id}.pdf`
 
-    // Upload PDF to storage
-    const { error: uploadErr } = await db.storage
-      .from('briefs')
-      .upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: true })
+    if (!body.copies_only && pdfBytes) {
+      // Upload PDF to storage
+      const { error: uploadErr } = await db.storage
+        .from('briefs')
+        .upload(storagePath, pdfBytes, { contentType: 'application/pdf', upsert: true })
 
-    if (uploadErr) {
-      console.error('PDF upload failed:', uploadErr.message)
-      return new Response(JSON.stringify({ error: 'pdf_upload_failed' }), {
-        status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      if (uploadErr) {
+        console.error('PDF upload failed:', uploadErr.message)
+        return new Response(JSON.stringify({ error: 'pdf_upload_failed' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
 
     // Update existing campaign_briefs row (do NOT insert new).
-    // Auto-promote draft -> active now that the campaign has a brief, copies, and prospects.
-    // Never overwrite manual transitions (paused/completed).
+    // copies_only mode: only stamp updated_at + auto-promote draft->active; never
+    // overwrite brief_data / pdf_url. Otherwise: write the freshly generated brief.
     await db.from('campaign_briefs')
       .update({
-        brief_data: briefData,
-        pdf_url: storagePath,
+        ...(body.copies_only ? {} : { brief_data: briefData, pdf_url: storagePath }),
         updated_at: new Date().toISOString(),
         ...(jobId ? { job_id: jobId } : {}),
         ...(campaign.status === 'draft' ? { status: 'active' } : {}),

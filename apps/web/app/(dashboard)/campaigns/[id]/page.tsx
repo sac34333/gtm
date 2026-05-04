@@ -393,18 +393,30 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
 
 // ─── Prospects & Copy Tab ────────────────────────────────────────────────────
 
-function ProspectsTab({ campaign, prospects, copies }: {
+function ProspectsTab({ campaign, prospects, copies, onRegenerateCopies, onUpdateCopyStatus, regenerating }: {
   campaign: Campaign
   prospects: Prospect[]
   copies: OutreachCopy[]
+  onRegenerateCopies: () => Promise<void> | void
+  onUpdateCopyStatus: (copyId: string, nextStatus: 'approved' | 'rejected' | 'draft') => Promise<void> | void
+  regenerating: boolean
 }) {
   const channels = campaign.channel_mix ?? []
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [copyConfirm, setCopyConfirm] = useState(false)
 
   const copyMap: Record<string, Record<string, OutreachCopy>> = {}
   for (const cp of copies) {
     if (!copyMap[cp.prospect_id]) copyMap[cp.prospect_id] = {}
     copyMap[cp.prospect_id][cp.platform] = cp
   }
+
+  const selectedCopy = selectedId ? copies.find(c => c.id === selectedId) ?? null : null
+  const selectedProspect = selectedCopy ? prospects.find(p => p.prospect_id === selectedCopy.prospect_id) ?? null : null
+
+  const totalExpected = prospects.length * channels.length
+  const generated = copies.length
+  const approved = copies.filter(c => c.status === 'approved').length
 
   if (prospects.length === 0) {
     return (
@@ -422,10 +434,31 @@ function ProspectsTab({ campaign, prospects, copies }: {
     )
   }
 
+  async function copySelectedToClipboard() {
+    if (!selectedCopy?.copy_text) return
+    try {
+      await navigator.clipboard.writeText(selectedCopy.copy_text)
+      setCopyConfirm(true)
+      setTimeout(() => setCopyConfirm(false), 1500)
+    } catch { /* ignore */ }
+  }
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">{prospects.length} prospect{prospects.length !== 1 ? 's' : ''}</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="text-sm text-slate-400">
+          <span className="text-white font-medium">{generated}</span> generated ·{' '}
+          <span className="text-emerald-300 font-medium">{approved}</span> approved ·{' '}
+          <span className="text-slate-500">of {totalExpected} expected</span>
+        </div>
+        <button
+          onClick={() => onRegenerateCopies()}
+          disabled={regenerating}
+          className="inline-flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-medium border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {regenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          {generated === 0 ? 'Generate copies' : 'Regenerate copies'}
+        </button>
       </div>
 
       {/* Table */}
@@ -469,12 +502,16 @@ function ProspectsTab({ campaign, prospects, copies }: {
                   {channels.map(ch => {
                     const copy = pCopies[ch]
                     const statusCfg = COPY_STATUS_COLOR[copy?.status ?? ''] ?? 'bg-slate-800 border-slate-700 text-slate-500'
+                    const isSelected = copy && selectedId === copy.id
                     return (
                       <td key={ch} className="px-4 py-3">
                         {copy ? (
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-xs border ${statusCfg}`}>
+                          <button
+                            onClick={() => setSelectedId(isSelected ? null : copy.id)}
+                            className={`inline-block px-2 py-0.5 rounded-full text-xs border transition ${statusCfg} ${isSelected ? 'ring-2 ring-indigo-400/60' : 'hover:opacity-80'}`}
+                          >
                             {copy.status ?? 'draft'}
-                          </span>
+                          </button>
                         ) : (
                           <span className="text-slate-700 text-xs">—</span>
                         )}
@@ -487,6 +524,68 @@ function ProspectsTab({ campaign, prospects, copies }: {
           </tbody>
         </table>
       </div>
+
+      {/* Selected copy preview / approval panel */}
+      {selectedCopy && (
+        <div className="rounded-xl border border-indigo-700/40 bg-slate-900/60 p-4 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-slate-500 uppercase tracking-wide">
+                {selectedCopy.platform.replace(/_/g, ' ')} · {selectedProspect ? [selectedProspect.first_name, selectedProspect.last_name].filter(Boolean).join(' ') : 'Prospect'}
+              </div>
+              <div className="text-xs text-slate-600 mt-0.5">
+                Status: <span className="text-slate-300">{selectedCopy.status ?? 'draft'}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setSelectedId(null)}
+              className="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300"
+              aria-label="Close"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3 text-sm text-slate-200 whitespace-pre-wrap font-mono leading-relaxed max-h-80 overflow-y-auto">
+            {selectedCopy.copy_text ?? <span className="text-slate-600 italic">(empty)</span>}
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => onUpdateCopyStatus(selectedCopy.id, 'approved')}
+              disabled={selectedCopy.status === 'approved'}
+              className="inline-flex items-center gap-2 px-3 h-8 rounded-lg text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CheckCircle className="w-3.5 h-3.5" />
+              {selectedCopy.status === 'approved' ? 'Approved' : 'Approve'}
+            </button>
+            <button
+              onClick={() => onUpdateCopyStatus(selectedCopy.id, 'rejected')}
+              disabled={selectedCopy.status === 'rejected'}
+              className="inline-flex items-center gap-2 px-3 h-8 rounded-lg text-xs font-medium border border-red-800/60 bg-red-950/40 hover:bg-red-900/40 text-red-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <X className="w-3.5 h-3.5" />
+              {selectedCopy.status === 'rejected' ? 'Rejected' : 'Reject'}
+            </button>
+            {(selectedCopy.status === 'approved' || selectedCopy.status === 'rejected') && (
+              <button
+                onClick={() => onUpdateCopyStatus(selectedCopy.id, 'draft')}
+                className="inline-flex items-center gap-2 px-3 h-8 rounded-lg text-xs font-medium border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 transition-colors"
+              >
+                Reset to draft
+              </button>
+            )}
+            <button
+              onClick={copySelectedToClipboard}
+              disabled={!selectedCopy.copy_text}
+              className="inline-flex items-center gap-2 px-3 h-8 rounded-lg text-xs font-medium border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+            >
+              {copyConfirm ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> : <ExternalLink className="w-3.5 h-3.5" />}
+              {copyConfirm ? 'Copied!' : 'Copy to clipboard'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -674,6 +773,46 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     }
   }
 
+  async function handleRegenerateCopies() {
+    setGenerating(true)
+    setGenerateError(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Not authenticated')
+
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/generate-campaign-brief`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ campaign_id: id, copies_only: true }),
+        }
+      )
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error ?? 'Failed to regenerate copies')
+      }
+      await load()
+    } catch (e: any) {
+      setGenerateError(e.message ?? 'Unexpected error')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  async function handleUpdateCopyStatus(copyId: string, nextStatus: 'approved' | 'rejected' | 'draft') {
+    const prev = copies
+    setCopies(cs => cs.map(c => c.id === copyId ? { ...c, status: nextStatus } : c))
+    const { error: updErr } = await supabase
+      .from('outreach_copies')
+      .update({ status: nextStatus })
+      .eq('id', copyId)
+    if (updErr) {
+      setCopies(prev) // revert
+      setGenerateError(`Failed to update copy: ${updErr.message}`)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen text-slate-100 p-10 space-y-6">
@@ -792,7 +931,14 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             <CalendarTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} />
           )}
           {activeTab === 'prospects' && (
-            <ProspectsTab campaign={campaign} prospects={prospects} copies={copies} />
+            <ProspectsTab
+              campaign={campaign}
+              prospects={prospects}
+              copies={copies}
+              onRegenerateCopies={handleRegenerateCopies}
+              onUpdateCopyStatus={handleUpdateCopyStatus}
+              regenerating={generating}
+            />
           )}
           {activeTab === 'brief' && (
             <BriefTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} />

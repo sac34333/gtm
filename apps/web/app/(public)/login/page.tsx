@@ -148,7 +148,7 @@ function MarketingPane() {
         </h1>
         <p className="text-base text-slate-400 leading-relaxed max-w-md">
           Detect signals, generate creative, enrich ICPs and run personalised outreach — all from a single
-          AI-routed control plane built for modern revenue teams.
+          AI-routed control plane built for modern teams.
         </p>
       </div>
 
