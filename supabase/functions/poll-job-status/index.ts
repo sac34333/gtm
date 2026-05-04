@@ -1,5 +1,6 @@
 import { createServiceClient } from '../_shared/db.ts'
 import { decrypt } from '../_shared/encryption.ts'
+import { recordUsage } from '../_shared/observability.ts'
 
 // Image jobs: timeout at 60 polls (60 min). Video jobs: 600 polls (10 hrs).
 const IMAGE_POLL_TIMEOUT = 60
@@ -263,12 +264,35 @@ Deno.serve(async (req: Request) => {
             await sendVideoCompletionEmail(db, { ...job, output_url: storagePath })
           }
 
+          // Record usage for async (video/queued image) generations
+          await recordUsage(db, {
+            org_id: job.org_id,
+            provider_key: job.provider_key,
+            model_id: job.model_id,
+            step_key: isVideo ? 'video_generation' : 'image_generation',
+            job_id: job.id,
+            key_source_used: job.key_source_used ?? 'platform',
+            latency_ms: generationTimeMs,
+            success: true,
+          })
+
           completed++
         } else if (result.status === 'failed') {
           await db.from('generation_jobs').update({
             status: 'failed',
             error_message: result.error ?? 'generation_failed',
           }).eq('id', job.id)
+          await recordUsage(db, {
+            org_id: job.org_id,
+            provider_key: job.provider_key,
+            model_id: job.model_id,
+            step_key: isVideo ? 'video_generation' : 'image_generation',
+            job_id: job.id,
+            key_source_used: job.key_source_used ?? 'platform',
+            latency_ms: 0,
+            success: false,
+            error_code: result.error ?? 'generation_failed',
+          })
           await refundQuotaForFailedJob(db, job)
           failed++
         }
