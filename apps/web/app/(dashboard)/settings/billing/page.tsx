@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase/client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
-import { AlertCircle, CheckCircle2, CreditCard, Zap, ImageIcon, Video, Users, Target } from 'lucide-react'
+import { AlertCircle, CheckCircle2, Zap, ImageIcon, Video, Users, Target } from 'lucide-react'
 import { format } from 'date-fns'
 
 // ─── Plan definitions ─────────────────────────────────────────────────────────
@@ -87,7 +87,7 @@ const PLANS = [
     videos: 8,
     icp: 200,
     briefs: 100,
-    description: '6-month commitment. Everything in Growth plus higher quotas. 24/7 managed by Qubitly.',
+    description: '6-month commitment. Everything in Growth plus higher quotas.',
     badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
     accent: 'border-indigo-500/40',
   },
@@ -220,7 +220,6 @@ export default function SettingsBillingPage() {
   })
 
   const [upgrading, setUpgrading] = useState<string | null>(null)
-  const [openingPortal, setOpeningPortal] = useState(false)
 
   async function handleUpgrade(planId: string) {
     // Open blank tab synchronously inside the click handler so popup blockers allow it.
@@ -239,24 +238,6 @@ export default function SettingsBillingPage() {
       toast.error(e instanceof Error ? e.message : 'Failed to start checkout')
     } finally {
       setUpgrading(null)
-    }
-  }
-
-  async function handleOpenPortal() {
-    setOpeningPortal(true)
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      const resp = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/create-customer-portal`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      })
-      if (!resp.ok) throw new Error('portal_failed')
-      const { url } = await resp.json()
-      window.open(url, '_blank')
-    } catch {
-      toast.error('Failed to open billing portal')
-    } finally {
-      setOpeningPortal(false)
     }
   }
 
@@ -376,7 +357,7 @@ export default function SettingsBillingPage() {
           <p className="text-slate-200 font-medium">Every paid plan includes:</p>
           <ul className="space-y-1 pl-1">
             <li>• Every image and video comes with <span className="text-slate-200">social-ready captions</span> for LinkedIn, X, Instagram & Facebook</li>
-            <li>• Videos are generated <span className="text-slate-200">with audio</span> (10-second clips)</li>
+            <li>• Videos approx. 10-second clips</li>
             <li>• Site is <span className="text-slate-200">managed 24/7 by the Qubitly team</span> — no infrastructure to worry about</li>
             <li>• Personal <span className="text-slate-200">onboarding session</span> to set up brand voice, ICP and signal sources</li>
             <li>• <span className="text-slate-200">Email support</span> — typically answered within one business day</li>
@@ -385,24 +366,6 @@ export default function SettingsBillingPage() {
         </div>
       </section>
 
-      {/* Payment portal */}
-      {isOwner && org.dodo_customer_id && (
-        <section className="rounded-xl border border-slate-800 bg-slate-900 p-5 space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-100">Payment & invoices</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Manage your payment details, download invoices, and update billing information.</p>
-          </div>
-          <Button
-            variant="outline"
-            className="border-slate-700 text-slate-100 hover:bg-slate-800"
-            onClick={handleOpenPortal}
-            disabled={openingPortal}
-          >
-            <CreditCard className="w-4 h-4 mr-2" />
-            {openingPortal ? 'Opening…' : 'Manage billing'}
-          </Button>
-        </section>
-      )}
     </div>
   )
 }
