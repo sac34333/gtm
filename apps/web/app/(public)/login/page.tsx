@@ -173,7 +173,7 @@ function MarketingPane() {
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5 space-y-3">
         <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Always on the best AI</p>
         <p className="text-[13px] text-slate-300 leading-relaxed">
-          We benchmark and route every step to the AI model that performs best today — and swap it
+          We benchmark and route every step to the AI model that performs best today and swap it
           out the moment a better one launches. You never have to think about it.
         </p>
         <p className="text-[12px] text-slate-500 leading-relaxed">

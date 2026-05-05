@@ -36,21 +36,21 @@ export function WorkflowLoop() {
       </div>
 
       {/* Horizontal flow on md+, stacked on mobile */}
-      <div className="hidden md:flex items-stretch gap-2">
+      <div className="hidden md:flex items-stretch gap-1.5 w-full">
         {STEPS.map(({ icon: Icon, title, tags }, idx) => (
-          <div key={title} className="flex items-center flex-1">
-            <div className="flex-1 rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/25 via-violet-500/25 to-fuchsia-500/25 border border-white/[0.08]">
-                  <Icon className="h-3.5 w-3.5 text-indigo-200" />
+          <div key={title} className="flex items-center flex-1 min-w-0">
+            <div className="flex-1 min-w-0 rounded-xl border border-white/[0.08] bg-gradient-to-br from-white/[0.04] to-white/[0.01] p-2.5 space-y-2 overflow-hidden">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/25 via-violet-500/25 to-fuchsia-500/25 border border-white/[0.08]">
+                  <Icon className="h-3 w-3 text-indigo-200" />
                 </div>
-                <p className="text-[13px] font-medium text-slate-100">{title}</p>
+                <p className="text-[12px] font-medium text-slate-100 truncate">{title}</p>
               </div>
               <div className="flex flex-wrap gap-1">
                 {tags.map((t) => (
                   <span
                     key={t}
-                    className="text-[9.5px] px-1.5 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-slate-400"
+                    className="text-[9px] px-1.5 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06] text-slate-400 whitespace-nowrap"
                   >
                     {t}
                   </span>
@@ -59,7 +59,7 @@ export function WorkflowLoop() {
             </div>
             {idx < STEPS.length - 1 && (
               <ArrowRight
-                className="h-3.5 w-3.5 mx-1 text-indigo-300/60 shrink-0 animate-pulse"
+                className="h-3 w-3 mx-0.5 text-indigo-300/60 shrink-0 animate-pulse"
                 strokeWidth={2.5}
               />
             )}
