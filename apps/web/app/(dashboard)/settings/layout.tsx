@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Settings, Cpu, BarChart3, CreditCard, Users } from 'lucide-react'
+import { Settings, Cpu, BarChart3, CreditCard, Users, Palette } from 'lucide-react'
 import { BackButton } from '@/components/layout/back-button'
 
 const TABS = [
   { href: '/settings', label: 'General', icon: Settings, exact: true },
+  { href: '/settings/brand', label: 'Brand & ICP', icon: Palette },
   { href: '/settings/models', label: 'Models', icon: Cpu },
   { href: '/settings/usage', label: 'Usage', icon: BarChart3 },
   { href: '/settings/billing', label: 'Billing', icon: CreditCard },
