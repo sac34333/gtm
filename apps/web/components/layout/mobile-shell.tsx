@@ -133,7 +133,7 @@ export function MobileShell({ org }: { org: Org }) {
       <div
         aria-hidden={!open}
         className={cn(
-          'md:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] max-w-[85vw] transition-transform duration-200 ease-out',
+          'md:hidden fixed top-0 left-0 z-50 h-[100dvh] w-[280px] max-w-[85vw] transition-transform duration-200 ease-out',
           open ? 'translate-x-0' : '-translate-x-full'
         )}
       >
@@ -146,7 +146,7 @@ export function MobileShell({ org }: { org: Org }) {
           >
             <X className="h-5 w-5" />
           </button>
-          <SidebarNav org={org} onNavigate={() => setOpen(false)} className="w-full" />
+          <SidebarNav org={org} onNavigate={() => setOpen(false)} className="w-full h-full pb-[env(safe-area-inset-bottom)]" />
         </div>
       </div>
     </>

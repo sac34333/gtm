@@ -216,14 +216,14 @@ export default function CampaignsPage() {
         </div>
 
         {/* Filter bar */}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap overflow-x-auto -mx-4 md:mx-0 px-4 md:px-0 pb-1">
           {/* Status filter */}
-          <div className="flex items-center gap-1 rounded-lg bg-slate-900 border border-slate-800 p-1">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-900 border border-slate-800 p-1 shrink-0">
             {['all', 'draft', 'active', 'paused', 'completed'].map(s => (
               <button
                 key={s}
                 onClick={() => setStatusFilter(s)}
-                className={`px-3 h-7 rounded-md text-xs font-medium transition-colors ${
+                className={`px-3 h-7 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                   statusFilter === s
                     ? 'bg-slate-700 text-white'
                     : 'text-slate-400 hover:text-slate-300'
@@ -234,12 +234,12 @@ export default function CampaignsPage() {
             ))}
           </div>
           {/* Type filter */}
-          <div className="flex items-center gap-1 rounded-lg bg-slate-900 border border-slate-800 p-1">
+          <div className="flex items-center gap-1 rounded-lg bg-slate-900 border border-slate-800 p-1 shrink-0">
             {['all', 'awareness', 'lead_gen', 'nurture', 'product_launch'].map(t => (
               <button
                 key={t}
                 onClick={() => setTypeFilter(t)}
-                className={`px-3 h-7 rounded-md text-xs font-medium transition-colors ${
+                className={`px-3 h-7 rounded-md text-xs font-medium transition-colors whitespace-nowrap ${
                   typeFilter === t
                     ? 'bg-slate-700 text-white'
                     : 'text-slate-400 hover:text-slate-300'

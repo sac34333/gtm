@@ -41,7 +41,7 @@ export function SidebarNav({ org, onNavigate, className }: { org: Org; onNavigat
   }
 
   return (
-    <aside className={cn('relative z-20 flex h-screen w-56 flex-col border-r border-white/[0.06] bg-slate-950/60 backdrop-blur-xl px-3 py-4', className)}>
+    <aside className={cn('relative z-20 flex h-screen w-56 flex-col border-r border-white/[0.06] bg-slate-950/60 backdrop-blur-xl px-3 py-4 overflow-y-auto', className)}>
       <div className="mb-6 px-2 flex items-center gap-2">
         <div className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 via-violet-500 to-fuchsia-500 shadow-glow-violet">
           <Sparkles className="h-3.5 w-3.5 text-white" />
