@@ -25,35 +25,78 @@ const PLANS = [
     badge: 'bg-slate-700 text-slate-200 border-slate-600',
     accent: 'border-slate-700',
   },
+  // ─── Legacy plans (commented out — superseded by client plans below) ───
+  // {
+  //   id: 'byok',
+  //   name: 'Bring Your Own Keys',
+  //   price: '$29/mo',
+  //   seats: 5,
+  //   images: 'Use your keys',
+  //   videos: 'Use your keys',
+  //   prospects: '50 runs × 500 = 25,000/mo',
+  //   description: 'You pay providers directly. We handle ingestion + UI.',
+  //   badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+  //   accent: 'border-amber-500/40',
+  // },
+  // {
+  //   id: 'fully_subscribed',
+  //   name: 'Fully Subscribed',
+  //   price: '$249/mo',
+  //   seats: 10,
+  //   images: 300,
+  //   videos: 30,
+  //   prospects: '15 runs × 200 = 3,000/mo',
+  //   description: 'We cover all AI costs. Switch any model. BYOK optional.',
+  //   badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
+  //   accent: 'border-indigo-500/40',
+  // },
+  // ─── New client plans ───
   {
-    id: 'byok',
-    name: 'Bring Your Own Keys',
-    price: '$29/mo',
-    seats: 5,
-    images: 'Use your keys',
-    videos: 'Use your keys',
-    prospects: '50 runs × 500 = 25,000/mo',
-    description: 'You pay providers directly. We handle ingestion + UI.',
-    badge: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-    accent: 'border-amber-500/40',
+    id: 'client_1m',
+    name: 'Starter — 1 month',
+    price: '$120/mo',
+    seats: 3,
+    images: 25,
+    videos: 5,
+    prospects: '100 ICP enrichments/mo · 20 campaigns & briefs',
+    description: 'Try it month-to-month. Cancel anytime. Includes social captions for every asset.',
+    badge: 'bg-slate-700 text-slate-200 border-slate-600',
+    accent: 'border-slate-700',
   },
   {
-    id: 'fully_subscribed',
-    name: 'Fully Subscribed',
-    price: '$249/mo',
-    seats: 10,
-    images: 300,
-    videos: 30,
-    prospects: '15 runs × 200 = 3,000/mo',
-    description: 'We cover all AI costs. Switch any model. BYOK optional.',
+    id: 'client_3m',
+    name: 'Growth — 3 months ⭐',
+    price: '$89/mo',
+    seats: 5,
+    images: 30,
+    videos: 5,
+    prospects: '150 ICP enrichments/mo · 50 campaigns & briefs',
+    description: 'Best value. 3-month commitment. Videos with audio, social captions for all 4 platforms.',
+    badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    accent: 'border-emerald-500/40',
+  },
+  {
+    id: 'client_6m',
+    name: 'Pro — 6 months',
+    price: '$110/mo',
+    seats: 8,
+    images: 45,
+    videos: 8,
+    prospects: '200 ICP enrichments/mo · up to 100 campaigns & briefs',
+    description: '6-month commitment. Everything in Growth plus higher quotas. 24/7 managed by Qubitly.',
     badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
     accent: 'border-indigo-500/40',
   },
 ]
 
 const DODO_PRODUCT_IDS: Record<string, string> = {
+  // Legacy (kept in case existing customers are on these tiers)
   byok: process.env.NEXT_PUBLIC_DODO_PRODUCT_BYOK ?? '',
   fully_subscribed: process.env.NEXT_PUBLIC_DODO_PRODUCT_FULLY_SUBSCRIBED ?? '',
+  // New client plans
+  client_1m: process.env.NEXT_PUBLIC_DODO_PRODUCT_CLIENT_1M ?? '',
+  client_3m: process.env.NEXT_PUBLIC_DODO_PRODUCT_CLIENT_3M ?? '',
+  client_6m: process.env.NEXT_PUBLIC_DODO_PRODUCT_CLIENT_6M ?? '',
 }
 
 async function createCheckoutSession(planId: string): Promise<string> {
@@ -276,7 +319,7 @@ export default function SettingsBillingPage() {
         {!isOwner && (
           <p className="text-xs text-slate-500">Only the org owner can change the plan.</p>
         )}
-        <div className="grid sm:grid-cols-3 gap-3 gtm-stagger">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 gtm-stagger">
           {PLANS.map(plan => {
             const isCurrent = plan.id === org.plan_tier
             return (
@@ -315,6 +358,17 @@ export default function SettingsBillingPage() {
               </div>
             )
           })}
+        </div>
+        <div className="rounded-lg border border-slate-800 bg-slate-900/40 p-4 mt-3 text-xs text-slate-400 space-y-1.5">
+          <p className="text-slate-200 font-medium">Every paid plan includes:</p>
+          <ul className="space-y-1 pl-1">
+            <li>• Every image and video comes with <span className="text-slate-200">social-ready captions</span> for LinkedIn, X, Instagram & Facebook</li>
+            <li>• Videos are generated <span className="text-slate-200">with audio</span> (10-second clips)</li>
+            <li>• Site is <span className="text-slate-200">managed 24/7 by the Qubitly team</span> — no infrastructure to worry about</li>
+            <li>• Personal <span className="text-slate-200">onboarding session</span> to set up brand voice, ICP and signal sources</li>
+            <li>• <span className="text-slate-200">Email support</span> — typically answered within one business day</li>
+            <li>• <span className="text-slate-200">All future features included free</span> — AEO, content remix, case-study generator, SEO recommendations, A/B testing, CRM sync, and more</li>
+          </ul>
         </div>
       </section>
 
