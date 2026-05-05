@@ -223,11 +223,19 @@ export default function SettingsBillingPage() {
   const [openingPortal, setOpeningPortal] = useState(false)
 
   async function handleUpgrade(planId: string) {
+    // Open blank tab synchronously inside the click handler so popup blockers allow it.
+    const checkoutTab = window.open('about:blank', '_blank', 'noopener,noreferrer')
     setUpgrading(planId)
     try {
       const url = await createCheckoutSession(planId)
-      window.location.href = url
+      if (checkoutTab && !checkoutTab.closed) {
+        checkoutTab.location.href = url
+      } else {
+        // Popup blocked — fall back to same-tab navigation
+        window.location.href = url
+      }
     } catch (e) {
+      checkoutTab?.close()
       toast.error(e instanceof Error ? e.message : 'Failed to start checkout')
     } finally {
       setUpgrading(null)
