@@ -88,7 +88,54 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'save_failed' }), { status: 500, headers: corsHeaders })
     }
 
-    // 6. If complete=true: update org + extract PDF text + generate embedding
+    // 6a. If brand_guidelines_url was cleared, also clear the extracted text
+    if (Object.prototype.hasOwnProperty.call(brandPayload, 'brand_guidelines_url') && !brandPayload.brand_guidelines_url) {
+      await serviceClient
+        .from('brand_contexts')
+        .update({ brand_guidelines_text: null })
+        .eq('org_id', org_id)
+    }
+
+    // 6b. If a PDF was uploaded (in any save, not just onboarding completion), extract its text
+    if (brandPayload.brand_guidelines_url) {
+      try {
+        const guidelinesPath = brandPayload.brand_guidelines_url as string
+        const { data: fileData } = await serviceClient
+          .storage
+          .from('brands')
+          .download(guidelinesPath)
+
+        if (fileData) {
+          const arrayBuffer = await fileData.arrayBuffer()
+          const pdfjsLib = await import('npm:pdfjs-dist/legacy/build/pdf.js')
+          pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+
+          const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
+          const textParts: string[] = []
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i)
+            const content = await page.getTextContent()
+            const pageText = content.items
+              .filter((item: any) => 'str' in item)
+              .map((item: any) => item.str)
+              .join(' ')
+            textParts.push(pageText)
+          }
+          const extractedText = textParts.join('\n').trim()
+
+          if (extractedText.length > 0) {
+            await serviceClient
+              .from('brand_contexts')
+              .update({ brand_guidelines_text: extractedText })
+              .eq('org_id', org_id)
+          }
+        }
+      } catch (_pdfErr) {
+        console.error('pdf extraction failed silently')
+      }
+    }
+
+    // 7. If complete=true: mark org complete + activate regional feeds + generate embedding
     let onboarding_complete = false
 
     if (complete === true) {
@@ -141,48 +188,7 @@ Deno.serve(async (req: Request) => {
         console.error('regional feed activation failed silently')
       }
 
-      // Extract PDF text from guidelines (silent on failure)
-      if (brandPayload.brand_guidelines_url) {
-        try {
-          const guidelinesPath = brandPayload.brand_guidelines_url as string
-          const { data: fileData } = await serviceClient
-            .storage
-            .from('brands')
-            .download(guidelinesPath)
-
-          if (fileData) {
-            const arrayBuffer = await fileData.arrayBuffer()
-            // Use pdfjs-dist in no-worker mode
-            const pdfjsLib = await import('npm:pdfjs-dist/legacy/build/pdf.js')
-            pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-
-            const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise
-            const textParts: string[] = []
-
-            for (let i = 1; i <= pdf.numPages; i++) {
-              const page = await pdf.getPage(i)
-              const content = await page.getTextContent()
-              const pageText = content.items
-                .filter((item: any) => 'str' in item)
-                .map((item: any) => item.str)
-                .join(' ')
-              textParts.push(pageText)
-            }
-
-            const extractedText = textParts.join('\n').trim()
-
-            if (extractedText.length > 0) {
-              await serviceClient
-                .from('brand_contexts')
-                .update({ brand_guidelines_text: extractedText })
-                .eq('org_id', org_id)
-            }
-          }
-        } catch (_pdfErr) {
-          // Silent failure — never block the save
-          console.error('pdf extraction failed silently')
-        }
-      }
+      // Extract PDF text — handled above (runs on every save, not just onboarding completion)
 
       // Generate brand context embedding (silent on failure)
       try {

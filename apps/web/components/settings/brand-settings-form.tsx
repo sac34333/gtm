@@ -12,6 +12,7 @@ import {
   COUNTRIES, INDUSTRIES, COMPANY_SIZES, ICP_COMPANY_SIZES,
   REVENUE_MODELS, PLATFORMS, TIMEZONES,
 } from '@/lib/constants'
+import { BrandFileUpload } from './brand-file-upload'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
@@ -210,7 +211,26 @@ function SaveBar({
 
 // ─── Main form ────────────────────────────────────────────────────────────
 
-export function BrandSettingsForm({ initial }: { initial: BrandRow }) {
+export function BrandSettingsForm({
+  initial,
+  logoSignedUrl,
+  guidelinesSignedUrl,
+}: {
+  initial: BrandRow
+  logoSignedUrl?: string | null
+  guidelinesSignedUrl?: string | null
+}) {
+  // Local state for current file paths (so UI updates after upload/remove without full reload)
+  const [logoPath, setLogoPath] = useState<string>(asString(initial.logo_url))
+  const [guidelinesPath, setGuidelinesPath] = useState<string>(asString(initial.brand_guidelines_url))
+
+  async function persistFile(field: 'logo_url' | 'brand_guidelines_url', value: string) {
+    // Empty string clears the field
+    await callSave({ [field]: value || null })
+    if (field === 'logo_url') setLogoPath(value)
+    else setGuidelinesPath(value)
+  }
+
   // ── Section 1: Company identity ──
   const [s1, setS1] = useState({
     company_name: asString(initial.company_name),
@@ -596,7 +616,16 @@ export function BrandSettingsForm({ initial }: { initial: BrandRow }) {
       </Card>
 
       {/* ── Section 3: Visual identity ── */}
-      <Card title="Visual identity" description="Colours and image style">
+      <Card title="Visual identity" description="Logo, colours, and image style">
+        <BrandFileUpload
+          kind="logo"
+          label="Brand logo"
+          description="Stored for reference. Not yet composited onto generated images — used for future brand-overlay features."
+          currentPath={logoPath || null}
+          currentSignedUrl={logoSignedUrl ?? null}
+          onUploaded={(path) => persistFile('logo_url', path)}
+        />
+
         <div className="space-y-3">
           <Label className="text-slate-300">Brand colours</Label>
           <div className="grid grid-cols-3 gap-3">
@@ -726,7 +755,16 @@ export function BrandSettingsForm({ initial }: { initial: BrandRow }) {
       </Card>
 
       {/* ── Section 5: Compliance ── */}
-      <Card title="Compliance & guardrails" description="Phrases, visuals, and topics to avoid">
+      <Card title="Compliance & guardrails" description="Brand guidelines, phrases, visuals, and topics to avoid">
+        <BrandFileUpload
+          kind="pdf"
+          label="Brand guidelines (PDF)"
+          description="We extract the text and inject a snippet into AI prompts to keep generated content on-brand."
+          currentPath={guidelinesPath || null}
+          currentSignedUrl={guidelinesSignedUrl ?? null}
+          onUploaded={(path) => persistFile('brand_guidelines_url', path)}
+        />
+
         <Field label="Phrases to avoid" hint="Banned words or marketing clichés">
           <TagInput tags={s5.phrases_to_avoid} onChange={v => u5({ phrases_to_avoid: v })}
             placeholder="e.g. game-changer" max={20} />

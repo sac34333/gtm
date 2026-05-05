@@ -16,6 +16,19 @@ export default async function BrandSettingsPage() {
     .eq('org_id', orgId)
     .maybeSingle()
 
+  // Generate signed download URLs (1-hour) for existing logo + guidelines PDF, if any
+  let logoSignedUrl: string | null = null
+  let guidelinesSignedUrl: string | null = null
+
+  if (brand?.logo_url) {
+    const { data } = await supabase.storage.from('brands').createSignedUrl(brand.logo_url as string, 3600)
+    logoSignedUrl = data?.signedUrl ?? null
+  }
+  if (brand?.brand_guidelines_url) {
+    const { data } = await supabase.storage.from('brands').createSignedUrl(brand.brand_guidelines_url as string, 3600)
+    guidelinesSignedUrl = data?.signedUrl ?? null
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-6">
       <div>
@@ -25,7 +38,11 @@ export default async function BrandSettingsPage() {
         </p>
       </div>
 
-      <BrandSettingsForm initial={brand ?? {}} />
+      <BrandSettingsForm
+        initial={brand ?? {}}
+        logoSignedUrl={logoSignedUrl}
+        guidelinesSignedUrl={guidelinesSignedUrl}
+      />
     </div>
   )
 }
