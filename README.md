@@ -51,8 +51,9 @@ cp .env.local.example .env.local
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anon key |
 | `NEXT_PUBLIC_SENTRY_DSN` | Sentry DSN (optional, errors silently dropped if absent) |
 | `NEXT_PUBLIC_APP_URL` | App base URL (`http://localhost:3000` for local) |
-| `NEXT_PUBLIC_DODO_PRODUCT_GROWTH` | Dodo Payments product ID for Growth plan |
-| `NEXT_PUBLIC_DODO_PRODUCT_SCALE` | Dodo Payments product ID for Scale plan |
+| `NEXT_PUBLIC_DODO_PRODUCT_CLIENT_1M` | Dodo product ID — Starter (1 month) |
+| `NEXT_PUBLIC_DODO_PRODUCT_CLIENT_3M` | Dodo product ID — Growth (3 months) |
+| `NEXT_PUBLIC_DODO_PRODUCT_CLIENT_6M` | Dodo product ID — Pro (6 months) |
 | `SENTRY_ORG` | Sentry org slug (build-time source maps only) |
 | `SENTRY_PROJECT` | Sentry project slug |
 
@@ -79,7 +80,8 @@ npx supabase secrets set \
   LANGFUSE_SECRET_KEY=<key> \
   LANGFUSE_PUBLIC_KEY=<key> \
   DODO_WEBHOOK_SECRET=<secret> \
-  DODO_API_KEY=<key> \
+  DODO_PAYMENTS_API_KEY=<live-mode-key> \
+  DODO_PAYMENTS_BASE_URL=https://live.dodopayments.com \
   --project-ref <your-project-ref>
 ```
 
