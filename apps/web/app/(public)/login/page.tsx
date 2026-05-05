@@ -188,7 +188,7 @@ function MarketingPane() {
           <a href="https://qubitlyventures.com" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-100 hover:text-indigo-300 transition-colors">
             Qubitly Ventures
           </a>{' '}
-          — a Deeptech IT company building AI-native products that transform how teams work.
+          - a Deeptech IT company building AI-native products that transform how teams work.
         </p>
       </div>
     </div>

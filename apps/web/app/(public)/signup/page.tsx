@@ -14,10 +14,10 @@ import { WorkflowLoop } from '@/components/marketing/workflow-loop'
 import { Loader2, Check } from 'lucide-react'
 
 const PERKS = [
-  'Free trial — no credit card required',
-  'Live signals tuned to your themes & business — no manual setup',
-  'AI content with built-in tags & one-click regenerate — zero prompt engineering',
-  'ICP discovery powered by AI search — built around how you actually sell',
+  'Free trial - no credit card required',
+  'Live signals tuned to your themes & business - no manual setup',
+  'AI content with built-in tags & one-click regenerate - zero prompt engineering',
+  'ICP discovery powered by AI search - built around how you actually sell',
   'Campaigns from 1 to 90 days, multi-channel, per-prospect personalised',
 ]
 
@@ -65,7 +65,7 @@ function MarketingPane() {
           <a href="https://qubitlyventures.com" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-100 hover:text-indigo-300 transition-colors">
             Qubitly Ventures
           </a>{' '}
-          — a Deeptech IT company building AI-native products that transform how teams work.
+          - a Deeptech IT company building AI-native products that transform how teams work.
         </p>
       </div>
     </div>

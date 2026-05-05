@@ -44,7 +44,7 @@ export function WorkflowLoop() {
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500/25 via-violet-500/25 to-fuchsia-500/25 border border-white/[0.08]">
                   <Icon className="h-3 w-3 text-indigo-200" />
                 </div>
-                <p className="text-[12px] font-medium text-slate-100 truncate">{title}</p>
+                <p className="text-[12px] font-medium text-slate-100 leading-tight">{title}</p>
               </div>
               <div className="flex flex-wrap gap-1">
                 {tags.map((t) => (
@@ -97,7 +97,7 @@ export function WorkflowLoop() {
 
       <div className="pt-2 border-t border-white/[0.05]">
         <p className="text-[12.5px] text-slate-300 leading-relaxed">
-          The work a marketing team normally does over weeks — delivered end-to-end, in one loop that
+          The work a marketing team normally does over weeks - delivered end-to-end, in one loop that
           learns and refines as you go.
         </p>
       </div>
