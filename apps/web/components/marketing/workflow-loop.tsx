@@ -10,7 +10,7 @@ const STEPS = [
   {
     icon: Wand2,
     title: 'Content',
-    tags: ['Image', 'Video', 'Copy'],
+    tags: ['Image', 'Video', 'Social Copy'],
     body: 'No prompt fatigue — pick a tag, refine, regenerate.',
   },
   {
