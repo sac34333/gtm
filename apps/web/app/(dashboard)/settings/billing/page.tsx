@@ -20,7 +20,8 @@ const PLANS = [
     seats: 2,
     images: 5,
     videos: 2,
-    prospects: '2 runs × 20 = 40/mo',
+    icp: 40,
+    briefs: 5,
     description: 'Try the product. Limited quotas.',
     badge: 'bg-slate-700 text-slate-200 border-slate-600',
     accent: 'border-slate-700',
@@ -58,7 +59,8 @@ const PLANS = [
     seats: 3,
     images: 25,
     videos: 5,
-    prospects: '100 ICP enrichments/mo · 20 campaigns & briefs',
+    icp: 100,
+    briefs: 20,
     description: 'Try it month-to-month. Cancel anytime. Includes social captions for every asset.',
     badge: 'bg-slate-700 text-slate-200 border-slate-600',
     accent: 'border-slate-700',
@@ -70,7 +72,8 @@ const PLANS = [
     seats: 5,
     images: 30,
     videos: 5,
-    prospects: '150 ICP enrichments/mo · 50 campaigns & briefs',
+    icp: 150,
+    briefs: 50,
     description: 'Best value. 3-month commitment. Videos with audio, social captions for all 4 platforms.',
     badge: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
     accent: 'border-emerald-500/40',
@@ -82,7 +85,8 @@ const PLANS = [
     seats: 8,
     images: 45,
     videos: 8,
-    prospects: '200 ICP enrichments/mo · up to 100 campaigns & briefs',
+    icp: 200,
+    briefs: 100,
     description: '6-month commitment. Everything in Growth plus higher quotas. 24/7 managed by Qubitly.',
     badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
     accent: 'border-indigo-500/40',
@@ -341,7 +345,8 @@ export default function SettingsBillingPage() {
                   <li>{plan.seats} seats</li>
                   <li>{typeof plan.images === 'number' ? `${plan.images} images/mo` : plan.images}</li>
                   <li>{typeof plan.videos === 'number' ? `${plan.videos} videos/mo` : plan.videos}</li>
-                  <li className="text-slate-500">ICP: {plan.prospects}</li>
+                  <li>{plan.icp} ICP enrichments/mo</li>
+                  <li>{plan.briefs} campaigns & briefs/mo</li>
                 </ul>
                 {isOwner && !isCurrent && plan.id !== 'starter' && (
                   <Button
