@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { AuthShell } from '@/components/layout/auth-shell'
+import { WorkflowLoop } from '@/components/marketing/workflow-loop'
 import { Loader2, Wand2, Radar, Users, Zap } from 'lucide-react'
 
 function LoginForm() {
@@ -119,23 +120,23 @@ function LoginForm() {
 const FEATURES = [
   {
     icon: Radar,
-    title: 'Real-time signal intelligence',
-    body: 'Surface market shifts, competitor moves, and ICP triggers across 12+ live data sources.',
+    title: 'Live signals from your themes',
+    body: 'Tell us your business and themes once. Daily, scored signals from across the digital landscape — tuned to your market.',
   },
   {
     icon: Wand2,
-    title: 'AI creative on demand',
-    body: 'Generate on-brand images, videos, and copy in seconds — routed to the best model for the job.',
+    title: 'Content without prompt fatigue',
+    body: 'No prompt engineering. Pick a tag, pick a tone — generate, refine and regenerate until it fits your brand.',
   },
   {
     icon: Users,
-    title: 'ICP enrichment & personalisation',
-    body: 'Waterfall enrichment plus 1:1 personalised outreach for every prospect in your pipeline.',
+    title: 'AI-search ICP discovery',
+    body: 'Describe who you sell to. We surface real prospects, score fit 0–100 and enrich each one — built around how you actually sell.',
   },
   {
     icon: Zap,
-    title: 'End-to-end campaign workflows',
-    body: 'From signal to creative to outreach — all in one workspace, with usage tracking baked in.',
+    title: 'Campaigns built for your prospects',
+    body: 'Pick media channels, pick a length (1–90 days), approve copy inline. Calendar, briefs and per-prospect copy — built for you.',
   },
 ]
 
@@ -144,11 +145,12 @@ function MarketingPane() {
     <div className="space-y-10">
       <div className="space-y-5">
         <h1 className="text-4xl xl:text-5xl font-semibold leading-[1.1] gtm-title">
-          The AI-native go-to-market workspace.
+          The work of a marketing team. Delivered in minutes.
         </h1>
         <p className="text-base text-slate-400 leading-relaxed max-w-md">
-          Detect signals, generate creative, enrich ICPs and run personalised outreach — all from a single
-          AI-routed control plane built for modern teams.
+          One AI-driven workspace that turns live market signals into on-brand content, finds the
+          prospects who actually fit, and ships fully personalised campaigns — without juggling tools
+          or prompts.
         </p>
       </div>
 
@@ -166,18 +168,27 @@ function MarketingPane() {
         ))}
       </ul>
 
+      <WorkflowLoop />
+
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5 space-y-3">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Always on the best AI</p>
+        <p className="text-[13px] text-slate-300 leading-relaxed">
+          We benchmark and route every step to the AI model that performs best today — and swap it
+          out the moment a better one launches. You never have to think about it.
+        </p>
+        <p className="text-[12px] text-slate-500 leading-relaxed">
+          Prefer to use your own model accounts? Bring Your Own Keys (BYOK) is available on request —
+          we&apos;ll route through your OpenAI, Anthropic or Gemini keys instead.
+        </p>
+      </div>
+
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="flex -space-x-2">
-            {['from-indigo-400 to-indigo-600', 'from-violet-400 to-violet-600', 'from-fuchsia-400 to-fuchsia-600', 'from-cyan-400 to-cyan-600'].map((g) => (
-              <div key={g} className={`h-7 w-7 rounded-full bg-gradient-to-br ${g} ring-2 ring-slate-950`} />
-            ))}
-          </div>
-          <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Trusted by modern GTM teams</span>
-        </div>
-        <p className="text-[13px] text-slate-400 italic leading-relaxed">
-          &ldquo;We replaced four disconnected tools with one AI-native workspace. Our team ships campaigns
-          in hours, not weeks.&rdquo;
+        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">Built by</p>
+        <p className="text-sm text-slate-300 leading-relaxed">
+          <a href="https://qubitlyventures.com" target="_blank" rel="noopener noreferrer" className="font-medium text-slate-100 hover:text-indigo-300 transition-colors">
+            Qubitly Ventures
+          </a>{' '}
+          — a Deeptech IT company building AI-native products that transform how teams work.
         </p>
       </div>
     </div>

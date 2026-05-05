@@ -10,14 +10,15 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { AuthShell } from '@/components/layout/auth-shell'
+import { WorkflowLoop } from '@/components/marketing/workflow-loop'
 import { Loader2, Check } from 'lucide-react'
 
 const PERKS = [
   'Free trial — no credit card required',
-  '12+ live signal sources out of the box',
-  'AI image, video & social media content generation',
-  'ICP enrichment & 1:1 personalisation',
-  'Bring your own keys (OpenRouter, Fal, LinkedIn, Hunter,…)',
+  'Live signals tuned to your themes & business — no manual setup',
+  'AI content with built-in tags & one-click regenerate — zero prompt engineering',
+  'ICP discovery powered by AI search — built around how you actually sell',
+  'Campaigns from 1 to 90 days, multi-channel, per-prospect personalised',
 ]
 
 function MarketingPane() {
@@ -25,11 +26,11 @@ function MarketingPane() {
     <div className="space-y-10">
       <div className="space-y-5">
         <h1 className="text-4xl xl:text-5xl font-semibold leading-[1.1] gtm-title">
-          Start shipping campaigns in minutes.
+          Spin up your AI marketing team in under 10 minutes.
         </h1>
         <p className="text-base text-slate-400 leading-relaxed max-w-md">
-          Spin up a workspace, connect a few sources, and let GTM Engine route every step —
-          signal detection, creative, ICP, outreach — to the best AI model for the job.
+          Tell us your business and themes once. Get signals, content, ICPs and campaigns flowing the
+          same day — without the prompts, the spreadsheets or the per-seat invoices.
         </p>
       </div>
 
@@ -43,6 +44,20 @@ function MarketingPane() {
           </li>
         ))}
       </ul>
+
+      <WorkflowLoop />
+
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5 space-y-3">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Always on the best AI</p>
+        <p className="text-[13px] text-slate-300 leading-relaxed">
+          We benchmark and route every step to the AI model that performs best today — and swap it
+          out the moment a better one launches. You never have to think about it.
+        </p>
+        <p className="text-[12px] text-slate-500 leading-relaxed">
+          Prefer to use your own model accounts? Bring Your Own Keys (BYOK) is available on request —
+          we&apos;ll route through your OpenAI, Anthropic or Gemini keys instead.
+        </p>
+      </div>
 
       <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5">
         <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">Built by</p>
