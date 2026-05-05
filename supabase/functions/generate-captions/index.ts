@@ -75,17 +75,7 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: 'payload_too_large' }), { status: 413, headers: corsHeaders })
     }
 
-    const body = await req.json().catch(() => null)
-    if (!body || typeof body.job_id !== 'string') {
-      return new Response(JSON.stringify({ error: 'job_id_required' }), { status: 400, headers: corsHeaders })
-    }
-    const job_id = body.job_id
-    const regenerate = body.regenerate === true
-    const requestedPlatforms: string[] = Array.isArray(body.platforms) && body.platforms.length
-      ? body.platforms.filter((p: any) => typeof p === 'string' && ALLOWED_PLATFORMS.has(p))
-      : DEFAULT_PLATFORMS
-
-    // Auth: cron-secret OR JWT
+    // Auth FIRST — before parsing the body — so unauth callers can't probe field names.
     const cronSecret = Deno.env.get('CRON_SECRET')
     const headerSecret = req.headers.get('x-cron-secret')
     const isCron = !!cronSecret && headerSecret === cronSecret
@@ -102,6 +92,16 @@ Deno.serve(async (req: Request) => {
         return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: corsHeaders })
       }
     }
+
+    const body = await req.json().catch(() => null)
+    if (!body || typeof body.job_id !== 'string') {
+      return new Response(JSON.stringify({ error: 'job_id_required' }), { status: 400, headers: corsHeaders })
+    }
+    const job_id = body.job_id
+    const regenerate = body.regenerate === true
+    const requestedPlatforms: string[] = Array.isArray(body.platforms) && body.platforms.length
+      ? body.platforms.filter((p: any) => typeof p === 'string' && ALLOWED_PLATFORMS.has(p))
+      : DEFAULT_PLATFORMS
 
     const db = createServiceClient()
 

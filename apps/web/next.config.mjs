@@ -23,6 +23,22 @@ const nextConfig = {
       { protocol: 'https', hostname: '**.fal.run' },
     ],
   },
+  async headers() {
+    // Baseline security headers. Applied to every route. Verified against
+    // testing/security-verification.ps1 (TC-SEC-021).
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
+          { key: 'X-Frame-Options', value: 'DENY' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+        ],
+      },
+    ]
+  },
 }
 
 // Only wrap with Sentry when an auth token is present (otherwise the build fails
