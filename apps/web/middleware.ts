@@ -1,6 +1,23 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Baseline security headers applied to every response.
+// Defined here (not next.config.mjs) because Cloudflare Pages does not honor
+// next.config `headers()` for SSR/edge routes — only middleware reliably sets them.
+// Verified against testing/security-verification.ps1 (TC-SEC-021).
+const SECURITY_HEADERS: Array<[string, string]> = [
+  ['Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload'],
+  ['X-Frame-Options', 'DENY'],
+  ['X-Content-Type-Options', 'nosniff'],
+  ['Referrer-Policy', 'strict-origin-when-cross-origin'],
+  ['Permissions-Policy', 'camera=(), microphone=(), geolocation=()'],
+]
+
+function applySecurityHeaders(res: NextResponse): NextResponse {
+  for (const [k, v] of SECURITY_HEADERS) res.headers.set(k, v)
+  return res
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request })
 
@@ -32,7 +49,7 @@ export async function middleware(request: NextRequest) {
   if (pathname === '/') {
     const url = request.nextUrl.clone()
     url.pathname = user ? '/dashboard' : '/login'
-    return NextResponse.redirect(url)
+    return applySecurityHeaders(NextResponse.redirect(url))
   }
 
   // Public routes — no auth required
@@ -46,7 +63,7 @@ export async function middleware(request: NextRequest) {
     '/auth/callback',
   ]
   if (publicRoutes.some(r => pathname === r || pathname.startsWith(r + '/'))) {
-    return supabaseResponse
+    return applySecurityHeaders(supabaseResponse)
   }
 
   // Unauthenticated — redirect to login
@@ -54,7 +71,7 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     url.searchParams.set('redirectTo', pathname)
-    return NextResponse.redirect(url)
+    return applySecurityHeaders(NextResponse.redirect(url))
   }
 
   const orgId = user.app_metadata?.org_id
@@ -63,10 +80,10 @@ export async function middleware(request: NextRequest) {
   if (!orgId && pathname !== '/create-org') {
     const url = request.nextUrl.clone()
     url.pathname = '/create-org'
-    return NextResponse.redirect(url)
+    return applySecurityHeaders(NextResponse.redirect(url))
   }
 
-  return supabaseResponse
+  return applySecurityHeaders(supabaseResponse)
 }
 
 export const config = {
