@@ -233,6 +233,7 @@ export default function LibraryPage() {
           <div>
             <h1 className="text-2xl font-semibold gtm-title tracking-tight">Library</h1>
             <p className="text-slate-400 text-sm mt-1">All your generated images and videos. Refinements and regenerations are stacked together.</p>
+            <p className="text-amber-300/80 text-xs mt-2">Note: assets are auto-deleted 30 days after creation. Please download and save anything you want to keep.</p>
           </div>
           <Link href="/create">
             <Button className="bg-indigo-600 hover:bg-indigo-500 text-white">
