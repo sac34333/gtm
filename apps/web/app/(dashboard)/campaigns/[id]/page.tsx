@@ -815,7 +815,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
   if (loading) {
     return (
-      <div className="min-h-screen text-slate-100 p-10 space-y-6">
+      <div className="min-h-screen text-slate-100 p-4 md:p-10 space-y-6">
         <Skeleton className="h-8 w-64 bg-slate-800" />
         <Skeleton className="h-24 w-full bg-slate-800" />
         <Skeleton className="h-64 w-full bg-slate-800" />
@@ -843,7 +843,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
   return (
     <div className="min-h-screen text-slate-100">
-      <div className="max-w-screen-xl mx-auto px-6 py-10 space-y-8">
+      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-8">
 
         {/* Back link */}
         <Link href="/campaigns" className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-300 transition-colors">

@@ -260,7 +260,7 @@ export default function PersonalisePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen p-8">
+      <div className="min-h-screen p-4 md:p-8">
         <Skeleton className="h-8 w-48 bg-slate-800 mb-6" />
         <div className="grid grid-cols-3 gap-8">
           <Skeleton className="h-64 bg-slate-800 rounded-2xl" />
@@ -290,7 +290,7 @@ export default function PersonalisePage() {
 
   return (
     <div className="min-h-screen text-slate-100">
-      <div className="max-w-screen-xl mx-auto px-6 py-8">
+      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-6 md:py-8">
 
         {/* Back nav */}
         <Link href="/icp" className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 mb-6 transition-colors">

@@ -104,7 +104,7 @@ export default function SignupPage() {
       <Card className="w-full bg-white/[0.04] backdrop-blur-xl border-white/[0.08] shadow-glass-lg">
         <CardHeader className="space-y-1.5 pb-4">
           <CardTitle className="text-2xl gtm-title">Create your account</CardTitle>
-          <CardDescription className="text-slate-400">Free to start — no credit card required.</CardDescription>
+          <CardDescription className="text-slate-400">Free to start - no credit card required.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} className="space-y-4">

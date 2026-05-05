@@ -227,7 +227,7 @@ export default function LibraryPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="mx-auto max-w-6xl px-6 py-8 space-y-6">
+      <div className="mx-auto max-w-6xl px-4 md:px-6 py-6 md:py-8 space-y-6">
         <BackButton href="/dashboard" label="Back to dashboard" />
         <div className="flex items-start justify-between gap-4">
           <div>

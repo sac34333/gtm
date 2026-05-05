@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { SidebarNav } from '@/components/layout/sidebar-nav'
+import { MobileShell } from '@/components/layout/mobile-shell'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const supabase = createSupabaseServerClient()
@@ -45,8 +46,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
         />
       </div>
 
-      <SidebarNav org={org} />
-      <main className="relative z-10 flex-1 overflow-auto gtm-fade-in">{children}</main>
+      <SidebarNav org={org} className="hidden md:flex" />
+      <MobileShell org={org} />
+      <main className="relative z-10 flex-1 overflow-auto pt-14 md:pt-0 gtm-fade-in">{children}</main>
     </div>
   )
 }

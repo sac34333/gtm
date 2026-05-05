@@ -275,7 +275,7 @@ export default function ICPPage() {
 
   return (
     <div className="min-h-screen text-slate-100">
-      <div className="max-w-screen-xl mx-auto px-6 py-10 space-y-8">
+      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-8">
 
         <BackButton href="/dashboard" label="Back to dashboard" />
 
@@ -524,8 +524,8 @@ export default function ICPPage() {
               <h2 className="text-base font-semibold text-slate-100">Recent runs</h2>
               <span className="text-sm font-normal text-slate-500">({runs.length})</span>
             </div>
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 overflow-x-auto">
+              <table className="w-full text-sm min-w-[640px]">
                 <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
                   <tr>
                     <th className="text-left px-4 py-3 font-medium">When</th>

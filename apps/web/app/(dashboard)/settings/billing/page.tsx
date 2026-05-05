@@ -208,7 +208,7 @@ export default function SettingsBillingPage() {
   if (isLoading) return <BillingLoading />
   if (isError || !data) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-12 space-y-4">
+      <div className="mx-auto max-w-4xl px-4 md:px-6 py-8 md:py-12 space-y-4">
         <h1 className="text-2xl font-semibold gtm-title tracking-tight">Billing</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
@@ -231,7 +231,7 @@ export default function SettingsBillingPage() {
   const resetDate = org.quota_reset_at ? format(new Date(org.quota_reset_at), 'MMM d, yyyy') : null
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 space-y-8">
+    <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-semibold gtm-title tracking-tight">Billing</h1>
@@ -369,7 +369,7 @@ function UsageMeter({ icon: Icon, label, used, limit, percent, sublabel }: {
 
 function BillingLoading() {
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 space-y-6">
+    <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-6">
       <Skeleton className="h-8 w-32 bg-slate-800" />
       <Skeleton className="h-48 w-full bg-slate-800 rounded-xl" />
       <div className="grid sm:grid-cols-3 gap-3">

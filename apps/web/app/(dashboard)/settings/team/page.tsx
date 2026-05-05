@@ -217,7 +217,7 @@ export default function SettingsTeamPage() {
   if (accessLoading || membersLoading) return <TeamLoading />
   if (isError || !access) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-12 space-y-4">
+      <div className="mx-auto max-w-4xl px-4 md:px-6 py-8 md:py-12 space-y-4">
         <h1 className="text-2xl font-semibold gtm-title tracking-tight">Team</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
@@ -229,7 +229,7 @@ export default function SettingsTeamPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 space-y-8">
+    <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-8">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -469,7 +469,7 @@ export default function SettingsTeamPage() {
 
 function TeamLoading() {
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 space-y-6">
+    <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-6">
       <Skeleton className="h-8 w-32 bg-slate-800" />
       <Skeleton className="h-24 w-full bg-slate-800 rounded-xl" />
       <Skeleton className="h-32 w-full bg-slate-800 rounded-xl" />

@@ -470,7 +470,7 @@ export default function SettingsModelsPage() {
   if (isLoading || accessLoading) return <SettingsModelsLoading />
   if (isError) {
     return (
-      <div className="mx-auto max-w-4xl px-6 py-12 space-y-4">
+      <div className="mx-auto max-w-4xl px-4 md:px-6 py-8 md:py-12 space-y-4">
         <h1 className="text-2xl font-semibold gtm-title tracking-tight">Model Settings</h1>
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
           <AlertCircle className="w-8 h-8 text-red-400 mx-auto" />
@@ -484,7 +484,7 @@ export default function SettingsModelsPage() {
   const pendingCount = Object.keys(pendingPrefs).length
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 space-y-8">
+    <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-8">
 
         {/* Header */}
         <div className="flex items-start justify-between gap-4">
@@ -606,7 +606,7 @@ export default function SettingsModelsPage() {
 
 function SettingsModelsLoading() {
   return (
-    <div className="mx-auto max-w-4xl px-6 py-8 space-y-6">
+    <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-6">
       <Skeleton className="h-8 w-48 bg-slate-800" />
       <div className="flex gap-3">
         {[1, 2, 3].map(i => <Skeleton key={i} className="h-32 w-72 bg-slate-800 rounded-xl shrink-0" />)}

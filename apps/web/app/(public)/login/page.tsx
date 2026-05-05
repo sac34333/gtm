@@ -121,22 +121,22 @@ const FEATURES = [
   {
     icon: Radar,
     title: 'Live signals from your themes',
-    body: 'Tell us your business and themes once. Daily, scored signals from across the digital landscape — tuned to your market.',
+    body: 'Tell us your business and themes once. Daily, scored signals from across the digital landscape - tuned to your market.',
   },
   {
     icon: Wand2,
     title: 'Content without prompt fatigue',
-    body: 'No prompt engineering. Pick a tag, pick a tone — generate, refine and regenerate until it fits your brand.',
+    body: 'No prompt engineering. Pick a tag, pick a tone - generate, refine and regenerate until it fits your brand.',
   },
   {
     icon: Users,
     title: 'AI-search ICP discovery',
-    body: 'Describe who you sell to. We surface real prospects, score fit 0–100 and enrich each one — built around how you actually sell.',
+    body: 'Describe who you sell to. We surface real prospects, score fit 0–100 and enrich each one -built around how you actually sell.',
   },
   {
     icon: Zap,
     title: 'Campaigns built for your prospects',
-    body: 'Pick media channels, pick a length (1–90 days), approve copy inline. Calendar, briefs and per-prospect copy — built for you.',
+    body: 'Pick media channels, pick a length (1–90 days), approve copy inline. Calendar, briefs and per-prospect copy - built for you.',
   },
 ]
 
@@ -177,7 +177,7 @@ function MarketingPane() {
           out the moment a better one launches. You never have to think about it.
         </p>
         <p className="text-[12px] text-slate-500 leading-relaxed">
-          Prefer to use your own model accounts? Bring Your Own Keys (BYOK) is available on request —
+          Prefer to use your own model accounts? Bring Your Own Keys (BYOK) is available on request -
           we&apos;ll route through your OpenAI, Anthropic or Gemini keys instead.
         </p>
       </div>

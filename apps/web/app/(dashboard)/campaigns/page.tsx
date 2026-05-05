@@ -197,7 +197,7 @@ export default function CampaignsPage() {
 
   return (
     <div className="min-h-screen text-slate-100">
-      <div className="max-w-screen-xl mx-auto px-6 py-10 space-y-8">
+      <div className="max-w-screen-xl mx-auto px-4 md:px-6 py-6 md:py-10 space-y-8">
 
         <BackButton href="/dashboard" label="Back to dashboard" />
 
