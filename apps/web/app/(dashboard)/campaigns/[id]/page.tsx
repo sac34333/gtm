@@ -11,7 +11,7 @@ import {
   Briefcase, Mail, MessageSquare, AtSign,
   Image as ImageIcon, FileText, Download, RefreshCw,
   Calendar, Clock, Hash, CheckCircle, AlertCircle,
-  Loader2, Plus, X, ChevronRight, ExternalLink,
+  Loader2, Plus, X, ChevronRight, ExternalLink, Sparkles,
 } from 'lucide-react'
 
 type TabKey = 'calendar' | 'prospects' | 'brief'
@@ -135,6 +135,7 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
   const flatHashtags: string[] = brief?.hashtags ?? []
   const timing: Record<string, any> = brief?.timing_recommendations ?? brief?.best_time_to_post ?? {}
   const summary: string | undefined = brief?.executive_summary
+  const summaryRationale: string | undefined = brief?.executive_summary_rationale
   const keyMessages: string[] = brief?.key_messages ?? []
   const primaryCta: string | undefined = brief?.primary_cta
   const audienceProfile: { total?: number; summary?: string; top_industries?: string[] } | undefined = brief?.audience_profile
@@ -234,6 +235,17 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Why this brief — rationale that explains positioning + audience + goal */}
+      {summaryRationale && (
+        <div className="rounded-xl border border-amber-900/40 bg-amber-950/15 p-5">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span className="text-xs uppercase tracking-wide text-amber-300">Why this brief was built this way</span>
+          </div>
+          <p className="text-sm text-slate-200 leading-relaxed">{summaryRationale}</p>
         </div>
       )}
 

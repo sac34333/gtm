@@ -42,6 +42,8 @@ Deno.serve(async (req: Request) => {
         status: 'draft',
         campaign_type: body.campaign_type,
         description: body.description ?? null,
+        goal: body.goal ?? null,
+        key_message: body.key_message ?? null,
         channel_mix: body.channel_mix ?? ['linkedin_message', 'email'],
         start_date: body.start_date ?? null,
         end_date: body.end_date ?? null,

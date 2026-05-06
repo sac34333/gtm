@@ -241,6 +241,8 @@ export function BrandSettingsForm({
     founding_year: initial.founding_year ? String(initial.founding_year) : '',
     one_sentence_pitch: asString(initial.one_sentence_pitch),
     extended_description: asString(initial.extended_description),
+    differentiators: asArray<string>(initial.differentiators),
+    proof_points: asArray<string>(initial.proof_points),
     products_services: (asArray<ProductService>(initial.products_services).length > 0
       ? asArray<ProductService>(initial.products_services)
       : [{ name: '', description: '' }]),
@@ -347,6 +349,8 @@ export function BrandSettingsForm({
       founding_year: s1.founding_year ? Number(s1.founding_year) : undefined,
       one_sentence_pitch: s1.one_sentence_pitch.trim(),
       extended_description: s1.extended_description.trim() || undefined,
+      differentiators: s1.differentiators,
+      proof_points: s1.proof_points,
       products_services: validProducts.length > 0 ? validProducts : undefined,
       revenue_model: s1.revenue_model || undefined,
       target_geographies: s1.target_geographies,
@@ -486,6 +490,30 @@ export function BrandSettingsForm({
             onChange={e => u1({ extended_description: e.target.value })}
             maxLength={2000} rows={4}
             className="bg-slate-800 border-slate-700 text-slate-100 resize-none"
+          />
+        </Field>
+
+        <Field
+          label="Differentiators"
+          hint="Why you win vs alternatives. 1 line each. Used to anchor every campaign’s positioning."
+        >
+          <TagInput
+            tags={s1.differentiators}
+            onChange={v => u1({ differentiators: v })}
+            placeholder='e.g. "Unlike Apollo, we sell signals, not stale data"'
+            max={5}
+          />
+        </Field>
+
+        <Field
+          label="Proof points"
+          hint="Outcomes, metrics, named customers. 1 line each. Used as evidence in posts/emails."
+        >
+          <TagInput
+            tags={s1.proof_points}
+            onChange={v => u1({ proof_points: v })}
+            placeholder='e.g. "Cut SDR cost 60% at QUONSCIOUS"'
+            max={5}
           />
         </Field>
 

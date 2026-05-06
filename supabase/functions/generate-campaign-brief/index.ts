@@ -31,15 +31,19 @@ interface PostingDay {
   platform?: string
 }
 
-interface LinkedInPost { hook: string; body: string; cta: string; hashtags?: string[] }
+interface LinkedInPost { hook: string; body: string; cta: string; hashtags?: string[]; first_comment?: string }
+interface FacebookPost { hook: string; body: string; cta: string; hashtags?: string[]; first_comment?: string }
 interface TwitterPost { tweet: string; thread?: string[] }
-interface EmailVariant { subject: string; preview: string; body: string; cta: string }
+interface EmailVariant { subject: string; subject_b?: string; preview: string; body: string; cta: string; plain_text_body?: string }
 interface DmVariant { opener: string; body: string; ask: string }
 interface TimingRec { best_days?: string[]; best_times?: string[]; rationale?: string }
 
 interface BriefData {
   // Top-level positioning
   executive_summary?: string
+  // Why this brief was built this way (positioning + audience + goal). Shown
+  // to the client at the top of the campaign page so they can see relevance.
+  executive_summary_rationale?: string
   key_messages?: string[]
   primary_cta?: string
 
@@ -51,6 +55,7 @@ interface BriefData {
     linkedin_post?: LinkedInPost[]
     linkedin_message?: DmVariant[]
     twitter?: TwitterPost[]
+    facebook_post?: FacebookPost[]
     email?: EmailVariant[]
     cold_dm?: DmVariant[]
   }
@@ -459,27 +464,32 @@ Deno.serve(async (req: Request) => {
     const contentSchemaParts: string[] = []
     if (channelMix.includes('linkedin_post')) {
       contentSchemaParts.push(`    "linkedin_post": [
-      { "hook": "scroll-stopping first line under 90 chars", "body": "full post 800-1300 chars, line breaks with \\n\\n, no fluff", "cta": "single clear CTA", "hashtags": ["#tag1","#tag2","#tag3"] }
+      { "hook": "first 3 lines visible before 'see more' — curiosity gap, NOT topic statement", "body": "1200-1500 chars, 1-2 sentences per paragraph, blank line between every paragraph (use \\n\\n), end with engagement question", "cta": "single CTA in its own paragraph above the engagement question", "hashtags": ["3-5 hashtags placed at very end only — NEVER in first 100 chars"], "first_comment": "URL or link teaser to post as first comment within 60s — empty string if no link applies" }
     ]`)
     }
     if (channelMix.includes('linkedin_message')) {
       contentSchemaParts.push(`    "linkedin_message": [
-      { "opener": "personal hook that does NOT use 'Hi {{name}}' as the only personalisation", "body": "120-180 chars, references something concrete about their work or company", "ask": "soft, low-friction ask (e.g. 'open to a 15-min chat next week?')" }
+      { "opener": "references a specific recent post, company news, role change, mutual, or bio detail — NEVER 'Hi {{name}}' alone", "body": "120-180 chars MAX, lead with relevance then bridge to value, NO links", "ask": "soft, low-friction, time-bounded (e.g. 'open to a 15-min chat next Tue or Wed?'). For C-suite, ask for a reply not a meeting." }
     ]`)
     }
     if (channelMix.includes('email')) {
       contentSchemaParts.push(`    "email": [
-      { "subject": "under 55 chars, curiosity-driven, no spam triggers (NO emojis, NO ALL CAPS, NO 'free')", "preview": "preheader 60-90 chars that earns the open", "body": "120-180 word body in 3-4 short paragraphs, problem-agitate-solve framework, clear PS line", "cta": "specific next-step CTA (e.g. 'book a 15-min demo')" }
+      { "subject": "variant A (curiosity-driven), under 55 chars, no emoji/CAPS/spam triggers", "subject_b": "variant B (direct/outcome-driven), under 55 chars, also spam-safe", "preview": "60-90 chars preheader — must NOT repeat subject, treat as second hook", "body": "120-180 words, 3-4 short paragraphs, Problem-Agitate-Solve framework, mandatory PS line", "cta": "single specific CTA with action-verb anchor text, never 'click here'", "plain_text_body": "plain-text twin of body — bare URLs, no HTML — for cold B2B deliverability" }
     ]`)
     }
     if (channelMix.includes('twitter') || channelMix.includes('twitter_x')) {
       contentSchemaParts.push(`    "twitter": [
-      { "tweet": "under 280 chars, hook + payoff + CTA, conversational", "thread": ["follow-up tweet 2 if relevant", "tweet 3"] }
+      { "tweet": "under 280 chars; first 8 words quote-tweetable on their own; no link in hook tweet", "thread": ["tweets 2-N if needed, one idea per tweet, link only in the FINAL tweet"] }
+    ]`)
+    }
+    if (channelMix.includes('facebook_post') || channelMix.includes('facebook')) {
+      contentSchemaParts.push(`    "facebook_post": [
+      { "hook": "first 1-2 sentences (Feed truncates to ~100 chars on mobile)", "body": "80-120 words for organic reach, end with one meaningful question to drive comment-thread engagement", "cta": "clear ask — Facebook rewards conversation over clicks", "hashtags": ["1-3 branded hashtags max — overuse looks spammy on Facebook"], "first_comment": "any external URL goes here, NOT in the body" }
     ]`)
     }
     if (channelMix.includes('cold_dm')) {
       contentSchemaParts.push(`    "cold_dm": [
-      { "opener": "casual one-liner, no formal greeting", "body": "60-100 chars, value-first not pitch-first", "ask": "low-bar ask, optional emoji" }
+      { "opener": "casual one-liner referencing something specific from their public profile", "body": "60-100 chars MAX, value-first not pitch-first", "ask": "low-bar ask, optional emoji, NEVER ask for a call in first DM" }
     ]`)
     }
 
@@ -606,57 +616,222 @@ CTA STYLE: ${arc.ctaStyle}`
     }
 
     const audience = buildAudienceProfile(prospects ?? [])
+    const hasEnrolledProspects = (prospects ?? []).length > 0
     const prospectInsight = audience.summary
     const audienceIndustryHashtags = audience.topIndustries
       .slice(0, 3)
       .map(ind => '#' + ind.replace(/[^A-Za-z0-9]/g, ''))
       .filter(t => t.length > 1)
 
+    // ───────────────────────────────────────────────────────────────────
+    // GROUNDING HELPERS — every brand field captured at onboarding gets
+    // surfaced here. Empty / missing fields render as "(not specified)" so
+    // the LLM knows to lean on whatever it does have.
+    // ───────────────────────────────────────────────────────────────────
+    const arrField = (v: any): string[] => {
+      if (Array.isArray(v)) return v.filter(x => typeof x === 'string' && x.trim()).map(x => x.trim())
+      return []
+    }
+    const showList = (v: any, max = 8): string => {
+      const a = arrField(v)
+      if (!a.length) return '(none specified)'
+      return a.slice(0, max).join(', ')
+    }
+    const showLines = (v: any, max = 5): string => {
+      const a = arrField(v)
+      if (!a.length) return '(none specified)'
+      return a.slice(0, max).map(s => `  - ${s}`).join('\n')
+    }
+    const products = Array.isArray(brand.products_services) ? brand.products_services : []
+    const productsBlock = products.length
+      ? products.slice(0, 5).map((p: any, i: number) => `  ${i + 1}. ${p.name ?? '(unnamed)'}: ${(p.description ?? '').slice(0, 200)}`).join('\n')
+      : '(none specified)'
+    const voiceExamples = arrField(brand.voice_examples).slice(0, 3)
+    const voiceExamplesBlock = voiceExamples.length
+      ? voiceExamples.map((v: string, i: number) => `  Example ${i + 1}: "${v.slice(0, 240)}"`).join('\n')
+      : '(none provided — infer voice from tone sliders below)'
+
+    // Default ICP fallback: when no prospects are enrolled, build the audience
+    // profile from the brand's onboarding-captured target market instead of
+    // letting the LLM hallucinate a generic ICP.
+    const defaultIcpBlock = (() => {
+      const inds = arrField(brand.target_industries)
+      const titles = arrField(brand.decision_maker_titles)
+      const sizes = arrField(brand.target_company_sizes)
+      const geos = arrField(brand.target_geographies)
+      if (!inds.length && !titles.length && !sizes.length && !geos.length) {
+        return 'No target market captured at onboarding. Write to a generic ICP relevant to the company description above.'
+      }
+      return [
+        `No prospects are enrolled in this campaign — write to the brand's DEFAULT ICP captured at onboarding:`,
+        inds.length ? `Target industries: ${inds.slice(0, 6).join(', ')}` : '',
+        titles.length ? `Decision-maker titles: ${titles.slice(0, 8).join(', ')}` : '',
+        sizes.length ? `Target company sizes: ${sizes.slice(0, 5).join(', ')}` : '',
+        geos.length ? `Target geographies: ${geos.slice(0, 5).join(', ')}` : '',
+      ].filter(Boolean).join('\n')
+    })()
+
+    // Channel-specific playbooks. Only the playbooks for channels actually in
+    // scope get injected — keeps the prompt tight and the LLM focused.
+    const channelPlaybooks: string[] = []
+    if (channelMix.includes('linkedin_post')) {
+      channelPlaybooks.push(`LINKEDIN_ORGANIC_POST_PLAYBOOK
+- Hook is the first 3 lines visible before "see more" — must create a curiosity gap (a number, contrarian claim, or vivid moment), NOT a topic statement.
+- Body: 1-2 sentences per paragraph with a blank line between every paragraph (use \\n\\n in JSON). Walls of text die in feed.
+- Length sweet spot: 1200-1500 chars. Long enough for dwell time (the #1 LinkedIn ranking signal), short enough to read on mobile.
+- NEVER put external URLs in the post body — LinkedIn down-ranks posts with outbound links 6-10x. Output a separate "first_comment" field with the link or link teaser. The body should reference "Link in first comment ↓".
+- NO hashtags in the first 100 characters. Place 3-5 hashtags at the very end only.
+- End the post with an engagement question (drives comments → drives algorithm). The CTA goes in a separate paragraph above the question.
+- One emoji max if brand allows; never in the hook.
+- Numbers and specifics > vague claims ("47%" beats "huge lift").
+- Each post entry MUST include: hook, body, cta, hashtags, AND a first_comment field (URL or link-bait teaser, OR empty string if no link applicable).`)
+    }
+    if (channelMix.includes('linkedin_message')) {
+      channelPlaybooks.push(`LINKEDIN_DM_PLAYBOOK
+- NEVER open with "Hi {{first_name}}" alone. Reference one of: (a) something they recently posted, (b) a recent company announcement / promotion / job change, (c) a mutual connection, (d) a specific bio detail (school, prior role, location).
+- Body 120-180 chars MAX. Anything longer feels like a sales pitch in DMs.
+- Lead with relevance ("noticed you...") then bridge to value ("we help teams like yours...").
+- NO links in the first message — LinkedIn deprioritizes message threads containing links.
+- Ask: soft, low-friction, time-bounded. "Open to a 15-min chat next Tue or Wed?" beats "Want to learn more?"
+- For C-suite recipients, ask for a reply ("worth a quick exchange?") not a meeting.
+- Best send: Tue/Wed/Thu 7-9am their local TZ. Avoid Mon mornings (inbox flood) and Fri afternoons.`)
+    }
+    if (channelMix.includes('email')) {
+      channelPlaybooks.push(`EMAIL_PLAYBOOK
+- Output 2 subject line variants per email entry (subject = curiosity-driven, subject_b = direct/outcome-driven). Both under 55 chars (mobile preview cutoff). NO emojis, NO ALL CAPS, NO "free", NO "act now", NO "!" — these trigger spam filters.
+- Preview text 60-90 chars. Must NOT repeat the subject. Treat it as a second hook.
+- Body: 120-180 words, 3-4 short paragraphs, Problem-Agitate-Solve (PAS) framework.
+- Mandatory PS line at the end (highest-read line in any email after subject).
+- One CTA only. Anchor text uses an action verb — never say "click here".
+- Output a "plain_text_body" field — same content but no HTML, bare URLs (cold B2B inboxes prefer plain-text — higher deliverability).
+- Best send: Tue/Wed/Thu 10-11am or 13-15h recipient TZ. Avoid Mon, Fri, 1st/15th of month.`)
+    }
+    if (channelMix.includes('twitter') || channelMix.includes('twitter_x')) {
+      channelPlaybooks.push(`TWITTER_X_PLAYBOOK
+- Single tweet ≤ 280 chars: hook + payoff + soft CTA. The first 8 words MUST work as a quote-tweet — make them quotable on their own.
+- For topics needing >280 chars, output a thread of 5-9 tweets:
+  - Tweet 1: hook (curiosity gap, no "🧵" — that signal is dead in 2026)
+  - Tweets 2-7: payoff (one idea per tweet, white space between concepts)
+  - Final tweet: CTA + soft re-CTA ("Found this useful? Follow @handle for more.")
+- Replies > likes for distribution. End the hook tweet with something controversial or askable.
+- DON'T put external links in the hook tweet (suppressed). Put links in the LAST tweet only.
+- Best post times: 12-13h, 17-18h, 20-22h local.`)
+    }
+    if (channelMix.includes('facebook_post') || channelMix.includes('facebook')) {
+      channelPlaybooks.push(`FACEBOOK_ORGANIC_POST_PLAYBOOK
+- Optimum length 80-120 words for organic Feed reach. Anything over 250 words gets truncated with "See more" and reach drops sharply.
+- Hook in first 1-2 sentences (Facebook truncates to ~100 chars in mobile feed).
+- One question per post — Facebook's algorithm rewards meaningful conversation in comments.
+- Native video > image > link preview > external link. If you must link, paste the URL in a follow-up comment, not the body.
+- Hashtags work modestly on Facebook (1-3 max, branded only — overuse looks spammy).
+- Tag relevant Pages with @ when contextually natural (no tag-spam).
+- Each entry MUST include: hook, body, cta, and an optional first_comment for any link.
+- Best post times: Wed-Fri 9-11am or 13-15h local; Tue-Thu evenings 19-21h for B2C audiences.`)
+    }
+    if (channelMix.includes('cold_dm')) {
+      channelPlaybooks.push(`COLD_DM_PLAYBOOK (Twitter/X DM, IG DM, etc.)
+- Casual tone, no formal greeting ("hey [name]" max).
+- 60-100 chars body MAX. Value-first not pitch-first.
+- Reference something specific from their public profile or recent activity in opener.
+- Low-bar ask, optional emoji. NEVER ask for a call in the first message.
+- One link OK if value is obvious; otherwise zero links.`)
+    }
+    const playbookBlock = channelPlaybooks.length
+      ? channelPlaybooks.join('\n\n')
+      : '(no channel-specific playbooks for this channel mix)'
+
+    // Constraints block — hard rules the LLM MUST honor.
+    const constraintsLines: string[] = []
+    const topicsAvoid = arrField(brand.topics_to_avoid)
+    const phrasesAvoid = arrField(brand.phrases_to_avoid)
+    const competitors = arrField(brand.competitor_names)
+    if (topicsAvoid.length) constraintsLines.push(`NEVER write content touching these topics: ${topicsAvoid.join(', ')}.`)
+    if (phrasesAvoid.length) constraintsLines.push(`NEVER use these phrases or close variants: ${phrasesAvoid.map(p => `"${p}"`).join(', ')}.`)
+    if (competitors.length) constraintsLines.push(`NEVER name these competitors: ${competitors.join(', ')}.`)
+    if ((brand as any).sensitivities) constraintsLines.push(`Cultural sensitivities to respect: ${(brand as any).sensitivities}`)
+    const constraintsBlock = constraintsLines.length ? constraintsLines.map(l => `- ${l}`).join('\n') : '(no hard constraints)'
+
     const briefPrompt = `You are a senior B2B marketing strategist producing a publication-grade campaign brief.
 Return ONLY valid JSON. No markdown, no code fences, no commentary.
 
-# CONTEXT
-Company:     ${brand.company_name ?? 'Company'}
-Campaign:    ${campaign.name}
-Type:        ${campaign.campaign_type ?? 'awareness'}
-Asset:       ${assetDescription}
-Channels:    ${channelList}
-Timezone:    ${timezone}
-Country:     ${brand.country_code ?? 'US'}
-Brand voice: tone_formal_conversational=${brand.tone_formal_conversational ?? 5}/10, tone_safe_bold=${brand.tone_safe_bold ?? 5}/10, emoji=${brand.emoji_usage ?? 'minimal'}, cta=${brand.cta_style ?? 'soft ask'}
-${(brand.voice_examples ?? [])[0] ? `Voice example: "${(brand.voice_examples[0] as string).slice(0, 200)}"` : ''}
-Themes:      ${(brand.active_themes ?? []).join(', ') || '(none specified)'}
-${(brand.competitor_names ?? []).length ? `Do NOT name these competitors: ${brand.competitor_names.join(', ')}` : ''}
+# CLIENT
+Company:        ${brand.company_name ?? 'Company'}
+Industry:       ${brand.industry_sector ?? '(not specified)'}
+Country:        ${brand.country_code ?? 'US'}
+Company size:   ${brand.company_size ?? '(not specified)'}
+Founded:        ${brand.founding_year ?? '(not specified)'}
+Website:        ${brand.website_url ?? '(not specified)'}
+Revenue model:  ${brand.revenue_model ?? '(not specified)'}
 
-# AUDIENCE (enrolled prospects from this campaign's ICP)
-${prospectInsight}
+# POSITIONING (the wedge — anchor every piece of copy in this)
+Pitch (1-line):     ${brand.one_sentence_pitch ?? '(not specified — infer from product list below)'}
+Extended:           ${(brand.extended_description ?? '(not specified)').slice(0, 500)}
+Products / services:
+${productsBlock}
+Differentiators ("Unlike X we Y"):
+${showLines(brand.differentiators, 5)}
+Proof points (metrics, named customers, outcomes):
+${showLines(brand.proof_points, 5)}
+Active themes:      ${showList(brand.active_themes, 6)}
+
+# CAMPAIGN INTENT
+Name:           ${campaign.name}
+Type:           ${campaign.campaign_type ?? 'awareness'}
+Goal (client's own words):  ${(campaign as any).goal ?? '(not specified — infer from type + positioning)'}
+Key message:    ${(campaign as any).key_message ?? '(not specified — derive one from positioning)'}
+Description:    ${(campaign as any).description ?? '(none)'}
+Asset:          ${assetDescription}
+Channels:       ${channelList}
+Duration:       ${durationDays} days
+Timezone:       ${timezone}
+
+# AUDIENCE
+${hasEnrolledProspects ? `Enrolled prospects from this campaign's ICP:\n${prospectInsight}` : defaultIcpBlock}
 
 ${audienceIndustryHashtags.length ? `Industry hashtag seed (use these or close variants in hashtag_sets.industry): ${audienceIndustryHashtags.join(', ')}` : ''}
 
 # AUDIENCE-AWARENESS RULES
-- Tune the executive_summary, key_messages, and primary_cta to the dominant seniority + industry mix above.
-- Hooks for LinkedIn posts and email subjects must reference pains specific to the top industry/seniority (e.g. don't pitch "scale your engineering team" if 70% are CMOs at 1-10 person startups).
-- Email subject lines must use language a person at that seniority would actually open (founders/CEOs prefer short + direct; VPs prefer outcome-driven; ICs prefer how-to).
-- LinkedIn post tone matches the dominant seniority (founder/exec voice for C-suite audiences; practitioner voice for IC/manager audiences).
-- DM openers must reference something true of the dominant prospect profile (industry, role, or company stage) — never generic "saw your profile".
+- Tune executive_summary, key_messages, and primary_cta to the dominant audience profile above.
+- Hooks (LinkedIn posts, email subjects, Twitter opens) MUST reference pains specific to the top industry/seniority. Never write content that contradicts the audience profile.
+- Email subjects: founders/CEOs prefer short + direct; VPs prefer outcome-driven; ICs prefer how-to.
+- LinkedIn tone matches dominant seniority (founder/exec voice for C-suite audiences; practitioner voice for IC/manager audiences).
+- DM openers must reference something true of the dominant prospect profile (industry, role, stage) — never generic "saw your profile".
 - hashtag_sets.industry MUST include the seed industries above; hashtag_sets.regional MUST reflect the dominant geo above.
+
+# BRAND VOICE (5 axes, 0-100)
+Formal ↔ Conversational:        ${brand.tone_formal_conversational ?? 50}/100
+Safe ↔ Bold:                    ${brand.tone_safe_bold ?? 50}/100
+Corporate ↔ Human:              ${brand.tone_corporate_human ?? 50}/100
+Data-driven ↔ Story-driven:     ${brand.tone_data_story ?? 50}/100
+Conservative ↔ Provocative:     ${brand.tone_conservative_provocative ?? 50}/100
+Sentence length:    ${brand.sentence_length ?? 'medium'}
+Jargon:             ${brand.jargon_level ?? 'moderate'}
+Emoji usage:        ${brand.emoji_usage ?? 'sparingly'}
+CTA style:          ${brand.cta_style ?? 'direct'}
+Voice examples (mimic the rhythm + word choice of these — NOT the topic):
+${voiceExamplesBlock}
+
+# CONSTRAINTS (hard rules — violating any of these invalidates the brief)
+${constraintsBlock}
 
 # CAMPAIGN ARC GUIDANCE
 ${phaseGuidance}
 
+# CHANNEL PLAYBOOKS (follow these tactical rules per platform — they encode 2026 algorithm behavior)
+${playbookBlock}
+
 # RULES
 - Every channel-content piece must reference the asset or its core promise concretely (no generic "exciting product" copy).
 - Vary post times across the day per channel (do NOT use the same time for every entry).
-- Use realistic time slots: LinkedIn posts 07:30-09:30 or 17:00-18:00 local; Email 10:00-11:00 or 13:00-15:00 local; Twitter 12:00-13:00 or 17:00-18:00 or 20:00-22:00 local.
 - ${workingDaysOnly ? 'Skip Saturday & Sunday entirely.' : 'Weekends are allowed — distribute posts across all 7 days.'}
 - Hashtags: branded must include a campaign-specific tag derived from the campaign name; provide 8-15 unique hashtags total across categories.
-- Email subjects: < 55 chars, no emoji, no spam triggers, curiosity-driven.
-- LinkedIn posts: 800-1300 chars with paragraph breaks (use \\n\\n in JSON strings).
-- Honour brand voice (tone, emoji, CTA style).
+- Honour brand voice and the # CONSTRAINTS block above. Constraint violations invalidate the brief.
+- Channel-specific tactical rules from the # CHANNEL PLAYBOOKS block ABOVE override generic rules.
 
 # REQUIRED JSON SHAPE
 {
   "executive_summary": "2-3 sentence positioning that ties the asset to the campaign goal and target audience",
+  "executive_summary_rationale": "2-4 sentence explanation of WHY this brief was built this way. Must reference at least one positioning element (pitch / differentiator / proof point), at least one audience trait (industry / seniority / geo), and the campaign goal/key_message. This is shown to the client to answer 'is this for me?'",
   "key_messages": ["3-5 sharp positioning lines, each <= 140 chars"],
   "primary_cta": "the single most important action you want the audience to take",
   "posting_schedule": [

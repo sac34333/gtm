@@ -52,25 +52,26 @@ const CAMPAIGN_TYPE_DETAILS: Record<string, { meaning: string; channels: string 
 const CHANNELS: Channel[] = [
   { key: 'linkedin_message', label: 'LinkedIn DM', sub: 'Personal 1:1 outreach', Icon: Briefcase },
   { key: 'linkedin_post', label: 'LinkedIn Post', sub: 'Organic thought leadership', Icon: Briefcase },
+  { key: 'facebook_post', label: 'Facebook Post', sub: 'Organic Facebook Page post', Icon: Megaphone },
   { key: 'email', label: 'Email', sub: 'Cold or warm email', Icon: Mail },
-  { key: 'cold_dm', label: 'Cold DM', sub: 'Twitter or Instagram DM', Icon: MessageSquare },
-  { key: 'twitter', label: 'Twitter / X', sub: 'Social media post', Icon: AtSign },
+  { key: 'cold_dm', label: 'Cold DM', sub: 'Twitter / IG DM', Icon: MessageSquare },
+  { key: 'twitter', label: 'Twitter / X', sub: 'Tweet or short thread', Icon: AtSign },
 ]
 
 // Recommended channel mix per campaign type. Auto-applied when the user picks a
 // type in step 1, but they can still tick/untick freely in step 2.
 const RECOMMENDED_CHANNELS: Record<string, string[]> = {
-  awareness: ['linkedin_post', 'twitter'],
+  awareness: ['linkedin_post', 'twitter', 'facebook_post'],
   lead_gen: ['email', 'linkedin_message', 'linkedin_post'],
   nurture: ['email', 'linkedin_message'],
-  product_launch: ['linkedin_post', 'twitter', 'email'],
+  product_launch: ['linkedin_post', 'twitter', 'facebook_post', 'email'],
 }
 
 const RECOMMENDATION_RATIONALE: Record<string, string> = {
-  awareness: 'Awareness campaigns need broadcast reach — LinkedIn Post and Twitter give you the widest organic surface.',
+  awareness: 'Awareness needs broadcast reach — LinkedIn Post + Twitter + Facebook Post cover the three biggest organic surfaces.',
   lead_gen: 'Lead Gen converts via 1:1 outreach (Email + LinkedIn DM). Adding LinkedIn Post warms prospects before your DM lands.',
   nurture: 'Nurture works best in 1:1 channels because the prospect already knows you. Posts can feel like spam to your warm list.',
-  product_launch: 'Product launches need broadcast on day-one (Post + Twitter) plus an Email blast to your warm list.',
+  product_launch: 'Product launches need broadcast on day-one (LinkedIn + Twitter + Facebook) plus an Email blast to your warm list.',
 }
 
 interface GenerationJob {
@@ -101,6 +102,8 @@ export default function NewCampaignPage() {
   const [name, setName] = useState('')
   const [campaignType, setCampaignType] = useState<string | null>(null)
   const [description, setDescription] = useState('')
+  const [goal, setGoal] = useState('')
+  const [keyMessage, setKeyMessage] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [durationDays, setDurationDays] = useState<number>(14)
@@ -205,6 +208,8 @@ export default function NewCampaignPage() {
           name: name.trim(),
           campaign_type: campaignType,
           description: description.trim() || undefined,
+          goal: goal.trim() || undefined,
+          key_message: keyMessage.trim() || undefined,
           channel_mix: selectedChannels,
           start_date: startDate || undefined,
           end_date: endDate || undefined,
@@ -320,6 +325,34 @@ export default function NewCampaignPage() {
                   )
                 })}
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="goal" className="text-slate-300">
+                Campaign goal <span className="text-slate-600 text-xs">(optional but highly recommended)</span>
+              </Label>
+              <Input
+                id="goal"
+                value={goal}
+                onChange={e => setGoal(e.target.value.slice(0, 240))}
+                placeholder="e.g. Position the founder as the contrarian voice on AI-native GTM in May"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600"
+              />
+              <p className="text-[11px] text-slate-500">In one line — what does success look like? Used to anchor the brief.</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="key_message" className="text-slate-300">
+                Key message <span className="text-slate-600 text-xs">(optional)</span>
+              </Label>
+              <Input
+                id="key_message"
+                value={keyMessage}
+                onChange={e => setKeyMessage(e.target.value.slice(0, 240))}
+                placeholder="e.g. AI doesn't replace SDRs — it replaces the list-building layer"
+                className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-600"
+              />
+              <p className="text-[11px] text-slate-500">If your audience remembers ONE thing, what is it?</p>
             </div>
 
             <div className="space-y-2">
