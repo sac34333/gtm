@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown } from 'lucide-react'
+import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { BackButton } from '@/components/layout/back-button'
 
@@ -98,7 +98,7 @@ async function fetchFeedbackForJobs(jobIds: string[]): Promise<Record<string, 'u
   return map
 }
 
-function ThumbCard({ stack }: { stack: StackedJob }) {
+function ThumbCard({ stack, onRequestDelete, isDeleting }: { stack: StackedJob; onRequestDelete: (stack: StackedJob) => void; isDeleting: boolean }) {
   const job = stack.latest
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const subject = job.prompt_tags?.subject ?? 'Untitled'
@@ -116,10 +116,11 @@ function ThumbCard({ stack }: { stack: StackedJob }) {
   const hasVersions = stack.versionCount > 1
 
   return (
-    <Link
-      href={`/create/${job.id}`}
-      className="group relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-indigo-500/50 transition-all duration-300 flex flex-col hover:-translate-y-1 hover:shadow-glow-indigo"
-    >
+    <div className="group relative">
+      <Link
+        href={`/create/${job.id}`}
+        className="block bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-indigo-500/50 transition-all duration-300 flex flex-col hover:-translate-y-1 hover:shadow-glow-indigo"
+      >
       {/* Faux stack effect for cards with versions */}
       {hasVersions && (
         <>
@@ -201,12 +202,27 @@ function ThumbCard({ stack }: { stack: StackedJob }) {
           {hasVersions && <p className="text-[10px] text-indigo-400">latest of {stack.versionCount}</p>}
         </div>
       </div>
-    </Link>
+      </Link>
+      {/* Delete button — overlaid on the card, sits above the Link via z-index. */}
+      <button
+        type="button"
+        aria-label="Delete asset"
+        title={hasVersions ? `Delete latest version (${stack.versionCount} total)` : 'Delete asset'}
+        disabled={isDeleting}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRequestDelete(stack) }}
+        className="absolute bottom-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity bg-slate-950/90 backdrop-blur border border-slate-700 hover:border-red-500/60 hover:bg-red-500/10 rounded-md p-1.5 text-slate-400 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+      </button>
+    </div>
   )
 }
 
 export default function LibraryPage() {
   const [filter, setFilter] = useState<'all' | 'image' | 'video'>('all')
+  const [pendingDelete, setPendingDelete] = useState<StackedJob | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
 
   const { data: jobs = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['library-jobs', filter],
@@ -224,6 +240,38 @@ export default function LibraryPage() {
   })
 
   const stacksWithFeedback = stacks.map(s => ({ ...s, thumbs: feedbackMap[s.latest.id] ?? null }))
+
+  const deleteMutation = useMutation({
+    mutationFn: async (jobId: string) => {
+      const supabase = getSupabaseBrowserClient()
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.access_token) throw new Error('Not signed in')
+      const res = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/delete-asset`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ job_id: jobId }),
+        },
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body?.error ?? `Delete failed (${res.status})`)
+      }
+      return jobId
+    },
+    onSuccess: () => {
+      setPendingDelete(null)
+      setDeleteError(null)
+      queryClient.invalidateQueries({ queryKey: ['library-jobs'] })
+    },
+    onError: (err: Error) => {
+      setDeleteError(err.message)
+    },
+  })
 
   return (
     <div className="min-h-screen">
@@ -290,10 +338,74 @@ export default function LibraryPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 gtm-stagger">
-            {stacksWithFeedback.map(stack => <ThumbCard key={stack.latest.id} stack={stack} />)}
+            {stacksWithFeedback.map(stack => (
+              <ThumbCard
+                key={stack.latest.id}
+                stack={stack}
+                onRequestDelete={(s) => { setDeleteError(null); setPendingDelete(s) }}
+                isDeleting={deleteMutation.isPending && pendingDelete?.latest.id === stack.latest.id}
+              />
+            ))}
           </div>
         )}
       </div>
+
+      {/* Confirm-delete modal */}
+      {pendingDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => { if (!deleteMutation.isPending) { setPendingDelete(null); setDeleteError(null) } }}
+        >
+          <div
+            className="bg-slate-950 border border-slate-800 rounded-xl shadow-2xl max-w-md w-full p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="shrink-0 w-10 h-10 rounded-full bg-red-500/15 border border-red-500/30 flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-base font-semibold text-white">Delete this asset?</h2>
+                <p className="text-sm text-slate-400 mt-1">
+                  &quot;{pendingDelete.latest.prompt_tags?.subject ?? 'Untitled'}&quot;
+                </p>
+                {pendingDelete.versionCount > 1 && (
+                  <p className="text-xs text-amber-300/90 mt-2">
+                    Note: this only deletes the latest version. The {pendingDelete.versionCount - 1} earlier version{pendingDelete.versionCount - 1 === 1 ? '' : 's'} in this stack will remain.
+                  </p>
+                )}
+                <p className="text-xs text-slate-500 mt-2">This permanently removes the file from storage. This cannot be undone.</p>
+              </div>
+            </div>
+            {deleteError && (
+              <div className="text-xs text-red-300 bg-red-500/10 border border-red-500/30 rounded-md px-3 py-2">
+                {deleteError}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="border-slate-700 text-slate-200 hover:bg-slate-800"
+                disabled={deleteMutation.isPending}
+                onClick={() => { setPendingDelete(null); setDeleteError(null) }}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-500 text-white"
+                disabled={deleteMutation.isPending}
+                onClick={() => deleteMutation.mutate(pendingDelete.latest.id)}
+              >
+                {deleteMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Deleting…</>
+                ) : (
+                  <><Trash2 className="w-4 h-4 mr-2" /> Delete</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

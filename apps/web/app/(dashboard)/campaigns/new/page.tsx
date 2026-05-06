@@ -11,7 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   Megaphone, Target, Droplets, Rocket,
   Briefcase, Mail, MessageSquare, AtSign, CheckCircle,
-  ArrowLeft, ArrowRight, Image as ImageIcon, Loader2, X,
+  ArrowLeft, ArrowRight, Image as ImageIcon, Loader2, X, Info,
 } from 'lucide-react'
 import { BackButton } from '@/components/layout/back-button'
 
@@ -27,6 +27,28 @@ const CAMPAIGN_TYPES: CampaignType[] = [
   { key: 'product_launch', label: 'Product Launch', sub: 'Announce something new', Icon: Rocket },
 ]
 
+// Tooltip content shown when the user hovers the info icon on each campaign
+// type tile in step 1. Explains what the type means + which channels we will
+// pre-select for it in step 2.
+const CAMPAIGN_TYPE_DETAILS: Record<string, { meaning: string; channels: string }> = {
+  awareness: {
+    meaning: 'Build brand visibility and category POV — no hard ask. Best when you want to be seen and build authority over weeks (thought leadership, founder voice, contrarian takes).',
+    channels: 'LinkedIn Post + Twitter',
+  },
+  lead_gen: {
+    meaning: 'Convert cold + warm prospects into booked meetings or trial signups. Best when you have an ICP list and need pipeline this quarter.',
+    channels: 'Email + LinkedIn DM + LinkedIn Post',
+  },
+  nurture: {
+    meaning: 'Re-warm leads that already know you but haven\u2019t bought — ex-trial users, ghosted inbound, stalled deals.',
+    channels: 'Email + LinkedIn DM',
+  },
+  product_launch: {
+    meaning: 'Drive launch-day awareness, demos, and first conversions. Best when you have a new product, feature, or release with a clear go-live date.',
+    channels: 'LinkedIn Post + Twitter + Email',
+  },
+}
+
 const CHANNELS: Channel[] = [
   { key: 'linkedin_message', label: 'LinkedIn DM', sub: 'Personal 1:1 outreach', Icon: Briefcase },
   { key: 'linkedin_post', label: 'LinkedIn Post', sub: 'Organic thought leadership', Icon: Briefcase },
@@ -34,6 +56,22 @@ const CHANNELS: Channel[] = [
   { key: 'cold_dm', label: 'Cold DM', sub: 'Twitter or Instagram DM', Icon: MessageSquare },
   { key: 'twitter', label: 'Twitter / X', sub: 'Social media post', Icon: AtSign },
 ]
+
+// Recommended channel mix per campaign type. Auto-applied when the user picks a
+// type in step 1, but they can still tick/untick freely in step 2.
+const RECOMMENDED_CHANNELS: Record<string, string[]> = {
+  awareness: ['linkedin_post', 'twitter'],
+  lead_gen: ['email', 'linkedin_message', 'linkedin_post'],
+  nurture: ['email', 'linkedin_message'],
+  product_launch: ['linkedin_post', 'twitter', 'email'],
+}
+
+const RECOMMENDATION_RATIONALE: Record<string, string> = {
+  awareness: 'Awareness campaigns need broadcast reach — LinkedIn Post and Twitter give you the widest organic surface.',
+  lead_gen: 'Lead Gen converts via 1:1 outreach (Email + LinkedIn DM). Adding LinkedIn Post warms prospects before your DM lands.',
+  nurture: 'Nurture works best in 1:1 channels because the prospect already knows you. Posts can feel like spam to your warm list.',
+  product_launch: 'Product launches need broadcast on day-one (Post + Twitter) plus an Email blast to your warm list.',
+}
 
 interface GenerationJob {
   id: string
@@ -70,6 +108,9 @@ export default function NewCampaignPage() {
 
   // Step 2
   const [selectedChannels, setSelectedChannels] = useState<string[]>(['linkedin_message', 'email'])
+  // Tracks whether the user has manually edited channels. If they have, we stop
+  // overwriting their choice when they go back and change campaign type.
+  const [channelsManuallyEdited, setChannelsManuallyEdited] = useState(false)
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [jobs, setJobs] = useState<GenerationJob[]>([])
   const [jobsLoading, setJobsLoading] = useState(false)
@@ -89,7 +130,7 @@ export default function NewCampaignPage() {
       .select('id,asset_type,output_url,content_job_json,status')
       .eq('status', 'completed')
       .order('created_at', { ascending: false })
-      .limit(8)
+      .limit(24)
       .then(async ({ data }) => {
         const rows = (data ?? []) as GenerationJob[]
         setJobs(rows)
@@ -123,10 +164,20 @@ export default function NewCampaignPage() {
   }, [step]) // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleChannel(key: string) {
+    setChannelsManuallyEdited(true)
     setSelectedChannels(prev =>
       prev.includes(key) ? prev.filter(c => c !== key) : [...prev, key]
     )
   }
+
+  // Auto-preselect channels whenever the user picks a campaign type in step 1,
+  // unless they've already manually customised the selection in step 2.
+  useEffect(() => {
+    if (!campaignType) return
+    if (channelsManuallyEdited) return
+    const rec = RECOMMENDED_CHANNELS[campaignType]
+    if (rec && rec.length) setSelectedChannels(rec)
+  }, [campaignType, channelsManuallyEdited])
 
   function toggleProspect(id: string) {
     setSelectedProspectIds(prev => {
@@ -234,25 +285,40 @@ export default function NewCampaignPage() {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-slate-300">Campaign type *</Label>
+              <Label className="text-slate-300">Campaign type * <span className="text-slate-600 text-xs">(hover the i for details)</span></Label>
               <div className="grid grid-cols-2 gap-3">
-                {CAMPAIGN_TYPES.map(({ key, label, sub, Icon }) => (
-                  <button
-                    key={key}
-                    onClick={() => setCampaignType(key)}
-                    className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
-                      campaignType === key
-                        ? 'border-indigo-500 bg-indigo-950/40 ring-1 ring-indigo-500/30'
-                        : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
-                    }`}
-                  >
-                    <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${campaignType === key ? 'text-indigo-400' : 'text-slate-500'}`} />
-                    <div>
-                      <div className="font-medium text-white text-sm">{label}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{sub}</div>
-                    </div>
-                  </button>
-                ))}
+                {CAMPAIGN_TYPES.map(({ key, label, sub, Icon }) => {
+                  const detail = CAMPAIGN_TYPE_DETAILS[key]
+                  return (
+                  <div key={key} className="relative group">
+                    <button
+                      onClick={() => setCampaignType(key)}
+                      className={`w-full flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
+                        campaignType === key
+                          ? 'border-indigo-500 bg-indigo-950/40 ring-1 ring-indigo-500/30'
+                          : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
+                      }`}
+                    >
+                      <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${campaignType === key ? 'text-indigo-400' : 'text-slate-500'}`} />
+                      <div className="min-w-0">
+                        <div className="font-medium text-white text-sm">{label}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{sub}</div>
+                      </div>
+                    </button>
+                    {detail && (
+                      <div className="absolute top-2 right-2">
+                        <Info className="w-3.5 h-3.5 text-slate-500 hover:text-indigo-300 cursor-help" />
+                        <div className="pointer-events-none invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity absolute right-0 top-5 z-20 w-64 p-3 rounded-lg border border-slate-700 bg-slate-950 shadow-xl text-left">
+                          <div className="text-xs font-semibold text-white mb-1">{label}</div>
+                          <div className="text-xs text-slate-300 leading-relaxed mb-2">{detail.meaning}</div>
+                          <div className="text-[10px] uppercase tracking-wide text-slate-500 mb-0.5">Pre-selected channels</div>
+                          <div className="text-xs text-indigo-300">{detail.channels}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  )
+                })}
               </div>
             </div>
 
@@ -338,19 +404,29 @@ export default function NewCampaignPage() {
 
             <div className="space-y-3">
               <Label className="text-slate-300">Channel mix * <span className="text-slate-600 text-xs">(select all that apply)</span></Label>
+              {campaignType && RECOMMENDATION_RATIONALE[campaignType] && (
+                <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-indigo-900/50 bg-indigo-950/30 text-xs text-indigo-200">
+                  <CheckCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-400" />
+                  <span><span className="font-medium">Pre-selected for {CAMPAIGN_TYPES.find(t => t.key === campaignType)?.label}.</span> {RECOMMENDATION_RATIONALE[campaignType]} You can change this.</span>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 {CHANNELS.map(({ key, label, sub, Icon }) => {
                   const selected = selectedChannels.includes(key)
+                  const recommended = campaignType ? (RECOMMENDED_CHANNELS[campaignType] ?? []).includes(key) : false
                   return (
                     <button
                       key={key}
                       onClick={() => toggleChannel(key)}
-                      className={`flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
+                      className={`relative flex items-start gap-3 p-4 rounded-xl border text-left transition-all ${
                         selected
                           ? 'border-indigo-500 bg-indigo-950/40 ring-1 ring-indigo-500/30'
                           : 'border-slate-800 bg-slate-900/40 hover:border-slate-700'
                       }`}
                     >
+                      {recommended && (
+                        <span className="absolute top-1.5 right-1.5 text-[9px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Recommended</span>
+                      )}
                       <Icon className={`w-4 h-4 mt-0.5 shrink-0 ${selected ? 'text-indigo-400' : 'text-slate-500'}`} />
                       <div>
                         <div className="font-medium text-white text-sm">{label}</div>
@@ -363,7 +439,12 @@ export default function NewCampaignPage() {
             </div>
 
             <div className="space-y-3">
-              <Label className="text-slate-300">Link a creative asset <span className="text-slate-600 text-xs">(optional)</span></Label>
+              <div className="flex items-baseline justify-between">
+                <Label className="text-slate-300">Link a creative asset <span className="text-slate-600 text-xs">(optional)</span></Label>
+                {!jobsLoading && jobs.length > 0 && (
+                  <span className="text-xs text-slate-500">Showing {jobs.length} most recent · <a href="/create" className="text-indigo-400 hover:text-indigo-300">view all</a></span>
+                )}
+              </div>
               {jobsLoading ? (
                 <div className="grid grid-cols-4 gap-3">
                   {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20 rounded-lg bg-slate-800" />)}
@@ -375,8 +456,8 @@ export default function NewCampaignPage() {
                   <a href="/create" className="text-xs text-indigo-400 hover:text-indigo-300 mt-1 block">Create an asset →</a>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-3">
-                  {jobs.map(job => (
+                <div className={`grid grid-cols-4 gap-3 ${jobs.length > 8 ? 'max-h-[420px] overflow-y-auto pr-1' : ''}`}>
+                  {jobs.map((job, idx) => (
                     <button
                       key={job.id}
                       onClick={() => setSelectedJobId(job.id === selectedJobId ? null : job.id)}
@@ -386,11 +467,12 @@ export default function NewCampaignPage() {
                           : 'border-slate-700 hover:border-slate-600'
                       }`}
                     >
+                      <span className="absolute top-1.5 left-1.5 z-10 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-slate-950/80 text-slate-200 border border-slate-700 backdrop-blur-sm">#{idx + 1}</span>
                       {job.output_url && signedThumbs[job.id] ? (
                         job.asset_type === 'video' ? (
                           <video src={signedThumbs[job.id]} className="w-full h-full object-cover" muted playsInline />
                         ) : (
-                          <img src={signedThumbs[job.id]} alt="" className="w-full h-full object-cover" />
+                          <img src={signedThumbs[job.id]} alt={`Asset #${idx + 1}`} className="w-full h-full object-cover" />
                         )
                       ) : (
                         <div className="w-full h-full bg-slate-800 flex items-center justify-center">

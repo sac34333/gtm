@@ -90,7 +90,7 @@ function widthOf(text: string, size: number): number {
   return text.length * size * 0.5
 }
 
-async function generatePdf(brief: BriefData, brand: any, campaignInfo: any, campaignName: string): Promise<Uint8Array> {
+async function generatePdf(brief: BriefData, brand: any, campaignInfo: any, campaignName: string, durationDays = 14): Promise<Uint8Array> {
   const { PDFDocument, rgb, StandardFonts } = await import('npm:pdf-lib')
 
   const pdfDoc = await PDFDocument.create()
@@ -166,10 +166,11 @@ async function generatePdf(brief: BriefData, brand: any, campaignInfo: any, camp
   }
 
   function drawSectionHeading(title: string) {
-    spacer(10)
-    ensureSpace(28)
-    drawLine(title, { size: 14, bold: true, color: rgb(0.18, 0.22, 0.78), gap: 18 })
+    spacer(12)
+    ensureSpace(36)
+    drawLine(title, { size: 14, bold: true, color: rgb(0.18, 0.22, 0.78), gap: 20 })
     drawDivider(rgb(0.18, 0.22, 0.78))
+    spacer(8)
   }
 
   function drawSubHeading(title: string, color = rgb(0.25, 0.25, 0.4)) {
@@ -230,11 +231,11 @@ async function generatePdf(brief: BriefData, brand: any, campaignInfo: any, camp
     }
   }
 
-  // ── 14-day launch arc ──────────────────────────────────────────────────────
+  // ── Launch arc ──────────────────────────────────────────────────────
   if (brief.posting_schedule?.length) {
-    drawSectionHeading('14-Day Launch Arc')
+    drawSectionHeading(`${durationDays}-Day Launch Arc`)
     let lastPhase = ''
-    for (const day of brief.posting_schedule.slice(0, 14)) {
+    for (const day of brief.posting_schedule.slice(0, durationDays)) {
       const phase = day.phase ?? 'sustain'
       if (phase !== lastPhase) {
         spacer(4)
@@ -758,6 +759,7 @@ Only include "timing_recommendations" entries for channels in scope: ${channelLi
         brand,
         { asset_type: job?.asset_type, prompt_tags: job?.content_job_json?.prompt_tags },
         campaign.name ?? 'Campaign Brief',
+        durationDays,
       )
     }
 

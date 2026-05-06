@@ -29,6 +29,7 @@ interface Campaign {
   brief_data: any
   job_id: string | null
   description: string | null
+  duration_days: number | null
 }
 
 interface Prospect {
@@ -128,6 +129,7 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
 }) {
   const supabase = getSupabaseBrowserClient()
   const brief = campaign.brief_data ?? null
+  const durationDays: number = Math.max(1, Math.min(90, Number(campaign.duration_days ?? 14)))
   const schedule: any[] = brief?.posting_schedule ?? []
   const hashtagSets: Record<string, string[]> = brief?.hashtag_sets ?? {}
   const flatHashtags: string[] = brief?.hashtags ?? []
@@ -158,7 +160,7 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
       <div className="py-16 text-center">
         <Calendar className="w-10 h-10 text-slate-700 mx-auto mb-3" />
         <p className="text-slate-300 font-medium">No brief generated yet</p>
-        <p className="text-slate-500 text-sm mt-1 mb-6">Generate a campaign brief to see the 14-day content calendar.</p>
+        <p className="text-slate-500 text-sm mt-1 mb-6">Generate a campaign brief to see the {durationDays}-day content calendar.</p>
         <button
           onClick={onGenerateBrief}
           className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
@@ -266,14 +268,14 @@ function CalendarTab({ campaign, onGenerateBrief, generating }: {
         </div>
       )}
 
-      {/* 14-day launch arc */}
+      {/* Launch arc */}
       {schedule.length > 0 && (
         <div>
           <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-slate-500" /> 14-day launch arc
+            <Calendar className="w-4 h-4 text-slate-500" /> {durationDays}-day launch arc
           </h3>
           <div className="space-y-2">
-            {schedule.slice(0, 14).map((day: any, idx: number) => {
+            {schedule.slice(0, durationDays).map((day: any, idx: number) => {
               const channel = day.channel ?? day.platform ?? '—'
               const Icon = CHANNEL_ICONS[channel] ?? MessageSquare
               const phase = (day.phase ?? '') as string
