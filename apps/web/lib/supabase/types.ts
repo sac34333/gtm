@@ -120,6 +120,7 @@ export type Database = {
           cta_style: string | null
           dark_light_preference: string | null
           decision_maker_titles: Json | null
+          differentiators: Json | null
           emoji_usage: string | null
           extended_description: string | null
           founding_year: number | null
@@ -136,6 +137,7 @@ export type Database = {
           posts_per_week: number | null
           primary_platform: string | null
           products_services: Json | null
+          proof_points: Json | null
           reference_images: Json | null
           revenue_model: string | null
           secondary_platform: string | null
@@ -173,6 +175,7 @@ export type Database = {
           cta_style?: string | null
           dark_light_preference?: string | null
           decision_maker_titles?: Json | null
+          differentiators?: Json | null
           emoji_usage?: string | null
           extended_description?: string | null
           founding_year?: number | null
@@ -189,6 +192,7 @@ export type Database = {
           posts_per_week?: number | null
           primary_platform?: string | null
           products_services?: Json | null
+          proof_points?: Json | null
           reference_images?: Json | null
           revenue_model?: string | null
           secondary_platform?: string | null
@@ -226,6 +230,7 @@ export type Database = {
           cta_style?: string | null
           dark_light_preference?: string | null
           decision_maker_titles?: Json | null
+          differentiators?: Json | null
           emoji_usage?: string | null
           extended_description?: string | null
           founding_year?: number | null
@@ -242,6 +247,7 @@ export type Database = {
           posts_per_week?: number | null
           primary_platform?: string | null
           products_services?: Json | null
+          proof_points?: Json | null
           reference_images?: Json | null
           revenue_model?: string | null
           secondary_platform?: string | null
@@ -281,9 +287,12 @@ export type Database = {
           channel_mix: Json | null
           created_at: string
           description: string | null
+          duration_days: number
           end_date: string | null
+          goal: string | null
           id: string
           job_id: string | null
+          key_message: string | null
           name: string
           org_id: string
           pdf_url: string | null
@@ -291,6 +300,7 @@ export type Database = {
           start_date: string | null
           status: string
           updated_at: string
+          working_days_only: boolean
         }
         Insert: {
           brief_data?: Json | null
@@ -299,9 +309,12 @@ export type Database = {
           channel_mix?: Json | null
           created_at?: string
           description?: string | null
+          duration_days?: number
           end_date?: string | null
+          goal?: string | null
           id?: string
           job_id?: string | null
+          key_message?: string | null
           name: string
           org_id: string
           pdf_url?: string | null
@@ -309,6 +322,7 @@ export type Database = {
           start_date?: string | null
           status?: string
           updated_at?: string
+          working_days_only?: boolean
         }
         Update: {
           brief_data?: Json | null
@@ -317,9 +331,12 @@ export type Database = {
           channel_mix?: Json | null
           created_at?: string
           description?: string | null
+          duration_days?: number
           end_date?: string | null
+          goal?: string | null
           id?: string
           job_id?: string | null
+          key_message?: string | null
           name?: string
           org_id?: string
           pdf_url?: string | null
@@ -327,6 +344,7 @@ export type Database = {
           start_date?: string | null
           status?: string
           updated_at?: string
+          working_days_only?: boolean
         }
         Relationships: [
           {
@@ -338,6 +356,57 @@ export type Database = {
           },
           {
             foreignKeyName: "campaign_briefs_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      campaign_chat_messages: {
+        Row: {
+          campaign_id: string
+          completion_tokens: number | null
+          content: string
+          created_at: string
+          id: string
+          org_id: string
+          prompt_tokens: number | null
+          role: string
+          user_id: string | null
+        }
+        Insert: {
+          campaign_id: string
+          completion_tokens?: number | null
+          content: string
+          created_at?: string
+          id?: string
+          org_id: string
+          prompt_tokens?: number | null
+          role: string
+          user_id?: string | null
+        }
+        Update: {
+          campaign_id?: string
+          completion_tokens?: number | null
+          content?: string
+          created_at?: string
+          id?: string
+          org_id?: string
+          prompt_tokens?: number | null
+          role?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "campaign_chat_messages_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_briefs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "campaign_chat_messages_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "orgs"
@@ -535,6 +604,7 @@ export type Database = {
           poll_count: number
           prompt_tags: Json | null
           provider_key: string
+          quota_refunded: boolean
           result_metadata: Json | null
           signal_id: string | null
           started_at: string | null
@@ -561,6 +631,7 @@ export type Database = {
           poll_count?: number
           prompt_tags?: Json | null
           provider_key: string
+          quota_refunded?: boolean
           result_metadata?: Json | null
           signal_id?: string | null
           started_at?: string | null
@@ -587,6 +658,7 @@ export type Database = {
           poll_count?: number
           prompt_tags?: Json | null
           provider_key?: string
+          quota_refunded?: boolean
           result_metadata?: Json | null
           signal_id?: string | null
           started_at?: string | null
@@ -824,6 +896,82 @@ export type Database = {
           },
         ]
       }
+      org_chat_usage: {
+        Row: {
+          last_message_at: string | null
+          message_count: number
+          org_id: string
+          period_date: string
+          total_tokens: number
+        }
+        Insert: {
+          last_message_at?: string | null
+          message_count?: number
+          org_id: string
+          period_date?: string
+          total_tokens?: number
+        }
+        Update: {
+          last_message_at?: string | null
+          message_count?: number
+          org_id?: string
+          period_date?: string
+          total_tokens?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_chat_usage_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_linkedin_connections: {
+        Row: {
+          account_name: string | null
+          ad_account_urn: string
+          created_at: string
+          encrypted_access_token: string
+          granted_scopes: string[] | null
+          last_verified_at: string
+          org_id: string
+          token_expires_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_name?: string | null
+          ad_account_urn: string
+          created_at?: string
+          encrypted_access_token: string
+          granted_scopes?: string[] | null
+          last_verified_at?: string
+          org_id: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_name?: string | null
+          ad_account_urn?: string
+          created_at?: string
+          encrypted_access_token?: string
+          granted_scopes?: string[] | null
+          last_verified_at?: string
+          org_id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_linkedin_connections_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: true
+            referencedRelation: "orgs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       org_members: {
         Row: {
           created_at: string
@@ -956,9 +1104,11 @@ export type Database = {
       orgs: {
         Row: {
           byok_mode: boolean
+          commitment_ends_at: string | null
           country_code: string | null
           created_at: string
           dodo_customer_id: string | null
+          dodo_product_id: string | null
           dodo_subscription_id: string | null
           id: string
           image_quota: number
@@ -978,9 +1128,11 @@ export type Database = {
         }
         Insert: {
           byok_mode?: boolean
+          commitment_ends_at?: string | null
           country_code?: string | null
           created_at?: string
           dodo_customer_id?: string | null
+          dodo_product_id?: string | null
           dodo_subscription_id?: string | null
           id?: string
           image_quota?: number
@@ -1000,9 +1152,11 @@ export type Database = {
         }
         Update: {
           byok_mode?: boolean
+          commitment_ends_at?: string | null
           country_code?: string | null
           created_at?: string
           dodo_customer_id?: string | null
+          dodo_product_id?: string | null
           dodo_subscription_id?: string | null
           id?: string
           image_quota?: number
@@ -1155,6 +1309,7 @@ export type Database = {
           company_domain: string | null
           company_name: string | null
           company_size: string | null
+          contacted_via: string | null
           country: string | null
           created_at: string
           email: string | null
@@ -1166,6 +1321,8 @@ export type Database = {
           id: string
           industry: string | null
           job_title: string | null
+          last_campaign_id: string | null
+          last_contacted_at: string | null
           last_name: string | null
           linkedin_url: string | null
           location: string | null
@@ -1178,6 +1335,7 @@ export type Database = {
           company_domain?: string | null
           company_name?: string | null
           company_size?: string | null
+          contacted_via?: string | null
           country?: string | null
           created_at?: string
           email?: string | null
@@ -1189,6 +1347,8 @@ export type Database = {
           id?: string
           industry?: string | null
           job_title?: string | null
+          last_campaign_id?: string | null
+          last_contacted_at?: string | null
           last_name?: string | null
           linkedin_url?: string | null
           location?: string | null
@@ -1201,6 +1361,7 @@ export type Database = {
           company_domain?: string | null
           company_name?: string | null
           company_size?: string | null
+          contacted_via?: string | null
           country?: string | null
           created_at?: string
           email?: string | null
@@ -1212,6 +1373,8 @@ export type Database = {
           id?: string
           industry?: string | null
           job_title?: string | null
+          last_campaign_id?: string | null
+          last_contacted_at?: string | null
           last_name?: string | null
           linkedin_url?: string | null
           location?: string | null
@@ -1220,6 +1383,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "prospects_last_campaign_id_fkey"
+            columns: ["last_campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_briefs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "prospects_org_id_fkey"
             columns: ["org_id"]
@@ -1368,6 +1538,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      subscription_plans: {
+        Row: {
+          brief_quota: number
+          commitment_months: number
+          created_at: string
+          display_name: string
+          dodo_product_id: string
+          icp_quota: number
+          id: string
+          image_quota: number
+          is_active: boolean
+          seat_limit: number
+          tier_key: string
+          updated_at: string
+          video_quota: number
+        }
+        Insert: {
+          brief_quota?: number
+          commitment_months?: number
+          created_at?: string
+          display_name: string
+          dodo_product_id: string
+          icp_quota?: number
+          id?: string
+          image_quota: number
+          is_active?: boolean
+          seat_limit: number
+          tier_key: string
+          updated_at?: string
+          video_quota: number
+        }
+        Update: {
+          brief_quota?: number
+          commitment_months?: number
+          created_at?: string
+          display_name?: string
+          dodo_product_id?: string
+          icp_quota?: number
+          id?: string
+          image_quota?: number
+          is_active?: boolean
+          seat_limit?: number
+          tier_key?: string
+          updated_at?: string
+          video_quota?: number
+        }
+        Relationships: []
       }
     }
     Views: {

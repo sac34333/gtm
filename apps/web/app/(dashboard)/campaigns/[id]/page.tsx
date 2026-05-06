@@ -13,8 +13,9 @@ import {
   Calendar, Clock, Hash, CheckCircle, AlertCircle,
   Loader2, Plus, X, ChevronRight, ExternalLink, Sparkles,
 } from 'lucide-react'
+import { CampaignChat } from '@/components/campaigns/campaign-chat'
 
-type TabKey = 'calendar' | 'prospects' | 'brief'
+type TabKey = 'calendar' | 'prospects' | 'brief' | 'ask'
 
 interface Campaign {
   id: string
@@ -922,6 +923,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               { key: 'calendar', label: 'Content Calendar', Icon: Calendar },
               { key: 'prospects', label: `Prospects & Copy (${prospects.length})`, Icon: MessageSquare },
               { key: 'brief', label: 'Brief & Assets', Icon: FileText },
+              { key: 'ask', label: 'Ask', Icon: Sparkles },
             ] as { key: TabKey; label: string; Icon: any }[]).map(({ key, label, Icon }) => (
               <button
                 key={key}
@@ -956,6 +958,9 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
           )}
           {activeTab === 'brief' && (
             <BriefTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} />
+          )}
+          {activeTab === 'ask' && (
+            <CampaignChat campaignId={campaign.id} />
           )}
         </div>
       </div>
