@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { RefreshCw, ExternalLink, Image, Video, FileText, User, Building2, Loader2, AlertCircle } from 'lucide-react'
+import { RefreshCw, ExternalLink, ImageIcon, Video, FileText, User, Building2, Loader2, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 
@@ -19,7 +19,7 @@ interface LiPost {
 }
 
 function MediaIcon({ mediaType }: { mediaType: string | null }) {
-  if (mediaType === 'IMAGE') return <Image className="h-3.5 w-3.5 text-slate-400" />
+  if (mediaType === 'IMAGE') return <ImageIcon className="h-3.5 w-3.5 text-slate-400" />
   if (mediaType === 'VIDEO') return <Video className="h-3.5 w-3.5 text-slate-400" />
   if (mediaType === 'ARTICLE') return <FileText className="h-3.5 w-3.5 text-slate-400" />
   return null
