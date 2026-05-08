@@ -1,13 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Send, Loader2, MessageCircle, Linkedin, AlertCircle, Sparkles } from 'lucide-react'
+import { Send, Loader2, Globe, AlertCircle, Sparkles } from 'lucide-react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import Link from 'next/link'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 
 interface ChatMsg {
   id: string
@@ -40,20 +40,27 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Load history
+  // Load history + check LinkedIn connection status
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
         const supabase = getSupabaseBrowserClient()
-        const { data } = await supabase
-          .from('campaign_chat_messages')
-          .select('id, role, content, created_at')
-          .eq('campaign_id', campaignId)
-          .order('created_at', { ascending: true })
-          .limit(100)
+        const [{ data: msgs }, { data: liConn }] = await Promise.all([
+          supabase
+            .from('campaign_chat_messages')
+            .select('id, role, content, created_at')
+            .eq('campaign_id', campaignId)
+            .order('created_at', { ascending: true })
+            .limit(100),
+          supabase
+            .from('org_linkedin_connections')
+            .select('org_id')
+            .maybeSingle(),
+        ])
         if (cancelled) return
-        setMessages((data ?? []).filter((m: any) => m.role !== 'system') as ChatMsg[])
+        setMessages((msgs ?? []).filter((m: any) => m.role !== 'system') as ChatMsg[])
+        setLinkedinConnected(!!liConn)
       } finally {
         if (!cancelled) setLoadingHistory(false)
       }
@@ -132,7 +139,7 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] text-xs">
         <div className="flex items-center gap-3">
           <span className={`inline-flex items-center gap-1.5 ${linkedinConnected ? 'text-emerald-300' : 'text-slate-500'}`}>
-            <Linkedin className="w-3.5 h-3.5" />
+            <Globe className="w-3.5 h-3.5" />
             {linkedinConnected ? 'LinkedIn live' : 'LinkedIn not connected'}
           </span>
           {!linkedinConnected && (
