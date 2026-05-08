@@ -5,22 +5,27 @@ import { LinkedInConnectionCard } from '@/components/settings/linkedin-connectio
 export const dynamic = 'force-dynamic'
 
 export default async function IntegrationsSettingsPage() {
-  const supabase = createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  const orgId = user?.app_metadata?.org_id
-  if (!orgId) redirect('/create-org')
-
+  let user = null
+  let orgId = null
   let connection = null
+
   try {
-    const { data: conn, error } = await supabase
+    const supabase = createSupabaseServerClient()
+    const result = await supabase.auth.getUser()
+    user = result?.data?.user
+    orgId = user?.app_metadata?.org_id
+
+    if (!orgId) redirect('/create-org')
+
+    const { data: conn } = await supabase
       .from('org_linkedin_connections')
       .select('ad_account_urn, account_name, last_verified_at, created_at')
       .eq('org_id', orgId)
       .maybeSingle()
-    if (!error) connection = conn
+    if (conn) connection = conn
   } catch (e) {
     // Silently fail — just show the form
-    console.error('Failed to load LinkedIn connection:', e)
+    console.error('Failed to load integrations page:', e)
   }
 
   return (

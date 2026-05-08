@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Linkedin, ShieldCheck, Trash2, ExternalLink, Loader2 } from 'lucide-react'
+import { Globe, ShieldCheck, Trash2, ExternalLink, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -88,7 +88,7 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
     <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 overflow-hidden">
       <div className="px-5 py-4 border-b border-white/[0.06] flex items-center gap-3">
         <div className="w-10 h-10 rounded-lg bg-[#0A66C2]/10 flex items-center justify-center text-[#0A66C2]">
-          <Linkedin className="w-5 h-5" />
+          <Globe className="w-5 h-5" />
         </div>
         <div className="flex-1">
           <h2 className="text-base font-semibold text-slate-100">LinkedIn Ads</h2>
@@ -173,7 +173,7 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
           </div>
 
           <Button type="submit" disabled={pending} className="bg-[#0A66C2] hover:bg-[#0a5cb0] text-white">
-            {pending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Linkedin className="w-4 h-4 mr-2" />}
+            {pending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Globe className="w-4 h-4 mr-2" />}
             Connect LinkedIn
           </Button>
         </form>
