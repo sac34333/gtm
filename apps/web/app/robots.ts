@@ -2,10 +2,17 @@ import { MetadataRoute } from 'next'
 
 export const runtime = 'edge'
 
+// Cloudflare Bot Management (configured at the CF dashboard for qubitlyventures.com)
+// is the enforcement layer — it decides which crawlers are allowed or blocked at the
+// network level before any request reaches this origin.
+//
+// robots.txt is a protocol-level hint for crawlers CF lets through. Its job is to
+// define which PATHS they should index — not to duplicate CF's allow/block lists.
+// Per-crawler Allow entries here are redundant: CF already owns that decision.
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
-      // All crawlers — allow public pages, block authenticated app routes
       {
         userAgent: '*',
         allow: ['/', '/login', '/signup', '/forgot-password', '/reset-password'],
@@ -21,19 +28,6 @@ export default function robots(): MetadataRoute.Robots {
           '/auth/',
         ],
       },
-      // AI / LLM crawlers — explicitly invited to index public content
-      // Explicit allowance signals that you WANT these systems to index your content
-      // for retrieval-augmented generation (RAG) and training pipelines.
-      { userAgent: 'GPTBot',          allow: ['/'] },
-      { userAgent: 'ChatGPT-User',    allow: ['/'] },
-      { userAgent: 'Google-Extended', allow: ['/'] },
-      { userAgent: 'PerplexityBot',   allow: ['/'] },
-      { userAgent: 'ClaudeBot',       allow: ['/'] },
-      { userAgent: 'anthropic-ai',    allow: ['/'] },
-      { userAgent: 'Applebot',        allow: ['/'] },
-      { userAgent: 'cohere-ai',       allow: ['/'] },
-      { userAgent: 'Bytespider',      allow: ['/'] },
-      { userAgent: 'CCBot',           allow: ['/'] },
     ],
     sitemap: 'https://gtmengine.qubitlyventures.com/sitemap.xml',
     host: 'https://gtmengine.qubitlyventures.com',
