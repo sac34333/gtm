@@ -10,11 +10,18 @@ export default async function IntegrationsSettingsPage() {
   const orgId = user?.app_metadata?.org_id
   if (!orgId) redirect('/create-org')
 
-  const { data: connection } = await supabase
-    .from('org_linkedin_connections')
-    .select('ad_account_urn, account_name, last_verified_at, created_at')
-    .eq('org_id', orgId)
-    .maybeSingle()
+  let connection = null
+  try {
+    const { data: conn, error } = await supabase
+      .from('org_linkedin_connections')
+      .select('ad_account_urn, account_name, last_verified_at, created_at')
+      .eq('org_id', orgId)
+      .maybeSingle()
+    if (!error) connection = conn
+  } catch (e) {
+    // Silently fail — just show the form
+    console.error('Failed to load LinkedIn connection:', e)
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-6">
