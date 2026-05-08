@@ -15,18 +15,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/login', '/signup', '/forgot-password', '/reset-password'],
-        disallow: [
-          '/dashboard',
-          '/campaigns',
-          '/library',
-          '/icp',
-          '/settings',
-          '/create',
-          '/onboarding',
-          '/api/',
-          '/auth/',
-        ],
+        allow: '/',
+        disallow: ['/dashboard', '/campaigns', '/library', '/icp', '/settings', '/create', '/onboarding', '/api/', '/auth/'],
       },
     ],
     sitemap: 'https://gtmengine.qubitlyventures.com/sitemap.xml',
