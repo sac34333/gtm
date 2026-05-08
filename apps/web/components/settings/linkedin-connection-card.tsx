@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 
 interface ExistingConnection {
   ad_account_urn: string
@@ -105,11 +105,13 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
             <div className="flex-1 text-sm">
               <div className="text-emerald-200 font-medium">Connected</div>
               <div className="text-slate-400 mt-1">
-                Account: <span className="text-slate-200 font-mono text-xs">{connection.account_name ?? connection.ad_account_urn.split(':').pop()}</span>
+                Account: <span className="text-slate-200 font-mono text-xs">{connection.account_name ?? connection.ad_account_urn.split(':').pop() ?? 'Unknown'}</span>
               </div>
-              <div className="text-slate-500 text-xs mt-1">
-                Last verified {new Date(connection.last_verified_at).toLocaleString()}
-              </div>
+              {connection.last_verified_at && (
+                <div className="text-slate-500 text-xs mt-1">
+                  Last verified {new Date(connection.last_verified_at).toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
           <Button onClick={handleDisconnect} variant="outline" disabled={disconnecting}
