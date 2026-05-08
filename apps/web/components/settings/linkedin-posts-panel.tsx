@@ -43,6 +43,7 @@ export function LinkedInPostsPanel() {
   const [error, setError] = useState<string | null>(null)
   const [memberName, setMemberName] = useState('')
   const [orgName, setOrgName] = useState<string | null>(null)
+  const [notConnected, setNotConnected] = useState(false)
 
   async function fetchPosts() {
     setLoading(true)
@@ -59,6 +60,8 @@ export function LinkedInPostsPanel() {
       })
       const json = await res.json()
       if (!res.ok) {
+        // Not connected — silently hide the panel
+        if (res.status === 404) { setNotConnected(true); setLoading(false); return }
         throw new Error(json?.error === 'linkedin_auth_failed'
           ? 'LinkedIn token expired. Reconnect in the LinkedIn Ads section above.'
           : (json?.error ?? `Error ${res.status}`))
@@ -74,6 +77,8 @@ export function LinkedInPostsPanel() {
   }
 
   useEffect(() => { fetchPosts() }, [])
+
+  if (notConnected) return null
 
   return (
     <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-5 space-y-4">

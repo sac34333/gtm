@@ -47,7 +47,7 @@ export default async function IntegrationsSettingsPage() {
         } : null}
       />
 
-      {connection && <LinkedInPostsPanel />}
+      <LinkedInPostsPanel />
     </div>
   )
 }
