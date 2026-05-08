@@ -127,6 +127,8 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
           {/* Primary CTA — full guide */}
           <Link
             href="/settings/integrations/linkedin-setup"
+            target="_blank"
+            rel="noopener noreferrer"
             className="flex items-center gap-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/40 hover:bg-indigo-950/60 px-4 py-3.5 transition-colors group"
           >
             <div className="w-9 h-9 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
