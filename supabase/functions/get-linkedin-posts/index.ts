@@ -136,7 +136,13 @@ Deno.serve(async (req: Request) => {
     const orgName = orgs[0]?.name ?? null
 
     return new Response(
-      JSON.stringify({ posts, memberName, orgName }),
+      JSON.stringify({
+        posts,
+        memberName,
+        orgName,
+        // Expose org list so the compose dialog can build org selector
+        orgs: orgs.map(o => ({ urn: o.urn, name: o.name })),
+      }),
       { status: 200, headers: corsHeaders },
     )
   } catch (err) {

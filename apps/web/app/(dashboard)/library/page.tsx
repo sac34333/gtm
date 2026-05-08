@@ -6,9 +6,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2 } from 'lucide-react'
+import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2, Linkedin } from 'lucide-react'
 import { format } from 'date-fns'
 import { BackButton } from '@/components/layout/back-button'
+import { LinkedInComposeDialog, type LinkedInComposeAsset } from '@/components/settings/linkedin-compose-dialog'
 
 interface JobRow {
   id: string
@@ -28,6 +29,7 @@ interface StackedJob {
   versionCount: number
   isRefinement: boolean
   thumbs: 'up' | 'down' | null
+}
 }
 
 const FETCH_LIMIT = 120 // fetch enough rows to group into ~24 stacks even with multiple versions
@@ -98,7 +100,7 @@ async function fetchFeedbackForJobs(jobIds: string[]): Promise<Record<string, 'u
   return map
 }
 
-function ThumbCard({ stack, onRequestDelete, isDeleting }: { stack: StackedJob; onRequestDelete: (stack: StackedJob) => void; isDeleting: boolean }) {
+function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn }: { stack: StackedJob; onRequestDelete: (stack: StackedJob) => void; isDeleting: boolean; onLinkedIn: (asset: LinkedInComposeAsset) => void }) {
   const job = stack.latest
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const subject = job.prompt_tags?.subject ?? 'Untitled'
@@ -214,6 +216,21 @@ function ThumbCard({ stack, onRequestDelete, isDeleting }: { stack: StackedJob; 
       >
         {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
       </button>
+      {/* Post to LinkedIn — only for completed images */}
+      {job.status === 'completed' && job.asset_type === 'image' && signedUrl && (
+        <button
+          type="button"
+          title="Post to LinkedIn"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            stack.onLinkedIn?.({ jobId: job.id, subject: subject, signedUrl: signedUrl })
+          }}
+          className="absolute bottom-2 left-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity bg-slate-950/90 backdrop-blur border border-slate-700 hover:border-[#0077B5]/60 hover:bg-[#0077B5]/10 rounded-md p-1.5 text-slate-400 hover:text-[#0077B5]"
+        >
+          <Linkedin className="w-3.5 h-3.5" />
+        </button>
+      )}
     </div>
   )
 }
@@ -222,6 +239,8 @@ export default function LibraryPage() {
   const [filter, setFilter] = useState<'all' | 'image' | 'video'>('all')
   const [pendingDelete, setPendingDelete] = useState<StackedJob | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [composeOpen, setComposeOpen] = useState(false)
+  const [composeAsset, setComposeAsset] = useState<LinkedInComposeAsset | null>(null)
   const queryClient = useQueryClient()
 
   const { data: jobs = [], isLoading, isError, refetch } = useQuery({
@@ -344,6 +363,7 @@ export default function LibraryPage() {
                 stack={stack}
                 onRequestDelete={(s) => { setDeleteError(null); setPendingDelete(s) }}
                 isDeleting={deleteMutation.isPending && pendingDelete?.latest.id === stack.latest.id}
+                onLinkedIn={(asset) => { setComposeAsset(asset); setComposeOpen(true) }}
               />
             ))}
           </div>
@@ -406,6 +426,13 @@ export default function LibraryPage() {
           </div>
         </div>
       )}
+
+      {/* LinkedIn compose dialog */}
+      <LinkedInComposeDialog
+        open={composeOpen}
+        onOpenChange={(o) => { setComposeOpen(o); if (!o) setComposeAsset(null) }}
+        initialAsset={composeAsset}
+      />
     </div>
   )
 }
