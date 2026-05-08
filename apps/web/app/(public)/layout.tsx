@@ -101,6 +101,24 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
       />
+      {/* Minimal header so visitors can reach the public pages */}
+      <header className="absolute top-0 left-0 right-0 z-40 px-4 sm:px-6 h-14 flex items-center justify-between">
+        <a href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+          <span className="text-lg font-bold text-indigo-400">⚡</span>
+          <span className="text-sm font-semibold text-slate-100">GTM Engine</span>
+        </a>
+        <nav className="flex items-center gap-5 text-sm">
+          <a href="/blog" className="text-slate-400 hover:text-slate-100 transition-colors">
+            Blog
+          </a>
+          <a href="/faq" className="text-slate-400 hover:text-slate-100 transition-colors">
+            FAQ
+          </a>
+          <a href="/contact" className="text-slate-400 hover:text-slate-100 transition-colors">
+            Contact
+          </a>
+        </nav>
+      </header>
       {children}
     </>
   )
