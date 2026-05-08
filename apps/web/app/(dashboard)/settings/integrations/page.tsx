@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { LinkedInConnectionCard } from '@/components/settings/linkedin-connection-card'
+import { LinkedInPostsPanel } from '@/components/settings/linkedin-posts-panel'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,8 @@ export default async function IntegrationsSettingsPage() {
           created_at: connection.created_at as string,
         } : null}
       />
+
+      {connection && <LinkedInPostsPanel />}
     </div>
   )
 }
