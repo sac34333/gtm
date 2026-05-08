@@ -4,7 +4,7 @@ import { createServiceClient } from '../_shared/db.ts'
 import { decrypt } from '../_shared/encryption.ts'
 
 const LI_BASE = 'https://api.linkedin.com'
-const LI_VERSION = '202401'
+const LI_VERSION = '202501'
 
 function liHeaders(token: string) {
   return {
@@ -71,9 +71,9 @@ Deno.serve(async (req: Request) => {
       }
     } catch { /* non-fatal */ }
 
-    // 3. Fetch posts for member (and org if available)
-    const fetchUgcPosts = async (authorUrn: string): Promise<any[]> => {
-      const url = `${LI_BASE}/v2/ugcPosts?q=authors&authors=List(${encodeURIComponent(authorUrn)})&count=10&sortBy=LAST_MODIFIED`
+    // 3. Fetch posts using the new REST Posts API
+    const fetchPosts = async (authorUrn: string): Promise<any[]> => {
+      const url = `${LI_BASE}/rest/posts?q=authors&authors=List(${encodeURIComponent(authorUrn)})&count=10&sortBy=LAST_MODIFIED`
       try {
         const res = await fetch(url, { headers: hdrs })
         if (!res.ok) return []
@@ -85,22 +85,27 @@ Deno.serve(async (req: Request) => {
     }
 
     const [personalRaw, orgRaw] = await Promise.all([
-      fetchUgcPosts(memberUrn),
-      orgUrn ? fetchUgcPosts(orgUrn) : Promise.resolve([]),
+      fetchPosts(memberUrn),
+      orgUrn ? fetchPosts(orgUrn) : Promise.resolve([]),
     ])
 
     const parsePost = (p: any, type: 'personal' | 'org', authorName: string) => {
-      const ugcShare = p.specificContent?.['com.linkedin.ugc.ShareContent']
-      const text: string = ugcShare?.shareCommentary?.text ?? ''
-      const firstMedia = ugcShare?.media?.[0]
+      const text: string = p.commentary ?? p.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text ?? ''
+      const mediaType: string | null = p.content?.media ? 'IMAGE'
+        : p.content?.article ? 'ARTICLE'
+        : p.content?.multiImage ? 'IMAGE'
+        : null
+      const postId = String(p.id ?? '')
       return {
-        id: String(p.id ?? ''),
+        id: postId,
         text: text.slice(0, 600),
-        publishedAt: p.created?.time ? new Date(Number(p.created.time)).toISOString() : null,
+        publishedAt: p.publishedAt ? new Date(Number(p.publishedAt)).toISOString()
+          : p.createdAt ? new Date(Number(p.createdAt)).toISOString()
+          : null,
         type,
         authorName,
-        mediaType: firstMedia?.mediaType ?? null, // 'IMAGE', 'VIDEO', 'ARTICLE', null
-        postUrl: `https://www.linkedin.com/feed/update/${encodeURIComponent(String(p.id ?? ''))}`,
+        mediaType,
+        postUrl: `https://www.linkedin.com/feed/update/${encodeURIComponent(postId)}`,
       }
     }
 
