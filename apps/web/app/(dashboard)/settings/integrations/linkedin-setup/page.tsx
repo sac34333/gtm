@@ -239,8 +239,8 @@ export default function LinkedInSetupGuidePage() {
           <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 divide-y divide-slate-700/50">
             {[
               {
-                product: 'Community Management API',
-                note: 'Usually auto-approved for verified pages.',
+                product: 'Share on LinkedIn',
+                note: 'Auto-approved for verified pages.',
                 scopes: [
                   { name: 'r_organization_admin', desc: 'Identifies which company pages you administer.' },
                   { name: 'r_organization_social', desc: 'Reads posts from your company page.' },
@@ -294,7 +294,7 @@ export default function LinkedInSetupGuidePage() {
           <ul className="space-y-1.5 list-none ml-0">
             {[
               'Select your app from the dropdown.',
-              'Check all the scopes you requested: r_organization_admin, r_organization_social, w_organization_social, r_ads, r_ads_reporting, openid, profile, email.',
+              'Check all the scopes you requested: r_organization_admin, r_organization_social, w_organization_social, r_ads, r_ads_reporting, openid, profile, email. (r_basicprofile may also appear — leave it checked, it is harmless.)',
               'Click Request access token.',
               'LinkedIn will ask you to authorise — sign in as the company page admin account.',
               'Copy the generated access token. It is valid for 60 days.',
