@@ -30,7 +30,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: conn } = await db
       .from('org_linkedin_connections')
-      .select('encrypted_access_token, ad_account_urn')
+      .select('encrypted_access_token')
       .eq('org_id', orgId)
       .single()
 
@@ -47,50 +47,65 @@ Deno.serve(async (req: Request) => {
 
     const hdrs = liHeaders(token)
 
-    // 1. Get member URN + name
+    // 1. Get member display name (r_basicprofile / openid)
     const meRes = await fetch(`${LI_BASE}/v2/me?projection=(id,localizedFirstName,localizedLastName)`, { headers: hdrs })
     if (!meRes.ok) {
       return new Response(JSON.stringify({ error: 'linkedin_auth_failed' }), { status: 401, headers: corsHeaders })
     }
     const me = await meRes.json()
-    const memberUrn = `urn:li:person:${me.id}`
     const memberName = [me.localizedFirstName, me.localizedLastName].filter(Boolean).join(' ') || 'You'
 
-    // 2. Try to get org URN from the ad account's reference field
-    let orgUrn: string | null = null
-    let orgName: string | null = null
-    const accountId = conn.ad_account_urn.split(':').pop()
+    // 2. Find orgs this member administers using r_organization_admin scope.
+    //    (Personal posts skipped - r_member_social not available in current app scopes.)
+    type OrgInfo = { urn: string; name: string }
+    const orgs: OrgInfo[] = []
     try {
-      const acctRes = await fetch(`${LI_BASE}/rest/adAccounts/${accountId}`, { headers: hdrs })
-      if (acctRes.ok) {
-        const acct = await acctRes.json()
-        if (typeof acct.reference === 'string' && acct.reference.startsWith('urn:li:organization:')) {
-          orgUrn = acct.reference
-          orgName = acct.name ?? null
+      const aclRes = await fetch(
+        `${LI_BASE}/v2/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&state=APPROVED` +
+        `&projection=(elements*(organization~(id,localizedName)))`,
+        { headers: hdrs },
+      )
+      if (aclRes.ok) {
+        const aclJson = await aclRes.json()
+        for (const el of (aclJson.elements ?? [])) {
+          const org = el['organization~']
+          if (org?.id) {
+            orgs.push({ urn: `urn:li:organization:${org.id}`, name: org.localizedName ?? 'Company' })
+          }
         }
+        console.log(`Found ${orgs.length} admin orgs`)
+      } else {
+        const body = await aclRes.text()
+        console.error(`organizationAcls failed: ${aclRes.status} ${body.slice(0, 300)}`)
       }
-    } catch { /* non-fatal */ }
+    } catch (e) {
+      console.error('organizationAcls error:', (e as Error).message)
+    }
 
-    // 3. Fetch posts using the new REST Posts API
-    const fetchPosts = async (authorUrn: string): Promise<any[]> => {
-      const url = `${LI_BASE}/rest/posts?q=authors&authors=List(${encodeURIComponent(authorUrn)})&count=10&sortBy=LAST_MODIFIED`
+    // 3. Fetch posts for each org using r_organization_social scope
+    const fetchOrgPosts = async (orgUrn: string): Promise<any[]> => {
+      const url = `${LI_BASE}/rest/posts?q=authors&authors=List(${encodeURIComponent(orgUrn)})&count=20`
       try {
         const res = await fetch(url, { headers: hdrs })
-        if (!res.ok) return []
-        const json = await res.json()
+        const body = await res.text()
+        if (!res.ok) {
+          console.error(`org posts error ${orgUrn}: ${res.status} ${body.slice(0, 300)}`)
+          return []
+        }
+        let json: any
+        try { json = JSON.parse(body) } catch { return [] }
+        console.log(`org posts ${orgUrn}: elements=${json?.elements?.length ?? 0}`)
         return Array.isArray(json.elements) ? json.elements : []
-      } catch {
+      } catch (e) {
+        console.error(`org posts fetch error ${orgUrn}:`, (e as Error).message)
         return []
       }
     }
 
-    const [personalRaw, orgRaw] = await Promise.all([
-      fetchPosts(memberUrn),
-      orgUrn ? fetchPosts(orgUrn) : Promise.resolve([]),
-    ])
+    const allOrgRaw = await Promise.all(orgs.map(o => fetchOrgPosts(o.urn)))
 
-    const parsePost = (p: any, type: 'personal' | 'org', authorName: string) => {
-      const text: string = p.commentary ?? p.specificContent?.['com.linkedin.ugc.ShareContent']?.shareCommentary?.text ?? ''
+    const parsePost = (p: any, orgInfo: OrgInfo) => {
+      const text: string = p.commentary ?? ''
       const mediaType: string | null = p.content?.media ? 'IMAGE'
         : p.content?.article ? 'ARTICLE'
         : p.content?.multiImage ? 'IMAGE'
@@ -102,23 +117,23 @@ Deno.serve(async (req: Request) => {
         publishedAt: p.publishedAt ? new Date(Number(p.publishedAt)).toISOString()
           : p.createdAt ? new Date(Number(p.createdAt)).toISOString()
           : null,
-        type,
-        authorName,
+        type: 'org' as const,
+        authorName: orgInfo.name,
         mediaType,
         postUrl: `https://www.linkedin.com/feed/update/${encodeURIComponent(postId)}`,
       }
     }
 
-    const posts = [
-      ...personalRaw.map((p: any) => parsePost(p, 'personal', memberName)),
-      ...orgRaw.map((p: any) => parsePost(p, 'org', orgName ?? 'Company')),
-    ]
+    const posts = orgs
+      .flatMap((orgInfo, i) => allOrgRaw[i].map((p: any) => parsePost(p, orgInfo)))
       .sort((a, b) => {
         if (!a.publishedAt) return 1
         if (!b.publishedAt) return -1
         return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
       })
-      .slice(0, 15)
+      .slice(0, 20)
+
+    const orgName = orgs[0]?.name ?? null
 
     return new Response(
       JSON.stringify({ posts, memberName, orgName }),
