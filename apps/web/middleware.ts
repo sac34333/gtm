@@ -61,6 +61,11 @@ export async function middleware(request: NextRequest) {
     '/forgot-password',
     '/reset-password',
     '/auth/callback',
+    '/blog',
+    '/faq',
+    '/contact',
+    '/privacy',
+    '/terms',
   ]
   if (publicRoutes.some(r => pathname === r || pathname.startsWith(r + '/'))) {
     return applySecurityHeaders(supabaseResponse)
