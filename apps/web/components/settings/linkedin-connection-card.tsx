@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Globe, ShieldCheck, Trash2, ExternalLink, Loader2 } from 'lucide-react'
+import { Globe, ShieldCheck, Trash2, ExternalLink, Loader2, BookOpen, Building2 } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -122,15 +123,48 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
         </div>
       ) : (
         <form onSubmit={handleConnect} className="p-5 space-y-5">
-          <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-xs text-amber-100/80 leading-relaxed">
-            <strong className="text-amber-200">How to get a token (60-day, paste-once):</strong>
-            <ol className="mt-2 ml-4 list-decimal space-y-1">
-              <li>Visit the <a className="underline hover:text-amber-100 inline-flex items-center gap-0.5" href="https://www.linkedin.com/developers/tools/oauth/token-generator" target="_blank" rel="noopener noreferrer">LinkedIn Token Generator <ExternalLink className="w-3 h-3" /></a> (you must already have a developer app).</li>
-              <li>Select scopes: <code className="text-amber-200">r_ads</code> and <code className="text-amber-200">r_ads_reporting</code>.</li>
+          <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-xs text-amber-100/80 leading-relaxed space-y-2.5">
+            {/* Org-account notice */}
+            <div className="flex items-start gap-2 rounded-md bg-[#0077B5]/10 border border-[#0077B5]/25 px-2.5 py-2 text-[#5db8e8]">
+              <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>
+                <strong className="text-white">Use the account that owns your company page.</strong>{' '}
+                GTM Engine posts and reads at the <em>organisation</em> level only. Generate the token from a LinkedIn account with <strong className="text-white">Administrator</strong> access to your company page.
+              </span>
+            </div>
+
+            <strong className="text-amber-200 block">Quick steps (60-day token, paste-once):</strong>
+            <ol className="ml-4 list-decimal space-y-1">
+              <li>
+                Visit the{' '}
+                <a className="underline hover:text-amber-100 inline-flex items-center gap-0.5" href="https://www.linkedin.com/developers/tools/oauth/token-generator" target="_blank" rel="noopener noreferrer">
+                  LinkedIn Token Generator <ExternalLink className="w-3 h-3" />
+                </a>{' '}
+                (you must already have a developer app — see the full guide below).
+              </li>
+              <li>
+                Select scopes:{' '}
+                {['r_organization_admin', 'r_organization_social', 'w_organization_social', 'r_ads', 'r_ads_reporting'].map((s, i, arr) => (
+                  <span key={s}><code className="text-amber-200">{s}</code>{i < arr.length - 1 ? ', ' : '.'}</span>
+                ))}
+              </li>
               <li>Copy the generated token and paste below.</li>
-              <li>Find your Ad Account ID in <a className="underline hover:text-amber-100" href="https://www.linkedin.com/campaignmanager/" target="_blank" rel="noopener noreferrer">Campaign Manager</a> URL (the digits after <code>/accounts/</code>).</li>
+              <li>
+                Find your Ad Account ID in{' '}
+                <a className="underline hover:text-amber-100" href="https://www.linkedin.com/campaignmanager/" target="_blank" rel="noopener noreferrer">Campaign Manager</a>{' '}
+                URL (digits after <code>/accounts/</code>).
+              </li>
             </ol>
-            <p className="mt-2 text-amber-100/60">Token is encrypted (AES-256-GCM) and never returned to the browser after saving.</p>
+            <p className="text-amber-100/60">Token is encrypted (AES-256-GCM) and never returned to the browser after saving.</p>
+
+            {/* Link to full guide */}
+            <Link
+              href="/settings/integrations/linkedin-setup"
+              className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              View full step-by-step setup guide →
+            </Link>
           </div>
 
           <div>
