@@ -8,12 +8,12 @@ import {
   Key,
   AlertTriangle,
   CheckCircle2,
-  Hash,
   Megaphone,
   MessageSquare,
   Sparkles,
   ChevronRight,
   Info,
+  RefreshCw,
 } from 'lucide-react'
 
 interface StepProps {
@@ -104,8 +104,8 @@ export default function LinkedInSetupGuidePage() {
             <Linkedin className="w-6 h-6 text-[#0077B5]" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-white">LinkedIn Setup Guide</h1>
-            <p className="text-slate-400 text-sm">Step-by-step: create a developer app and connect it to GTM Engine</p>
+            <h1 className="text-2xl font-bold tracking-tight text-white">How to Integrate LinkedIn with GTM Engine</h1>
+            <p className="text-slate-400 text-sm mt-1">Create a LinkedIn developer app, request the right scopes, generate a token, and connect — step by step.</p>
           </div>
         </div>
       </div>
@@ -144,6 +144,31 @@ export default function LinkedInSetupGuidePage() {
           If you generate the token from an account with no admin role, the connection will succeed but
           posting and post-reading will silently return empty results.
         </p>
+      </div>
+
+      {/* 60-day token expiry callout */}
+      <div className="rounded-xl border border-amber-600/30 bg-amber-950/30 p-5 space-y-2">
+        <div className="flex items-center gap-2 text-amber-300 font-semibold text-sm">
+          <RefreshCw className="w-4 h-4" />
+          Tokens expire every 60 days — plan for renewal
+        </div>
+        <p className="text-sm text-slate-300 leading-relaxed">
+          LinkedIn access tokens are valid for <strong className="text-white">60 days only</strong> (roughly 2 months).
+          Once expired, the Ask feature and company posting will stop working — no data will be lost,
+          but you will need to generate a new token and reconnect.
+        </p>
+        <ul className="text-sm text-slate-400 space-y-1 mt-1">
+          {[
+            'Repeat Step 5 to generate a fresh token.',
+            'Go to Settings → Integrations → Disconnect, then paste the new token.',
+            'Set a calendar reminder for 55 days after your first connection.',
+          ].map((s, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-amber-600 font-mono text-xs shrink-0 mt-0.5">{i + 1}.</span>
+              {s}
+            </li>
+          ))}
+        </ul>
       </div>
 
       {/* Steps */}

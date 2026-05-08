@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Globe, ShieldCheck, Trash2, ExternalLink, Loader2, BookOpen, Building2 } from 'lucide-react'
+import { Globe, ShieldCheck, Trash2, ExternalLink, Loader2, BookOpen, Building2, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -123,48 +123,59 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
         </div>
       ) : (
         <form onSubmit={handleConnect} className="p-5 space-y-5">
-          <div className="rounded-lg bg-amber-500/5 border border-amber-500/20 p-3 text-xs text-amber-100/80 leading-relaxed space-y-2.5">
-            {/* Org-account notice */}
-            <div className="flex items-start gap-2 rounded-md bg-[#0077B5]/10 border border-[#0077B5]/25 px-2.5 py-2 text-[#5db8e8]">
-              <Building2 className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-              <span>
-                <strong className="text-white">Use the account that owns your company page.</strong>{' '}
-                GTM Engine posts and reads at the <em>organisation</em> level only. Generate the token from a LinkedIn account with <strong className="text-white">Administrator</strong> access to your company page.
-              </span>
+
+          {/* Primary CTA — full guide */}
+          <Link
+            href="/settings/integrations/linkedin-setup"
+            className="flex items-center gap-3.5 rounded-xl border border-indigo-500/30 bg-indigo-950/40 hover:bg-indigo-950/60 px-4 py-3.5 transition-colors group"
+          >
+            <div className="w-9 h-9 rounded-lg bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center shrink-0">
+              <BookOpen className="w-4.5 h-4.5 text-indigo-400" />
             </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-indigo-300 group-hover:text-indigo-200">How to Integrate LinkedIn with GTM Engine</div>
+              <div className="text-xs text-slate-400 mt-0.5">Full step-by-step guide — app creation, scopes, token generation &amp; renewal</div>
+            </div>
+            <ExternalLink className="w-4 h-4 text-indigo-500 group-hover:text-indigo-400 shrink-0" />
+          </Link>
 
-            <strong className="text-amber-200 block">Quick steps (60-day token, paste-once):</strong>
-            <ol className="ml-4 list-decimal space-y-1">
-              <li>
-                Visit the{' '}
-                <a className="underline hover:text-amber-100 inline-flex items-center gap-0.5" href="https://www.linkedin.com/developers/tools/oauth/token-generator" target="_blank" rel="noopener noreferrer">
-                  LinkedIn Token Generator <ExternalLink className="w-3 h-3" />
-                </a>{' '}
-                (you must already have a developer app — see the full guide below).
-              </li>
-              <li>
-                Select scopes:{' '}
-                {['r_organization_admin', 'r_organization_social', 'w_organization_social', 'r_ads', 'r_ads_reporting'].map((s, i, arr) => (
-                  <span key={s}><code className="text-amber-200">{s}</code>{i < arr.length - 1 ? ', ' : '.'}</span>
-                ))}
-              </li>
-              <li>Copy the generated token and paste below.</li>
-              <li>
-                Find your Ad Account ID in{' '}
-                <a className="underline hover:text-amber-100" href="https://www.linkedin.com/campaignmanager/" target="_blank" rel="noopener noreferrer">Campaign Manager</a>{' '}
-                URL (digits after <code>/accounts/</code>).
-              </li>
-            </ol>
-            <p className="text-amber-100/60">Token is encrypted (AES-256-GCM) and never returned to the browser after saving.</p>
+          {/* 60-day token warning */}
+          <div className="flex items-start gap-2.5 rounded-lg border border-amber-600/30 bg-amber-950/30 px-3.5 py-3 text-xs text-amber-200/90">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <span>
+              <strong className="text-amber-200">LinkedIn tokens expire every 60 days.</strong>{' '}
+              You will need to regenerate and repaste the token roughly every 2 months.
+              We recommend setting a calendar reminder 55 days after connecting.
+            </span>
+          </div>
 
-            {/* Link to full guide */}
-            <Link
-              href="/settings/integrations/linkedin-setup"
-              className="inline-flex items-center gap-1.5 text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              View full step-by-step setup guide →
-            </Link>
+          {/* Org admin notice */}
+          <div className="flex items-start gap-2.5 rounded-lg border border-[#0077B5]/30 bg-[#0077B5]/10 px-3.5 py-3 text-xs text-[#5db8e8]">
+            <Building2 className="w-4 h-4 shrink-0 mt-0.5" />
+            <span>
+              <strong className="text-white">Use the account that administers your company page.</strong>{' '}
+              GTM Engine operates at the <em>organisation</em> level only — no personal posts.
+              Generate the token while signed in as a LinkedIn{' '}
+              <strong className="text-white">Page Administrator</strong>, or posting and reading will not work.
+            </span>
+          </div>
+
+          {/* Quick reference */}
+          <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3.5 text-xs text-slate-400 space-y-2">
+            <div className="text-slate-300 font-medium mb-1">Quick reference — required scopes</div>
+            {[
+              { scope: 'r_organization_admin', note: 'Find pages you administer' },
+              { scope: 'r_organization_social', note: 'Read company page posts' },
+              { scope: 'w_organization_social', note: 'Publish to company page' },
+              { scope: 'r_ads', note: 'Read ad campaign data' },
+              { scope: 'r_ads_reporting', note: 'Read performance analytics' },
+            ].map(({ scope, note }) => (
+              <div key={scope} className="flex items-center gap-2">
+                <code className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-indigo-300 font-mono">{scope}</code>
+                <span className="text-slate-500">{note}</span>
+              </div>
+            ))}
+            <p className="text-slate-600 pt-1">Token is encrypted (AES-256-GCM) and never returned to the browser after saving.</p>
           </div>
 
           <div>
