@@ -30,7 +30,6 @@ interface StackedJob {
   isRefinement: boolean
   thumbs: 'up' | 'down' | null
 }
-}
 
 const FETCH_LIMIT = 120 // fetch enough rows to group into ~24 stacks even with multiple versions
 const STACK_LIMIT = 30
