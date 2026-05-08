@@ -12,6 +12,7 @@ import {
   Image as ImageIcon, FileText, Download, RefreshCw,
   Calendar, Clock, Hash, CheckCircle, AlertCircle,
   Loader2, Plus, X, ChevronRight, ExternalLink, Sparkles,
+  Lock, Linkedin,
 } from 'lucide-react'
 import { CampaignChat } from '@/components/campaigns/campaign-chat'
 
@@ -717,14 +718,16 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [activeTab, setActiveTab] = useState<TabKey>('calendar')
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [linkedInConnected, setLinkedInConnected] = useState<boolean | null>(null)
 
   const load = useCallback(async () => {
-    const [campRes, prospectsRes, copiesRes] = await Promise.all([
+    const [campRes, prospectsRes, copiesRes, liRes] = await Promise.all([
       supabase.from('campaign_briefs').select('*').eq('id', id).single(),
       supabase.from('campaign_prospects')
         .select('id,prospect_id,prospects(first_name,last_name,job_title,company_name,icp_score)')
         .eq('campaign_id', id),
       supabase.from('outreach_copies').select('id,prospect_id,platform,status,copy_text').eq('campaign_id', id),
+      supabase.from('org_linkedin_connections').select('id', { count: 'exact', head: true }),
     ])
 
     if (campRes.data) setCampaign(campRes.data as Campaign)
@@ -738,6 +741,8 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     }
 
     if (copiesRes.data) setCopies(copiesRes.data as OutreachCopy[])
+
+    setLinkedInConnected((liRes.count ?? 0) > 0)
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -960,7 +965,33 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             <BriefTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} />
           )}
           {activeTab === 'ask' && (
-            <CampaignChat campaignId={campaign.id} />
+            linkedInConnected === null ? (
+              <div className="flex items-center justify-center py-20">
+                <Loader2 className="w-6 h-6 animate-spin text-slate-600" />
+              </div>
+            ) : linkedInConnected ? (
+              <CampaignChat campaignId={campaign.id} />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 px-4 text-center space-y-5">
+                <div className="w-16 h-16 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center">
+                  <Lock className="w-7 h-7 text-slate-500" />
+                </div>
+                <div className="space-y-2 max-w-sm">
+                  <h3 className="text-lg font-semibold text-white">Activate LinkedIn to Enable Ask</h3>
+                  <p className="text-sm text-slate-400 leading-relaxed">
+                    The Ask feature uses your LinkedIn connection to pull live context about your audience.
+                    Connect your LinkedIn company page to unlock it.
+                  </p>
+                </div>
+                <Link
+                  href="/settings/integrations"
+                  className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-[#0077B5] hover:bg-[#0099e0] text-white transition-colors"
+                >
+                  <Linkedin className="w-4 h-4" />
+                  Connect LinkedIn
+                </Link>
+              </div>
+            )
           )}
         </div>
       </div>
