@@ -3,7 +3,6 @@ import {
   ArrowLeft,
   ExternalLink,
   Building2,
-  Linkedin,
   ShieldCheck,
   Key,
   AlertTriangle,
@@ -15,6 +14,7 @@ import {
   Info,
   RefreshCw,
 } from 'lucide-react'
+import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 
 interface StepProps {
   number: number
@@ -101,7 +101,7 @@ export default function LinkedInSetupGuidePage() {
       <div className="space-y-2">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-2xl bg-[#0077B5]/15 border border-[#0077B5]/30 flex items-center justify-center">
-            <Linkedin className="w-6 h-6 text-[#0077B5]" />
+            <LinkedinIcon className="w-6 h-6 text-[#0077B5]" />
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-white">How to Integrate LinkedIn with GTM Engine</h1>
@@ -362,7 +362,7 @@ export default function LinkedInSetupGuidePage() {
               href="/settings/integrations"
               className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-[#0077B5] hover:bg-[#0099e0] text-white transition-colors"
             >
-              <Linkedin className="w-4 h-4" />
+              <LinkedinIcon className="w-4 h-4" />
               Go to Integrations → Connect
             </Link>
           </div>
@@ -443,7 +443,7 @@ export default function LinkedInSetupGuidePage() {
           href="/settings/integrations"
           className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-[#0077B5] hover:bg-[#0099e0] text-white transition-colors"
         >
-          <Linkedin className="w-4 h-4" />
+          <LinkedinIcon className="w-4 h-4" />
           Ready — Connect LinkedIn
         </Link>
       </div>

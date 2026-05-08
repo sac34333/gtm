@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
-import { RefreshCw, ExternalLink, ImageIcon, Video, FileText, User, Building2, Loader2, AlertCircle, Linkedin } from 'lucide-react'
+import { RefreshCw, ExternalLink, ImageIcon, Video, FileText, User, Building2, Loader2, AlertCircle } from 'lucide-react'
+import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { LinkedInComposeDialog } from './linkedin-compose-dialog'
@@ -104,7 +105,7 @@ export function LinkedInPostsPanel() {
               onClick={() => setComposeOpen(true)}
               className="h-8 px-3 text-xs bg-[#0077B5] hover:bg-[#0099e0] text-white"
             >
-              <Linkedin className="h-3.5 w-3.5 mr-1.5" />
+              <LinkedinIcon className="h-3.5 w-3.5 mr-1.5" />
               New Post
             </Button>
           )}

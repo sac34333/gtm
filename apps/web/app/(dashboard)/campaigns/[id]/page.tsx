@@ -12,8 +12,9 @@ import {
   Image as ImageIcon, FileText, Download, RefreshCw,
   Calendar, Clock, Hash, CheckCircle, AlertCircle,
   Loader2, Plus, X, ChevronRight, ExternalLink, Sparkles,
-  Lock, Linkedin,
+  Lock,
 } from 'lucide-react'
+import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 import { CampaignChat } from '@/components/campaigns/campaign-chat'
 
 type TabKey = 'calendar' | 'prospects' | 'brief' | 'ask'
@@ -987,7 +988,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
                   href="/settings/integrations"
                   className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-[#0077B5] hover:bg-[#0099e0] text-white transition-colors"
                 >
-                  <Linkedin className="w-4 h-4" />
+                  <LinkedinIcon className="w-4 h-4" />
                   Connect LinkedIn
                 </Link>
               </div>

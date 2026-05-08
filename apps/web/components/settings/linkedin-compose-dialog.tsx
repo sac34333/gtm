@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Loader2, Linkedin, X, ImageIcon, Building2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, X, ImageIcon, Building2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const MAX_CHARS = 3000
@@ -138,7 +139,7 @@ export function LinkedInComposeDialog({ open, onOpenChange, initialAsset, onPost
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-[#0077B5]/20 border border-[#0077B5]/40 flex items-center justify-center">
-              <Linkedin className="w-4 h-4 text-[#0077B5]" />
+              <LinkedinIcon className="w-4 h-4 text-[#0077B5]" />
             </div>
             <h2 className="text-base font-semibold text-white">Post to LinkedIn</h2>
           </div>
@@ -273,7 +274,7 @@ export function LinkedInComposeDialog({ open, onOpenChange, initialAsset, onPost
                 {posting ? (
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Posting…</>
                 ) : (
-                  <><Linkedin className="w-4 h-4 mr-2" /> Post now</>
+                  <><LinkedinIcon className="w-4 h-4 mr-2" /> Post now</>
                 )}
               </Button>
             </div>

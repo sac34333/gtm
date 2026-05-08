@@ -6,7 +6,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2, Linkedin } from 'lucide-react'
+import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2 } from 'lucide-react'
+import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 import { format } from 'date-fns'
 import { BackButton } from '@/components/layout/back-button'
 import { LinkedInComposeDialog, type LinkedInComposeAsset } from '@/components/settings/linkedin-compose-dialog'
@@ -227,7 +228,7 @@ function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn }: { stack: 
           }}
           className="absolute bottom-2 left-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity bg-slate-950/90 backdrop-blur border border-slate-700 hover:border-[#0077B5]/60 hover:bg-[#0077B5]/10 rounded-md p-1.5 text-slate-400 hover:text-[#0077B5]"
         >
-          <Linkedin className="w-3.5 h-3.5" />
+          <LinkedinIcon className="w-3.5 h-3.5" />
         </button>
       )}
     </div>
