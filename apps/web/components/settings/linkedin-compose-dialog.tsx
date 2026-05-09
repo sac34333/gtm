@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Loader2, X, ImageIcon, Building2, CheckCircle2, AlertCircle } from 'lucide-react'
+import { Loader2, X, ImageIcon, Building2, CheckCircle2, AlertCircle, Upload, Layers } from 'lucide-react'
 import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -37,6 +37,45 @@ export function LinkedInComposeDialog({ open, onOpenChange, initialAsset, onPost
   const [postUrl, setPostUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
+  // Asset picker state (used when no initialAsset prop is passed)
+  const [showLibrary, setShowLibrary] = useState(false)
+  const [libraryJobs, setLibraryJobs] = useState<{ id: string; signedUrl: string | null; subject: string }[]>([])
+  const [libraryLoading, setLibraryLoading] = useState(false)
+  const [pickedJobId, setPickedJobId] = useState<string | null>(null)
+  const [pickedJobSignedUrl, setPickedJobSignedUrl] = useState<string | null>(null)
+  const [pickedJobSubject, setPickedJobSubject] = useState<string | null>(null)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadPreview, setUploadPreview] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function loadLibraryJobs() {
+    setLibraryLoading(true)
+    try {
+      const supabase = getSupabaseBrowserClient()
+      const { data } = await supabase
+        .from('generation_jobs')
+        .select('id, prompt_tags, output_url')
+        .eq('asset_type', 'image')
+        .eq('status', 'completed')
+        .order('created_at', { ascending: false })
+        .limit(16)
+      if (!data?.length) return
+      const jobsWithUrls = await Promise.all(
+        data.map(async (job) => {
+          const path = (job.output_url as string)?.replace(/^assets\//, '')
+          if (!path) return { id: job.id, signedUrl: null, subject: (job.prompt_tags as any)?.subject ?? 'Untitled' }
+          const { data: signed } = await supabase.storage.from('assets').createSignedUrl(path, 3600)
+          return { id: job.id, signedUrl: signed?.signedUrl ?? null, subject: (job.prompt_tags as any)?.subject ?? 'Untitled' }
+        })
+      )
+      setLibraryJobs(jobsWithUrls)
+    } catch {
+      // non-fatal
+    } finally {
+      setLibraryLoading(false)
+    }
+  }
+
   // Fetch orgs when dialog opens
   useEffect(() => {
     if (!open) return
@@ -44,6 +83,13 @@ export function LinkedInComposeDialog({ open, onOpenChange, initialAsset, onPost
     setPosted(false)
     setPostUrl(null)
     setError(null)
+    setShowLibrary(false)
+    setLibraryJobs([])
+    setPickedJobId(null)
+    setPickedJobSignedUrl(null)
+    setPickedJobSubject(null)
+    setUploadFile(null)
+    setUploadPreview(null)
 
     async function loadOrgs() {
       setLoadingOrgs(true)
@@ -91,18 +137,31 @@ export function LinkedInComposeDialog({ open, onOpenChange, initialAsset, onPost
         org_urn: selectedOrg,
         text: text.trim(),
       }
-      if (initialAsset?.jobId) {
-        body.job_id = initialAsset.jobId
+
+      // Determine asset: initialAsset prop > library pick > uploaded file
+      const effectiveJobId = initialAsset?.jobId ?? pickedJobId
+
+      let res: Response
+      if (uploadFile) {
+        // Send as multipart so the Edge Function receives raw image bytes
+        const fd = new FormData()
+        fd.append('org_urn', selectedOrg)
+        fd.append('text', text.trim())
+        fd.append('image', uploadFile)
+        res = await fetch(`${SUPABASE_URL}/functions/v1/post-to-linkedin`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.access_token}` },
+          body: fd,
+        })
+      } else {
+        if (effectiveJobId) body.job_id = effectiveJobId
+        res = await fetch(`${SUPABASE_URL}/functions/v1/post-to-linkedin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify(body),
+        })
       }
 
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/post-to-linkedin`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify(body),
-      })
       const json = await res.json()
       if (!res.ok) {
         const msgMap: Record<string, string> = {
@@ -211,7 +270,7 @@ export function LinkedInComposeDialog({ open, onOpenChange, initialAsset, onPost
               )}
             </div>
 
-            {/* Asset preview */}
+            {/* Asset preview — from prop */}
             {initialAsset && (
               <div className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-3">
                 <div className="w-14 h-14 rounded-md overflow-hidden bg-slate-800 shrink-0 flex items-center justify-center">
@@ -229,6 +288,113 @@ export function LinkedInComposeDialog({ open, onOpenChange, initialAsset, onPost
                   </div>
                   <p className="text-sm text-slate-200 truncate">{initialAsset.subject}</p>
                 </div>
+              </div>
+            )}
+
+            {/* Asset picker — only when no initialAsset was passed in */}
+            {!initialAsset && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs text-slate-400 font-medium">Attach image (optional)</label>
+                  {(pickedJobId || uploadFile) && (
+                    <button
+                      type="button"
+                      onClick={() => { setPickedJobId(null); setPickedJobSignedUrl(null); setPickedJobSubject(null); setUploadFile(null); setUploadPreview(null) }}
+                      className="text-xs text-slate-500 hover:text-red-400 transition-colors"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+
+                {/* Selected asset preview */}
+                {pickedJobId && pickedJobSignedUrl && (
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                    <img src={pickedJobSignedUrl} alt={pickedJobSubject ?? ''} className="w-14 h-14 rounded-md object-cover shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-xs text-slate-400">From library</span>
+                      <p className="text-sm text-slate-200 truncate">{pickedJobSubject}</p>
+                    </div>
+                  </div>
+                )}
+                {uploadFile && uploadPreview && (
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-700 bg-slate-900/60 p-3">
+                    <img src={uploadPreview} alt={uploadFile.name} className="w-14 h-14 rounded-md object-cover shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-xs text-slate-400">Uploaded</span>
+                      <p className="text-sm text-slate-200 truncate">{uploadFile.name}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Picker buttons (hidden once an asset is chosen) */}
+                {!pickedJobId && !uploadFile && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setShowLibrary(v => !v); if (!libraryJobs.length) loadLibraryJobs() }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors"
+                    >
+                      <Layers className="w-3.5 h-3.5" />
+                      From Library
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600 transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      Upload image
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        setShowLibrary(false)
+                        setUploadFile(file)
+                        setUploadPreview(URL.createObjectURL(file))
+                        e.target.value = ''
+                      }}
+                    />
+                  </div>
+                )}
+
+                {/* Library mini-grid */}
+                {showLibrary && !pickedJobId && (
+                  <div className="rounded-lg border border-slate-700 bg-slate-900 p-3">
+                    {libraryLoading ? (
+                      <div className="flex items-center gap-2 text-slate-500 text-xs py-3 justify-center">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading library…
+                      </div>
+                    ) : libraryJobs.length === 0 ? (
+                      <p className="text-xs text-slate-500 text-center py-3">No completed images in your library yet.</p>
+                    ) : (
+                      <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto">
+                        {libraryJobs.map(job => (
+                          <button
+                            key={job.id}
+                            type="button"
+                            title={job.subject}
+                            onClick={() => { setPickedJobId(job.id); setPickedJobSignedUrl(job.signedUrl); setPickedJobSubject(job.subject); setShowLibrary(false) }}
+                            className="aspect-square rounded-md overflow-hidden border border-slate-700 hover:border-[#0077B5] transition-colors"
+                          >
+                            {job.signedUrl ? (
+                              <img src={job.signedUrl} alt={job.subject} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+                                <ImageIcon className="w-4 h-4 text-slate-600" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
