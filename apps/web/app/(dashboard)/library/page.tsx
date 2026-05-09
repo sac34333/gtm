@@ -100,7 +100,7 @@ async function fetchFeedbackForJobs(jobIds: string[]): Promise<Record<string, 'u
   return map
 }
 
-function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn }: { stack: StackedJob; onRequestDelete: (stack: StackedJob) => void; isDeleting: boolean; onLinkedIn: (asset: LinkedInComposeAsset) => void }) {
+function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInConnected }: { stack: StackedJob; onRequestDelete: (stack: StackedJob) => void; isDeleting: boolean; onLinkedIn: (asset: LinkedInComposeAsset) => void; linkedInConnected: boolean }) {
   const job = stack.latest
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const subject = job.prompt_tags?.subject ?? 'Untitled'
@@ -216,15 +216,15 @@ function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn }: { stack: 
       >
         {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
       </button>
-      {/* Post to LinkedIn — only for completed images */}
-      {job.status === 'completed' && job.asset_type === 'image' && signedUrl && (
+      {/* Post to LinkedIn — only for completed images when LinkedIn is connected */}
+      {linkedInConnected && job.status === 'completed' && job.asset_type === 'image' && signedUrl && (
         <button
           type="button"
           title="Post to LinkedIn"
           onClick={(e) => {
             e.preventDefault()
             e.stopPropagation()
-            stack.onLinkedIn?.({ jobId: job.id, subject: subject, signedUrl: signedUrl })
+            onLinkedIn({ jobId: job.id, subject: subject, signedUrl: signedUrl })
           }}
           className="absolute bottom-2 left-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity bg-slate-950/90 backdrop-blur border border-slate-700 hover:border-[#0077B5]/60 hover:bg-[#0077B5]/10 rounded-md p-1.5 text-slate-400 hover:text-[#0077B5]"
         >
@@ -241,7 +241,18 @@ export default function LibraryPage() {
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const [composeOpen, setComposeOpen] = useState(false)
   const [composeAsset, setComposeAsset] = useState<LinkedInComposeAsset | null>(null)
+  const [linkedInConnected, setLinkedInConnected] = useState(false)
   const queryClient = useQueryClient()
+
+  // Check LinkedIn connection once on mount
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient()
+    supabase
+      .from('org_linkedin_connections')
+      .select('org_id')
+      .maybeSingle()
+      .then(({ data }) => setLinkedInConnected(data !== null))
+  }, [])
 
   const { data: jobs = [], isLoading, isError, refetch } = useQuery({
     queryKey: ['library-jobs', filter],
@@ -364,6 +375,7 @@ export default function LibraryPage() {
                 onRequestDelete={(s) => { setDeleteError(null); setPendingDelete(s) }}
                 isDeleting={deleteMutation.isPending && pendingDelete?.latest.id === stack.latest.id}
                 onLinkedIn={(asset) => { setComposeAsset(asset); setComposeOpen(true) }}
+                linkedInConnected={linkedInConnected}
               />
             ))}
           </div>
