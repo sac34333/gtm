@@ -32,7 +32,7 @@ const faqSchema = {
       name: 'What is GTM Engine?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'GTM Engine is an AI-powered go-to-market platform built for B2B marketing and sales teams. It combines campaign planning with AI brief generation, ICP prospect enrichment from multiple data providers, AI image and video generation, LinkedIn company page posting, and a conversational AI assistant that answers questions about live campaign and ad metrics. It is built by Qubitly Ventures and runs on Cloudflare Pages.',
+        text: 'GTM Engine is an AI-powered go-to-market platform built for B2B marketing and sales teams. It ingests and scores real-time market signals from global data sources to surface trends relevant to your business, generates AI images and videos grounded in your brand context, identifies and enriches ICP prospects using a multi-provider data waterfall (People Data Labs, Apollo, Hunter, Clearbit), and produces personalised outreach copy and a full campaign brief — complete with posting schedule, hashtag sets, and caption variants — all in a single end-to-end workflow. It is built by Qubitly Ventures and runs on Cloudflare Pages.',
       },
     },
     {
