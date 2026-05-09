@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { AuthShell } from '@/components/layout/auth-shell'
 import { WorkflowLoop } from '@/components/marketing/workflow-loop'
-import { Loader2, Wand2, Radar, Users, Zap } from 'lucide-react'
+import { Loader2, Wand2, Radar, Users, Zap, Share2 } from 'lucide-react'
 
 function LoginForm() {
   const [email, setEmail] = useState('')
@@ -138,6 +138,11 @@ const FEATURES = [
     title: 'Campaigns built for your prospects',
     body: 'Pick media channels, pick a length (1–90 days), approve copy inline. Calendar, briefs and per-prospect copy - built for you.',
   },
+  {
+    icon: Share2,
+    title: 'Publish directly to LinkedIn',
+    body: 'Connect your LinkedIn company page and publish posts with images straight from your campaign — plus pull live ad metrics into the Ask AI assistant.',
+  },
 ]
 
 function MarketingPane() {
@@ -179,6 +184,13 @@ function MarketingPane() {
         <p className="text-[12px] text-slate-500 leading-relaxed">
           Prefer to use your own model accounts? Bring Your Own Keys (BYOK) is available on request -
           we&apos;ll route through your OpenAI, Anthropic or Gemini keys instead.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5 space-y-3">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">LinkedIn-native</p>
+        <p className="text-[13px] text-slate-300 leading-relaxed">
+          Connect your LinkedIn company page in one step. Publish posts with images directly from your campaign, and pull live ad metrics straight into the Ask AI — so your team always knows what&apos;s working.
         </p>
       </div>
 

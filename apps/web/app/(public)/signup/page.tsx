@@ -19,6 +19,7 @@ const PERKS = [
   'AI content with built-in tags & one-click regenerate - zero prompt engineering',
   'ICP discovery powered by AI search - built around how you actually sell',
   'Campaigns from 1 to 90 days, multi-channel, per-prospect personalised',
+  'LinkedIn publishing & live ad metrics — connect your company page in one step',
 ]
 
 function MarketingPane() {
@@ -56,6 +57,13 @@ function MarketingPane() {
         <p className="text-[12px] text-slate-500 leading-relaxed">
           Prefer to use your own model accounts? Bring Your Own Keys (BYOK) is available on request —
           we&apos;ll route through your OpenAI, Anthropic or Gemini keys instead.
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] backdrop-blur-md p-5 space-y-3">
+        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">LinkedIn-native</p>
+        <p className="text-[13px] text-slate-300 leading-relaxed">
+          Connect your LinkedIn company page in one step. Publish posts with images directly from your campaign, and pull live ad metrics straight into the Ask AI — so your team always knows what&apos;s working.
         </p>
       </div>
 
