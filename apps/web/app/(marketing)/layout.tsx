@@ -125,7 +125,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           {/* Bottom bar */}
           <div className="border-t border-slate-800 pt-6 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-slate-600">
-              © 2026 Qubitly Ventures LLP. All rights reserved.
+              © 2026 Qubitly Ventures. All rights reserved.
             </p>
             <p className="text-xs text-slate-700">
               contact@qubitlyventures.com
