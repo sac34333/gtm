@@ -227,9 +227,18 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
-        <p className="mt-1.5 text-[10px] text-slate-500">
-          Daily caps: 50 messages and 200,000 tokens per workspace. Resets at 00:00 UTC.
-        </p>
+        <div className="mt-2 flex flex-col gap-0.5">
+          <p className="text-[10px] text-slate-500">
+            Daily caps: 50 messages · 200,000 tokens per workspace · Resets at 00:00 UTC.
+          </p>
+          <p className="text-[10px] text-slate-600">
+            Scoped to <strong className="text-slate-500 font-medium">this campaign only</strong> — sees its brief, enrolled prospects &amp; recent signals.
+            {linkedinConnected
+              ? ' Live LinkedIn ad metrics are included.'
+              : ' Connect LinkedIn to unlock live ad metrics.'}
+            &nbsp;Each campaign keeps its own separate chat history.
+          </p>
+        </div>
       </form>
     </div>
   )
