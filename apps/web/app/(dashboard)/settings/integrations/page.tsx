@@ -33,9 +33,7 @@ export default async function IntegrationsSettingsPage() {
     <div className="mx-auto max-w-4xl px-4 md:px-6 py-6 md:py-8 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold gtm-title tracking-tight">Integrations</h1>
-        <p className="text-slate-400 text-sm mt-1">
-          Connect external accounts so the in-app campaign assistant can answer questions about your real data.
-        </p>
+        <p className="text-slate-400 text-sm mt-1">Manage your connected accounts.</p>
       </div>
 
       <LinkedInConnectionCard

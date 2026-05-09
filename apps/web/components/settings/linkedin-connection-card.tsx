@@ -92,9 +92,11 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
           <Globe className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <h2 className="text-base font-semibold text-slate-100">LinkedIn Ads</h2>
+          <h2 className="text-base font-semibold text-slate-100">LinkedIn</h2>
           <p className="text-xs text-slate-400 mt-0.5">
-            Lets the campaign assistant pull your live ad metrics (impressions, clicks, spend, conversions) for the last 14 days.
+            {connection
+              ? 'Active · publish posts and query live ad metrics from the campaign Ask tab.'
+              : 'Connect your company page to publish posts and pull live ad metrics into the campaign Ask tab.'}
           </p>
         </div>
       </div>
