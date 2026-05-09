@@ -297,6 +297,9 @@ export default function CreatePage() {
   const [showRefinement, setShowRefinement] = useState(false)
   const [showUpgradeModal, setShowUpgradeModal] = useState(false)
   const [quotaError, setQuotaError] = useState<{ quota_type: string; quota: number; used: number; resets_at: string | null } | null>(null)
+  const [generateVariants, setGenerateVariants] = useState(false)
+  const [variants, setVariants] = useState<{ jobId: string; url: string }[]>([])
+  const [pickedVariant, setPickedVariant] = useState<{ jobId: string; url: string } | null>(null)
 
   const supabase = getSupabaseBrowserClient()
 
@@ -392,9 +395,10 @@ export default function CreatePage() {
   function handleGenerate() {
     if (!tags.subject.trim()) { setError('Subject is required'); return }
     if (!selectedModelId) { setError('No model available'); return }
-    const over = assetType === 'image' ? quotaUsed >= quotaMax : videoQuotaUsed >= videoQuotaMax
-    if (over) { setError(`${assetType === 'image' ? 'Image' : 'Video'} quota reached. Upgrade to continue.`); return }
-    setError(null); setGeneratedImageUrl(null); setGeneratedJobId(null); setFeedback(null)
+    const count = (generateVariants && assetType === 'image') ? 3 : 1
+    const over = assetType === 'image' ? quotaUsed + count > quotaMax : videoQuotaUsed >= videoQuotaMax
+    if (over) { setError(`Not enough ${assetType} quota remaining. ${count > 1 ? `Generating ${count} variants requires ${count} credits.` : ''}`); return }
+    setError(null); setGeneratedImageUrl(null); setGeneratedJobId(null); setFeedback(null); setVariants([]); setPickedVariant(null)
     startTransition(async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession(); if (!session) return
@@ -403,20 +407,33 @@ export default function CreatePage() {
         if (!buildRes.ok) { const err = await buildRes.json(); setError(err.error ?? 'Failed to build prompt'); return }
         const { content_job } = await buildRes.json()
         content_job.model_id = selectedModelId; content_job.provider_key = selectedProviderKey; content_job.asset_type = assetType
-        const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: selectedModelId, provider_key: selectedProviderKey, ...(parentJobId ? { parent_job_id: parentJobId } : {}) }) })
-        if (!genRes.ok) {
-          const err = await genRes.json()
-          if (genRes.status === 402 || err.error === 'quota_exceeded') {
-            setQuotaError(err); setShowUpgradeModal(true); return
-          } else if (err.error === 'model_requires_paid_plan') setError('This model requires a paid plan.')
-          // 503 / 502 / 401 from new ProviderError mapping (server included a friendly `error` string + retryable flag)
-          else if (err.retryable === true || genRes.status === 503 || genRes.status === 502) {
-            setError(err.error ?? 'AI provider is temporarily unavailable. Your quota was not deducted — please try again.')
-          } else if (genRes.status === 401 && err.code === 'auth_failed') {
-            setError(err.error ?? 'API key issue — check your provider key in Settings.')
-          } else setError(err.error ?? 'Generation failed'); return
+
+        async function callGenerate() {
+          const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: selectedModelId, provider_key: selectedProviderKey, ...(parentJobId ? { parent_job_id: parentJobId } : {}) }) })
+          if (!genRes.ok) {
+            const err = await genRes.json()
+            if (genRes.status === 402 || err.error === 'quota_exceeded') { setQuotaError(err); setShowUpgradeModal(true); return null }
+            else if (err.error === 'model_requires_paid_plan') { setError('This model requires a paid plan.'); return null }
+            else if (err.retryable === true || genRes.status === 503 || genRes.status === 502) { setError(err.error ?? 'AI provider is temporarily unavailable. Your quota was not deducted — please try again.'); return null }
+            else if (genRes.status === 401 && err.code === 'auth_failed') { setError(err.error ?? 'API key issue — check your provider key in Settings.'); return null }
+            else { setError(err.error ?? 'Generation failed'); return null }
+          }
+          return await genRes.json()
         }
-        const genData = await genRes.json()
+
+        if (count === 3) {
+          // Parallel 3 — each call uses 1 credit. Run simultaneously.
+          const results = await Promise.all([callGenerate(), callGenerate(), callGenerate()])
+          const successful = results.filter(r => r && r.status === 'completed' && r.output_url)
+          if (successful.length === 0) { setError('All 3 variants failed. Your quota was not deducted.'); return }
+          setVariants(successful.map((r: any) => ({ jobId: r.job_id, url: r.output_url })))
+          setQuotaUsed(prev => prev + successful.length)
+          return
+        }
+
+        // Single generation
+        const genData = await callGenerate()
+        if (!genData) return
         if (genData.status === 'completed' && genData.output_url) { setGeneratedImageUrl(genData.output_url); setGeneratedJobId(genData.job_id); setQuotaUsed(prev => prev + 1); return }
         if (genData.job_id && assetType === 'video') {
           const ch = supabase.channel(`job:${genData.job_id}`)
@@ -447,6 +464,14 @@ export default function CreatePage() {
           </div>
         </div>
 
+        {/* No brand context nudge */}
+        {!brand && (
+          <div className="mb-4 flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 text-sm text-amber-300">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span>Your brand profile isn&apos;t set up yet — generation will use generic defaults. <a href="/settings/brand" className="underline underline-offset-2 hover:text-amber-200">Add your brand details</a> for better-grounded outputs.</span>
+          </div>
+        )}
+
         {/* Signal context banner */}
         {signalId && signalHeadline && !signalBannerDismissed && (
           <div className="mb-4 flex items-center justify-between bg-indigo-500/10 border border-indigo-500/30 rounded-lg px-4 py-3">
@@ -472,11 +497,27 @@ export default function CreatePage() {
           {/* Left column — tag card editor */}
           <div className="lg:col-span-3 space-y-4">
 
-            {/* Subject */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-              <Label className="text-sm font-medium text-slate-400">What is this image/video about? <span className="text-red-400">*</span></Label>
-              <Input value={tags.subject} onChange={e => handleTagChange('subject', e.target.value)} placeholder="e.g. AI is changing the way financial teams work" maxLength={200} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500" />
-              <div className="text-right text-xs text-slate-600">{tags.subject.length}/200</div>
+            {/* Subject + Creative direction */}
+            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-400">What is this image/video about? <span className="text-red-400">*</span></Label>
+                <Input value={tags.subject} onChange={e => handleTagChange('subject', e.target.value)} placeholder="e.g. AI is changing the way financial teams work" maxLength={200} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500" />
+                <div className="text-right text-xs text-slate-600">{tags.subject.length}/200</div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-slate-400">
+                  Creative direction <span className="text-slate-600 font-normal text-xs">— extra instructions for the AI</span>
+                </Label>
+                <Textarea
+                  value={tags.additional_notes}
+                  onChange={e => handleTagChange('additional_notes', e.target.value)}
+                  placeholder={`e.g. "Add a bold caption at the top saying Automate Your Outreach"\ne.g. "Show a laptop with a dashboard on screen, dark office background"\ne.g. "Make it feel like a premium luxury brand, not a startup"`}
+                  rows={3}
+                  maxLength={600}
+                  className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none text-sm"
+                />
+                <div className="text-right text-xs text-slate-600">{tags.additional_notes.length}/600</div>
+              </div>
             </div>
 
             {/* Visual Style */}
@@ -558,11 +599,6 @@ export default function CreatePage() {
                   <div className="space-y-2">
                     <Label className="text-sm font-medium text-slate-400">Exclude from image <span className="text-slate-600 font-normal">— Things you do not want to appear</span></Label>
                     <Textarea value={tags.negative_prompt} onChange={e => handleTagChange('negative_prompt', e.target.value)} placeholder="e.g. people, red colours, busy backgrounds" rows={2} maxLength={500} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-400">Anything else to tell the AI</Label>
-                    <Textarea value={tags.additional_notes} onChange={e => handleTagChange('additional_notes', e.target.value)} placeholder="Any additional context or instructions…" rows={2} maxLength={500} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none" />
-                    <div className="text-right text-xs text-slate-600">{tags.additional_notes.length}/500</div>
                   </div>
                   <div>
                     <button type="button" onClick={() => setShowJson(v => !v)} className="text-xs text-slate-500 hover:text-indigo-400 flex items-center gap-1">
@@ -662,11 +698,37 @@ export default function CreatePage() {
             )}
 
             {/* Generate button */}
-            <div className="sticky bottom-4 lg:static">
+            <div className="sticky bottom-4 lg:static space-y-2">
+              {/* Variant toggle — images only (video is async, can't show 3-up easily) */}
+              {assetType === 'image' && (
+                <button
+                  type="button"
+                  onClick={() => setGenerateVariants(v => !v)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg border text-sm transition-colors ${
+                    generateVariants
+                      ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300'
+                      : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${generateVariants ? 'bg-indigo-600 border-indigo-500' : 'border-slate-600'}`}>
+                      {generateVariants && (
+                        <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 10 10" fill="none">
+                          <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    Generate 3 variants to choose from
+                  </span>
+                  <span className="text-xs text-slate-500">uses 3 credits</span>
+                </button>
+              )}
               <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 text-base" disabled={isPending || !tags.subject.trim() || filteredModels.length === 0} onClick={handleGenerate}>
-                {isPending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{assetType === 'video' ? 'Submitting…' : 'Generating…'}</> : `Generate ${assetType === 'image' ? 'Image' : 'Video'}`}
+                {isPending
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{assetType === 'video' ? 'Submitting…' : generateVariants ? 'Generating 3 variants…' : 'Generating…'}</>
+                  : generateVariants && assetType === 'image' ? 'Generate 3 Variants' : `Generate ${assetType === 'image' ? 'Image' : 'Video'}`}
               </Button>
-              <p className="text-center text-xs text-slate-600 mt-2">{quotaRemaining} {assetType}{quotaRemaining !== 1 ? 's' : ''} remaining this month</p>
+              <p className="text-center text-xs text-slate-600">{quotaRemaining} {assetType}{quotaRemaining !== 1 ? 's' : ''} remaining this month</p>
             </div>
 
             {/* Generation in progress */}
@@ -682,6 +744,37 @@ export default function CreatePage() {
                   </div>
                   <p className="text-sm font-medium gtm-shimmer-text">{assetType === 'video' ? 'Submitting video job…' : 'Generating your image…'}</p>
                   {assetType === 'image' && <p className="text-xs text-slate-300/80 italic">"{tags.subject.slice(0, 60)}{tags.subject.length > 60 ? '…' : ''}"</p>}
+                </div>
+              </div>
+            )}
+
+            {/* 3-variant picker */}
+            {variants.length > 0 && !isPending && !pickedVariant && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-200">Pick your favourite</p>
+                  <p className="text-xs text-slate-500 mt-0.5">Click the image you want to keep. The others are discarded.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {variants.map((v, i) => (
+                    <button
+                      key={v.jobId}
+                      type="button"
+                      onClick={() => {
+                        setPickedVariant(v)
+                        setGeneratedImageUrl(v.url)
+                        setGeneratedJobId(v.jobId)
+                        setVariants([])
+                      }}
+                      className="group relative rounded-lg overflow-hidden border-2 border-slate-700 hover:border-indigo-500 transition-colors focus:outline-none focus:border-indigo-400"
+                    >
+                      <img src={v.url} alt={`Variant ${i + 1}`} className="w-full aspect-square object-cover group-hover:scale-105 transition-transform duration-200" />
+                      <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-end justify-center pb-2 opacity-0 group-hover:opacity-100">
+                        <span className="text-xs font-medium text-white bg-indigo-600 rounded-md px-2 py-0.5">Pick this</span>
+                      </div>
+                      <div className="absolute top-1.5 left-1.5 bg-slate-950/80 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold text-slate-300">{i + 1}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

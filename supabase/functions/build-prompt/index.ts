@@ -79,14 +79,33 @@ Deno.serve(async (req: Request) => {
 
     const db = createServiceClient()
 
-    const { data: brand, error: brandError } = await db
+    const { data: brandData } = await db
       .from('brand_contexts')
       .select('*')
       .eq('org_id', org_id)
-      .single()
+      .maybeSingle()
 
-    if (brandError || !brand) {
-      return new Response(JSON.stringify({ error: 'brand_context_not_found' }), { status: 404, headers: corsHeaders })
+    // If brand context hasn't been set up yet, fall back to org name + sensible defaults
+    // so generation still works for new clients without blocking on onboarding completion.
+    const { data: orgRow } = await db
+      .from('orgs')
+      .select('slug')
+      .eq('id', org_id)
+      .maybeSingle()
+
+    const brand = brandData ?? {
+      company_name: orgRow?.slug ?? 'the company',
+      one_sentence_pitch: null,
+      extended_description: null,
+      brand_guidelines_text: null,
+      active_themes: [],
+      decision_maker_titles: [],
+      competitor_names: [],
+      topics_to_avoid: [],
+      visual_styles_to_avoid: [],
+      phrases_to_avoid: [],
+      voice_examples: [],
+      brand_colours: null,
     }
 
     let signal: any = null
@@ -100,11 +119,13 @@ Deno.serve(async (req: Request) => {
       signal = sig
     }
 
-    const { data: org } = await db
+    // Fetch plan_tier separately (slug already fetched above)
+    const { data: orgPlan } = await db
       .from('orgs')
-      .select('slug, plan_tier')
+      .select('plan_tier')
       .eq('id', org_id)
-      .single()
+      .maybeSingle()
+    const org = { slug: orgRow?.slug ?? '', plan_tier: orgPlan?.plan_tier ?? 'starter' }
 
     // Resolve model
     let modelId = 'google/gemini-3.1-flash-image-preview'
