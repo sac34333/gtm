@@ -118,11 +118,7 @@ function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInCon
   const hasVersions = stack.versionCount > 1
 
   return (
-    <div className="group relative">
-      <Link
-        href={`/create/${job.id}`}
-        className="block bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-indigo-500/50 transition-all duration-300 flex flex-col hover:-translate-y-1 hover:shadow-glow-indigo"
-      >
+    <div className="relative bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-indigo-500/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-glow-indigo flex flex-col">
       {/* Faux stack effect for cards with versions */}
       {hasVersions && (
         <>
@@ -131,106 +127,115 @@ function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInCon
         </>
       )}
 
-      <div className="aspect-square bg-slate-950 relative flex items-center justify-center overflow-hidden">
-        {job.status === 'completed' && signedUrl && isImage && (
-          <img src={signedUrl} alt={subject} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        )}
-        {job.status === 'completed' && !isImage && (
-          <div className="flex flex-col items-center gap-2 text-slate-500">
-            <Video className="w-10 h-10" />
-            <span className="text-xs">Video ready</span>
-          </div>
-        )}
-        {job.status === 'pending' || job.status === 'processing' ? (
-          <div className="flex flex-col items-center gap-2 text-amber-400">
-            <Clock className="w-8 h-8 animate-pulse" />
-            <span className="text-xs">Generating…</span>
-          </div>
-        ) : null}
-        {job.status === 'failed' && (
-          <div className="flex flex-col items-center gap-2 text-red-400">
-            <XCircle className="w-8 h-8" />
-            <span className="text-xs">Failed</span>
-          </div>
-        )}
+      {/* Image — tappable link to the detail page */}
+      <Link href={`/create/${job.id}`} className="block">
+        <div className="aspect-square bg-slate-950 relative flex items-center justify-center overflow-hidden">
+          {job.status === 'completed' && signedUrl && isImage && (
+            <img src={signedUrl} alt={subject} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
+          )}
+          {job.status === 'completed' && !isImage && (
+            <div className="flex flex-col items-center gap-2 text-slate-500">
+              <Video className="w-10 h-10" />
+              <span className="text-xs">Video ready</span>
+            </div>
+          )}
+          {(job.status === 'pending' || job.status === 'processing') && (
+            <div className="flex flex-col items-center gap-2 text-amber-400">
+              <Clock className="w-8 h-8 animate-pulse" />
+              <span className="text-xs">Generating…</span>
+            </div>
+          )}
+          {job.status === 'failed' && (
+            <div className="flex flex-col items-center gap-2 text-red-400">
+              <XCircle className="w-8 h-8" />
+              <span className="text-xs">Failed</span>
+            </div>
+          )}
 
-        {/* Top-left: asset-type pill + refinement chip */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
-          <div className="bg-slate-950/80 backdrop-blur border border-slate-700 rounded-md px-1.5 py-0.5 flex items-center gap-1">
-            {isImage ? <ImageIcon className="w-3 h-3 text-slate-300" /> : <Video className="w-3 h-3 text-slate-300" />}
-            <span className="text-[10px] text-slate-300 capitalize">{job.asset_type}</span>
+          {/* Top-left: asset-type pill + refinement chip */}
+          <div className="absolute top-2 left-2 flex flex-col gap-1 items-start">
+            <div className="bg-slate-950/80 backdrop-blur border border-slate-700 rounded-md px-1.5 py-0.5 flex items-center gap-1">
+              {isImage ? <ImageIcon className="w-3 h-3 text-slate-300" /> : <Video className="w-3 h-3 text-slate-300" />}
+              <span className="text-[10px] text-slate-300 capitalize">{job.asset_type}</span>
+            </div>
+            {hasVersions && (
+              <div className="bg-indigo-500/30 backdrop-blur border border-indigo-400/50 rounded-md px-2 py-0.5 flex items-center gap-1 shadow-sm">
+                <Layers className="w-3 h-3 text-indigo-200 shrink-0" />
+                <span className="text-[10px] font-medium text-indigo-100 whitespace-nowrap">{stack.versionCount} versions</span>
+              </div>
+            )}
           </div>
-          {hasVersions && (
-            <div className="bg-indigo-500/30 backdrop-blur border border-indigo-400/50 rounded-md px-2 py-0.5 flex items-center gap-1 shadow-sm">
-              <Layers className="w-3 h-3 text-indigo-200 shrink-0" />
-              <span className="text-[10px] font-medium text-indigo-100 whitespace-nowrap">{stack.versionCount} versions</span>
-            </div>
-          )}
-        </div>
 
-        {/* Top-right: status + thumbs feedback */}
-        <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
-          {job.status === 'completed' && (
-            <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-full p-0.5">
-              <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            </div>
-          )}
-          {stack.thumbs === 'up' && (
-            <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1">
-              <ThumbsUp className="w-3 h-3 text-emerald-400" />
-            </div>
-          )}
-          {stack.thumbs === 'down' && (
-            <div className="bg-red-500/20 border border-red-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1">
-              <ThumbsDown className="w-3 h-3 text-red-400" />
-            </div>
-          )}
-          {job.captions?._status === 'ready' && (
-            <div className="bg-sky-500/20 border border-sky-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1" title="Captions ready">
-              <span className="text-[10px] text-sky-300 font-medium">✍️ copy</span>
-            </div>
-          )}
-          {job.captions?._status === 'pending' && (
-            <div className="bg-amber-500/20 border border-amber-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1" title="Writing captions…">
-              <span className="text-[10px] text-amber-300 font-medium animate-pulse">writing…</span>
-            </div>
-          )}
+          {/* Top-right: status + thumbs feedback */}
+          <div className="absolute top-2 right-2 flex flex-col gap-1 items-end">
+            {job.status === 'completed' && (
+              <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-full p-0.5">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+              </div>
+            )}
+            {stack.thumbs === 'up' && (
+              <div className="bg-emerald-500/20 border border-emerald-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1">
+                <ThumbsUp className="w-3 h-3 text-emerald-400" />
+              </div>
+            )}
+            {stack.thumbs === 'down' && (
+              <div className="bg-red-500/20 border border-red-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1">
+                <ThumbsDown className="w-3 h-3 text-red-400" />
+              </div>
+            )}
+            {job.captions?._status === 'ready' && (
+              <div className="bg-sky-500/20 border border-sky-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1" title="Captions ready">
+                <span className="text-[10px] text-sky-300 font-medium">✍️ copy</span>
+              </div>
+            )}
+            {job.captions?._status === 'pending' && (
+              <div className="bg-amber-500/20 border border-amber-500/30 rounded-md px-1.5 py-0.5 flex items-center gap-1" title="Writing captions…">
+                <span className="text-[10px] text-amber-300 font-medium animate-pulse">writing…</span>
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-      <div className="p-3 space-y-1 border-t border-slate-800">
-        <p className="text-xs text-slate-200 line-clamp-2 leading-snug min-h-[2rem]">{subject}</p>
-        <div className="flex items-center justify-between">
-          <p className="text-[10px] text-slate-500">{format(new Date(job.created_at), 'MMM d, h:mm a')}</p>
-          {hasVersions && <p className="text-[10px] text-indigo-400">latest of {stack.versionCount}</p>}
-        </div>
-      </div>
       </Link>
-      {/* Delete button — overlaid on the card, sits above the Link via z-index. */}
-      <button
-        type="button"
-        aria-label="Delete asset"
-        title={hasVersions ? `Delete latest version (${stack.versionCount} total)` : 'Delete asset'}
-        disabled={isDeleting}
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRequestDelete(stack) }}
-        className="absolute bottom-2 right-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity bg-slate-950/90 backdrop-blur border border-slate-700 hover:border-red-500/60 hover:bg-red-500/10 rounded-md p-1.5 text-slate-400 hover:text-red-400 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        {isDeleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-      </button>
-      {/* Post to LinkedIn — only for completed images when LinkedIn is connected */}
-      {linkedInConnected && job.status === 'completed' && job.asset_type === 'image' && signedUrl && (
-        <button
-          type="button"
-          title="Post to LinkedIn"
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            onLinkedIn({ jobId: job.id, subject: subject, signedUrl: signedUrl })
-          }}
-          className="absolute bottom-2 left-2 z-10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity bg-slate-950/90 backdrop-blur border border-slate-700 hover:border-[#0077B5]/60 hover:bg-[#0077B5]/10 rounded-md p-1.5 text-slate-400 hover:text-[#0077B5]"
-        >
-          <LinkedinIcon className="w-3.5 h-3.5" />
-        </button>
-      )}
+
+      {/* Footer — always visible, no hover required */}
+      <div className="p-3 border-t border-slate-800 flex items-start gap-2">
+        {/* Title + date — links to detail page */}
+        <Link href={`/create/${job.id}`} className="flex-1 min-w-0 space-y-0.5">
+          <p className="text-xs text-slate-200 line-clamp-2 leading-snug">{subject}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-[10px] text-slate-500">{format(new Date(job.created_at), 'MMM d, h:mm a')}</p>
+            {hasVersions && <p className="text-[10px] text-indigo-400">latest of {stack.versionCount}</p>}
+          </div>
+        </Link>
+
+        {/* Action buttons — always visible, mobile-friendly */}
+        <div className="flex items-center gap-0.5 shrink-0 -mr-0.5">
+          {linkedInConnected && job.status === 'completed' && isImage && signedUrl && (
+            <button
+              type="button"
+              title="Post to LinkedIn"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onLinkedIn({ jobId: job.id, subject, signedUrl })
+              }}
+              className="p-2 rounded-lg text-slate-400 hover:text-[#0077B5] hover:bg-[#0077B5]/10 active:bg-[#0077B5]/20 transition-colors touch-manipulation"
+            >
+              <LinkedinIcon className="w-4 h-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            aria-label="Delete asset"
+            title={hasVersions ? `Delete latest version (${stack.versionCount} total)` : 'Delete asset'}
+            disabled={isDeleting}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRequestDelete(stack) }}
+            className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
