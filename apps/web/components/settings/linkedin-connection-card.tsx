@@ -16,6 +16,7 @@ interface ExistingConnection {
   account_name: string | null
   last_verified_at: string
   created_at: string
+  consent_given_at?: string | null
 }
 
 async function callEdge(path: string, body?: Record<string, unknown>) {
@@ -41,8 +42,13 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
   const [accessToken, setAccessToken] = useState('')
   const [adAccountId, setAdAccountId] = useState('')
   const [accountName, setAccountName] = useState('')
+  const [consent1, setConsent1] = useState(false)
+  const [consent2, setConsent2] = useState(false)
+  const [consent3, setConsent3] = useState(false)
   const [pending, startTransition] = useTransition()
   const [disconnecting, setDisconnecting] = useState(false)
+
+  const allConsented = consent1 && consent2 && consent3
 
   function handleConnect(e: React.FormEvent) {
     e.preventDefault()
@@ -59,6 +65,7 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
           access_token: trimmedToken,
           ad_account_urn: urn,
           account_name: accountName.trim() || undefined,
+          consent_given: true,
         })
         toast.success(r?.verified ? 'LinkedIn connected and verified.' : 'Saved (token could not be verified — assistant will surface auth errors).')
         setConnection({
@@ -113,6 +120,11 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
               {connection.last_verified_at && (
                 <div className="text-slate-500 text-xs mt-1">
                   Last verified {new Date(connection.last_verified_at).toLocaleString()}
+                </div>
+              )}
+              {connection.consent_given_at && (
+                <div className="text-slate-500 text-xs mt-0.5">
+                  Terms accepted {new Date(connection.consent_given_at).toLocaleString()}
                 </div>
               )}
             </div>
@@ -203,10 +215,56 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
             </div>
           </div>
 
-          <Button type="submit" disabled={pending} className="bg-[#0A66C2] hover:bg-[#0a5cb0] text-white">
+          <Button type="submit" disabled={pending || !allConsented} className="bg-[#0A66C2] hover:bg-[#0a5cb0] text-white disabled:opacity-40 disabled:cursor-not-allowed">
             {pending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Globe className="w-4 h-4 mr-2" />}
             Connect LinkedIn
           </Button>
+
+          {/* Consent checkboxes — must all be ticked to enable the button */}
+          <div className="border-t border-white/[0.06] pt-4 space-y-3">
+            <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Before connecting, please confirm:</p>
+            {[
+              {
+                id: 'c1',
+                checked: consent1,
+                set: setConsent1,
+                label: 'I am connecting a LinkedIn access token that belongs to me or that I am authorised to use on behalf of my organisation. I understand GTM Engine will use it to read ad metrics and publish posts to my company page.',
+              },
+              {
+                id: 'c2',
+                checked: consent2,
+                set: setConsent2,
+                label: 'I understand my token is encrypted at rest, never exposed to other organisations, and never used for any purpose other than operating this integration. I can disconnect at any time and the token will be permanently deleted.',
+              },
+              {
+                id: 'c3',
+                checked: consent3,
+                set: setConsent3,
+                label: 'I accept the GTM Engine Terms of Service and acknowledge that LinkedIn tokens expire every 60 days and must be renewed by me.',
+              },
+            ].map(({ id, checked, set, label }) => (
+              <label key={id} className="flex items-start gap-3 cursor-pointer group">
+                <button
+                  type="button"
+                  onClick={() => set(v => !v)}
+                  className={`mt-0.5 shrink-0 w-4 h-4 rounded border transition-colors ${
+                    checked
+                      ? 'bg-indigo-600 border-indigo-500 text-white'
+                      : 'bg-slate-900 border-slate-600 group-hover:border-slate-500'
+                  } flex items-center justify-center`}
+                  aria-checked={checked}
+                  role="checkbox"
+                >
+                  {checked && (
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
+                      <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </button>
+                <span className="text-xs text-slate-400 leading-relaxed select-none">{label}</span>
+              </label>
+            ))}
+          </div>
         </form>
       )}
     </div>

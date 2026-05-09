@@ -20,7 +20,7 @@ export default async function IntegrationsSettingsPage() {
 
     const { data: conn } = await supabase
       .from('org_linkedin_connections')
-      .select('ad_account_urn, account_name, last_verified_at, created_at')
+      .select('ad_account_urn, account_name, last_verified_at, created_at, consent_given_at')
       .eq('org_id', orgId)
       .maybeSingle()
     if (conn) connection = conn
@@ -42,6 +42,7 @@ export default async function IntegrationsSettingsPage() {
           account_name: (connection.account_name as string | null) ?? null,
           last_verified_at: connection.last_verified_at as string,
           created_at: connection.created_at as string,
+          consent_given_at: (connection.consent_given_at as string | null) ?? null,
         } : null}
       />
 

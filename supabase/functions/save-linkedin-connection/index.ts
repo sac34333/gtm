@@ -31,11 +31,17 @@ Deno.serve(async (req: Request) => {
     const accessToken = typeof body?.access_token === 'string' ? body.access_token.trim() : ''
     const adAccountUrn = typeof body?.ad_account_urn === 'string' ? body.ad_account_urn.trim() : ''
     const accountNameInput = typeof body?.account_name === 'string' ? body.account_name.trim().slice(0, 200) : ''
+    const consentGiven = body?.consent_given === true
 
     // Validate token shape — LinkedIn access tokens are typically 200-500 chars,
     // base64-ish (alphanumeric + a few safe symbols). Reject anything suspicious.
     if (!/^[A-Za-z0-9_\-.]{40,800}$/.test(accessToken)) {
       return new Response(JSON.stringify({ error: 'invalid_token_format' }), { status: 400, headers: corsHeaders })
+    }
+
+    // Consent is required before saving
+    if (!consentGiven) {
+      return new Response(JSON.stringify({ error: 'consent_required' }), { status: 400, headers: corsHeaders })
     }
     // Validate ad account URN format
     const urnMatch = adAccountUrn.match(/^urn:li:sponsoredAccount:(\d+)$/)
@@ -97,6 +103,8 @@ Deno.serve(async (req: Request) => {
         token_expires_at: null,
         last_verified_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        consent_given_at: new Date().toISOString(),
+        consent_given_by: user.id,
       }, { onConflict: 'org_id' })
 
     if (upsertErr) {
