@@ -92,11 +92,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
               <h4 className="text-xs font-semibold text-slate-300 uppercase tracking-wider mb-4">Company</h4>
               <ul className="space-y-2.5">
                 <li>
-                  <Link href="/contact" className="text-sm text-slate-500 hover:text-slate-300 transition-colors">
-                    Contact
-                  </Link>
-                </li>
-                <li>
                   <a
                     href="https://qubitlyventures.com"
                     target="_blank"
