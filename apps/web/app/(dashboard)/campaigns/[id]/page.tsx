@@ -744,6 +744,8 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     if (copiesRes.data) setCopies(copiesRes.data as OutreachCopy[])
 
     setLinkedInConnected((liRes.count ?? 0) > 0)
+    // If LinkedIn was disconnected, fall back from the Ask tab
+    if ((liRes.count ?? 0) === 0 && activeTab === 'ask') setActiveTab('calendar')
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -929,7 +931,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               { key: 'calendar', label: 'Content Calendar', Icon: Calendar },
               { key: 'prospects', label: `Prospects & Copy (${prospects.length})`, Icon: MessageSquare },
               { key: 'brief', label: 'Brief & Assets', Icon: FileText },
-              { key: 'ask', label: 'Ask', Icon: Sparkles },
+              ...(linkedInConnected ? [{ key: 'ask', label: 'Ask', Icon: Sparkles }] : []),
             ] as { key: TabKey; label: string; Icon: any }[]).map(({ key, label, Icon }) => (
               <button
                 key={key}
