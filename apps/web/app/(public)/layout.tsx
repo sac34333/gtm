@@ -56,7 +56,7 @@ const faqSchema = {
       name: 'What AI models does GTM Engine use to generate content?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'GTM Engine routes AI generation tasks across multiple leading models. For image generation it uses Flux Pro via fal.ai. For video it uses Kling and other fal.ai models. For text generation (campaign briefs, outreach copy, campaign chat) it uses GPT-4o, Claude Sonnet, and Gemini Pro via OpenRouter model routing, automatically selecting the best available model based on the task and the organisation\'s preferences.',
+        text: 'We benchmark and route every step to the AI model that performs best today and swap it out the moment a better one launches. You never have to think about it.',
       },
     },
     {
@@ -64,7 +64,7 @@ const faqSchema = {
       name: 'How does GTM Engine enrich prospect data?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'GTM Engine uses a waterfall enrichment approach across multiple providers: People Data Labs (PDL), Apollo.io, Hunter.io, and Clearbit. Each prospect in an ICP list is enriched with company size, industry, job title, LinkedIn profile, email, and other firmographic data. An ICP score (0–100) is calculated based on how well the prospect matches the organisation\'s ideal customer profile. If one provider returns incomplete data, the next provider in the waterfall fills the gaps.',
+        text: 'GTM Engine runs an AI-powered global search tailored to your ideal customer profile. It finds and enriches prospects based on the industries, job titles, company sizes, and geographies that matter to your business — then calculates a fit score so you know exactly who to prioritise.',
       },
     },
     {
@@ -80,7 +80,7 @@ const faqSchema = {
       name: 'Is GTM Engine secure?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'GTM Engine encrypts all third-party API keys and LinkedIn access tokens with AES-256-GCM before storing them in the database. Keys are never returned to the browser after the initial save. The platform is built on Supabase with Row-Level Security (RLS) policies enforcing organisation-level data isolation — one organisation cannot access another\'s data. All Edge Functions run in Deno on Supabase infrastructure with JWT-based authentication.',
+        text: 'Yes. Your data is encrypted in transit and at rest, isolated to your organisation, and never shared with other customers or used to train AI models. We follow industry-standard security practices and access controls.',
       },
     },
     {

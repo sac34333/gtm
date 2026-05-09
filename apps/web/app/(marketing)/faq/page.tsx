@@ -166,15 +166,15 @@ function StaticFaqs() {
     },
     {
       q: 'What AI models does GTM Engine use?',
-      a: 'GTM Engine uses Flux Pro via fal.ai for image generation, Kling and similar models for video, and GPT-4o / Claude Sonnet / Gemini Pro via OpenRouter for text generation. It automatically selects the best available model per task.',
+      a: 'We benchmark and route every step to the AI model that performs best today and swap it out the moment a better one launches. You never have to think about it.',
     },
     {
       q: 'How does prospect enrichment work?',
-      a: 'GTM Engine runs a waterfall enrichment across People Data Labs, Apollo, Hunter, and Clearbit. For each prospect it fetches company size, industry, job title, and contact data, then calculates an ICP fit score (0–100) based on your ideal customer profile criteria.',
+      a: 'GTM Engine runs an AI-powered global search tailored to your ideal customer profile. It finds and enriches prospects based on the industries, job titles, company sizes, and geographies that matter to your business — then calculates a fit score so you know exactly who to prioritise.',
     },
     {
       q: 'Is my data secure?',
-      a: 'All API keys and access tokens are encrypted with AES-256-GCM before storage. Keys are never returned to the browser after initial save. Data is isolated per organisation using Supabase Row Level Security. Files are stored in private Storage buckets accessible only via short-lived signed URLs.',
+      a: 'Yes. Your data is encrypted in transit and at rest, isolated to your organisation, and never shared with other customers or used to train AI models. We follow industry-standard security practices and access controls.',
     },
   ]
 
