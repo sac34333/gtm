@@ -162,24 +162,6 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
             </span>
           </div>
 
-          {/* Quick reference */}
-          <div className="rounded-lg border border-slate-700/50 bg-slate-900/50 p-3.5 text-xs text-slate-400 space-y-2">
-            <div className="text-slate-300 font-medium mb-1">Quick reference — required scopes</div>
-            {[
-              { scope: 'r_organization_admin', note: 'Find pages you administer' },
-              { scope: 'r_organization_social', note: 'Read company page posts' },
-              { scope: 'w_organization_social', note: 'Publish to company page' },
-              { scope: 'r_ads', note: 'Read ad campaign data' },
-              { scope: 'r_ads_reporting', note: 'Read performance analytics' },
-            ].map(({ scope, note }) => (
-              <div key={scope} className="flex items-center gap-2">
-                <code className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-indigo-300 font-mono">{scope}</code>
-                <span className="text-slate-500">{note}</span>
-              </div>
-            ))}
-            <p className="text-slate-600 pt-1">Token is encrypted (AES-256-GCM) and never returned to the browser after saving.</p>
-          </div>
-
           <div>
             <Label htmlFor="li-token" className="text-sm">LinkedIn Access Token</Label>
             <Input
