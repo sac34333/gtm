@@ -154,7 +154,7 @@ function StaticFaqs() {
   const items = [
     {
       q: 'What is GTM Engine?',
-      a: 'GTM Engine is an AI-powered go-to-market platform for B2B marketing and sales teams. It ingests and scores real-time market signals from global data sources to surface trends relevant to your business, generates AI images and videos grounded in your brand context, identifies and enriches ICP prospects using a multi-provider data waterfall (People Data Labs, Apollo, Hunter, Clearbit), and produces personalised outreach copy and a full campaign brief — complete with posting schedule, hashtag sets, and caption variants — all in a single end-to-end workflow.',
+      a: 'GTM Engine is an AI-powered go-to-market platform for B2B marketing and sales teams. It ingests and scores real-time market signals from global data sources to surface the trends that matter to your business, generates AI images and videos grounded in your brand context, identifies and enriches ICP prospects using AI-powered search, produces personalised outreach copy and a full campaign brief — complete with posting schedule, hashtag sets, and caption variants — publishes content directly to your LinkedIn company page, and gives your team a conversational AI assistant to ask questions about live campaign performance and LinkedIn metrics, all in a single end-to-end workspace.',
     },
     {
       q: 'How does GTM Engine help B2B marketing teams?',
