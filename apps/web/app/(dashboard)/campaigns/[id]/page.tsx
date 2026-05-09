@@ -728,7 +728,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         .select('id,prospect_id,prospects(first_name,last_name,job_title,company_name,icp_score)')
         .eq('campaign_id', id),
       supabase.from('outreach_copies').select('id,prospect_id,platform,status,copy_text').eq('campaign_id', id),
-      supabase.from('org_linkedin_connections').select('id', { count: 'exact', head: true }),
+      supabase.from('org_linkedin_connections').select('org_id').maybeSingle(),
     ])
 
     if (campRes.data) setCampaign(campRes.data as Campaign)
@@ -743,9 +743,10 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
 
     if (copiesRes.data) setCopies(copiesRes.data as OutreachCopy[])
 
-    setLinkedInConnected((liRes.count ?? 0) > 0)
+    const isConnected = liRes.data !== null
+    setLinkedInConnected(isConnected)
     // If LinkedIn was disconnected, fall back from the Ask tab
-    if ((liRes.count ?? 0) === 0 && activeTab === 'ask') setActiveTab('calendar')
+    if (!isConnected && activeTab === 'ask') setActiveTab('calendar')
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
