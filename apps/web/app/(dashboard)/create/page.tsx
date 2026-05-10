@@ -512,11 +512,11 @@ export default function CreatePage() {
                   value={tags.additional_notes}
                   onChange={e => handleTagChange('additional_notes', e.target.value)}
                   placeholder={`e.g. "Add a bold caption at the top saying Automate Your Outreach"\ne.g. "Show a laptop with a dashboard on screen, dark office background"\ne.g. "Make it feel like a premium luxury brand, not a startup"`}
-                  rows={3}
-                  maxLength={600}
+                  rows={5}
+                  maxLength={1500}
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none text-sm"
                 />
-                <div className="text-right text-xs text-slate-600">{tags.additional_notes.length}/600</div>
+                <div className="text-right text-xs text-slate-600">{tags.additional_notes.length}/1500</div>
               </div>
             </div>
 

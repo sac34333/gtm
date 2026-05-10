@@ -191,7 +191,7 @@ Deno.serve(async (req: Request) => {
       platform: pt.platform ?? 'linkedin',
       aspect_ratio: pt.aspect_ratio ?? '1:1',
       cta_block: buildCtaBlock(pt.cta_text),
-      additional_notes: truncate(pt.additional_notes, 600),
+      additional_notes: truncate(pt.additional_notes, 1500),
       negative_tokens: negativeTokens || '(none)',
     }
 
