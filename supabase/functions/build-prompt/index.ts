@@ -32,18 +32,10 @@ function buildSignalBlock(signal: any): string {
   return sum ? `${head} \u2014 ${sum}` : head
 }
 
-function buildCtaBlock(ctaText?: string, additionalNotes?: string): string {
+function buildCtaBlock(ctaText?: string): string {
   const cta = (ctaText ?? '').trim()
-  if (cta) {
-    return `Render ONLY this single CTA as clean sans-serif typography in the bottom-right or bottom-centre, high contrast, one line: "${cta}". No other text, captions, or labels anywhere else in the image.`
-  }
-  // If the creative direction explicitly requests text/headlines/captions, don't suppress them
-  const notes = (additionalNotes ?? '').toLowerCase()
-  const requestsText = /\b(text|headline|caption|title|reading|saying|label|typography|wordmark)\b/.test(notes)
-  if (requestsText) {
-    return 'Render any text exactly as specified in the creative direction above. Keep typography clean, legible, and on-brand.'
-  }
-  return 'Avoid rendering text, captions, or letters in the image unless the creative direction above specifically requests them.'
+  if (!cta) return ''
+  return `Render ONLY this single CTA as clean sans-serif typography in the bottom-right or bottom-centre, high contrast, one line: "${cta}". No other text anywhere else in the image.`
 }
 
 function fillTemplate(tpl: string, vars: Record<string, string>): string {
@@ -196,7 +188,7 @@ Deno.serve(async (req: Request) => {
       mood: pt.mood ?? 'professional',
       platform: pt.platform ?? 'linkedin',
       aspect_ratio: pt.aspect_ratio ?? '1:1',
-      cta_block: buildCtaBlock(pt.cta_text, pt.additional_notes),
+      cta_block: buildCtaBlock(pt.cta_text),
       additional_notes: truncate(pt.additional_notes, 1500),
       negative_tokens: negativeTokens || '(none)',
     }
