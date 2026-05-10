@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2 } from 'lucide-react'
+import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2, Film } from 'lucide-react'
 import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 import { format } from 'date-fns'
 import { BackButton } from '@/components/layout/back-button'
@@ -210,6 +210,17 @@ function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInCon
 
         {/* Action buttons — always visible, mobile-friendly */}
         <div className="flex items-center gap-0.5 shrink-0 -mr-0.5">
+          {/* Animate this image → video */}
+          {job.status === 'completed' && isImage && (
+            <Link
+              href={`/create?parent_job_id=${job.id}&asset_type=video`}
+              title="Animate this image into a video"
+              onClick={(e) => e.stopPropagation()}
+              className="p-2 rounded-lg text-slate-400 hover:text-violet-400 hover:bg-violet-500/10 active:bg-violet-500/20 transition-colors touch-manipulation"
+            >
+              <Film className="w-4 h-4" />
+            </Link>
+          )}
           {linkedInConnected && job.status === 'completed' && isImage && signedUrl && (
             <button
               type="button"

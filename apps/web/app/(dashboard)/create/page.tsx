@@ -110,6 +110,58 @@ const CD_PRESETS: { group: string; chips: { label: string; text: string }[] }[] 
   },
 ]
 
+// Creative direction preset chips — VIDEO (Veo 3.1 formula: Cinematography + Subject + Action + Context + Style)
+const VIDEO_CD_PRESETS: { group: string; chips: { label: string; text: string }[] }[] = [
+  {
+    group: 'Camera',
+    chips: [
+      { label: '🎬 Slow dolly in', text: 'Slow dolly-in toward subject, shallow depth of field, bokeh background gradually softening.' },
+      { label: '📸 Tracking shot', text: 'Side tracking shot following subject as they move through the scene, steady and fluid.' },
+      { label: '🦅 Aerial crane', text: 'Aerial crane shot rising and tilting down to reveal the full scene from above.' },
+      { label: '🔄 360° orbit', text: 'Camera orbits 360° around the subject in a smooth continuous cinematic rotation.' },
+      { label: '🎭 Push to close-up', text: 'Slow push-in to extreme close-up, revealing product detail or a subtle facial expression.' },
+    ],
+  },
+  {
+    group: 'Shot type',
+    chips: [
+      { label: '🖼️ Wide establishing', text: 'Wide establishing shot, full environment visible, conveys scale and spatial context.' },
+      { label: '👤 Medium shot', text: 'Medium shot framing subject from waist up, neutral and grounded perspective.' },
+      { label: '🔍 Extreme close-up', text: 'Extreme close-up on a single detail — hands on keyboard, screen interface, or product surface.' },
+      { label: '📐 Low angle', text: 'Low angle looking up at subject, conveying authority, power, and scale.' },
+      { label: '👁️ POV', text: 'First-person POV — viewer moves through the scene as the protagonist.' },
+    ],
+  },
+  {
+    group: 'Audio',
+    chips: [
+      { label: '🔇 Silent', text: 'No dialogue or voiceover. Pure visuals with subtle ambient texture only.' },
+      { label: '🎵 Ambient sound', text: 'SFX: gentle ambient office soundscape — air conditioning hum, distant keyboard taps, soft background murmur.' },
+      { label: '💬 Voiceover', text: 'A confident clear voice says, "This changes everything." Authoritative mid-tone delivery.' },
+      { label: '🔊 UI sound FX', text: 'SFX: crisp UI interaction sounds — clicks, swooshes, subtle notification chime as elements appear.' },
+      { label: '🎼 Cinematic score', text: 'Underscore with minimal cinematic score — low strings building tension, resolving to warmth at end.' },
+    ],
+  },
+  {
+    group: 'Pacing',
+    chips: [
+      { label: '💫 Slow motion', text: 'Shot at 60% slow motion — dreamlike pacing emphasising texture, motion blur, and fine detail.' },
+      { label: '⚡ High energy', text: 'Fast-paced dynamic motion with high energy camera movements and rapid scene reveals.' },
+      { label: '🌊 Smooth float', text: 'Weightless floating motion — everything moves slowly and gracefully, ethereal feel.' },
+      { label: '⏳ Time-lapse', text: 'Time-lapse sequence compressing change over time — progress, growth, day to night.' },
+    ],
+  },
+  {
+    group: 'People',
+    chips: [
+      { label: '👤 No people', text: 'No people in frame. Product, environment, and abstract elements only.' },
+      { label: '👔 Executive', text: 'Confident executive in premium tailored business attire, face partially visible, commanding presence.' },
+      { label: '👩‍💼 Female founder', text: 'Female founder in her 30s, smart casual attire, confident natural posture, soft background.' },
+      { label: '🤝 Team', text: 'Small diverse team of three professionals collaborating around a screen, candid and energetic.' },
+    ],
+  },
+]
+
 const VISUAL_STYLES = [
   { value: 'photography', label: 'Photography', Icon: Camera },
   { value: 'illustration', label: 'Illustration', Icon: Pencil },
@@ -337,6 +389,7 @@ export default function CreatePage() {
   const [quotaMax, setQuotaMax] = useState(50)
   const [videoQuotaUsed, setVideoQuotaUsed] = useState(0)
   const [videoQuotaMax, setVideoQuotaMax] = useState(5)
+  const [parentJobInfo, setParentJobInfo] = useState<{ subject: string; signedUrl: string | null } | null>(null)
   const [signalHeadline, setSignalHeadline] = useState<string | null>(null)
   const [signalBannerDismissed, setSignalBannerDismissed] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -393,6 +446,28 @@ export default function CreatePage() {
       if (data?.headline) { setSignalHeadline(data.headline); setTags(prev => ({ ...prev, subject: prev.subject || data.headline.slice(0, 200) })) }
     })
   }, [signalId])
+
+  // When arriving from an "Animate this image" link, auto-switch to video and load the source image.
+  useEffect(() => {
+    if (!parentJobId) return
+    setAssetType('video')
+    const supabase = getSupabaseBrowserClient()
+    supabase
+      .from('generation_jobs')
+      .select('id, output_url, prompt_tags')
+      .eq('id', parentJobId)
+      .single()
+      .then(async ({ data }: { data: any }) => {
+        if (!data) return
+        let signedUrl: string | null = null
+        if (data.output_url) {
+          const path = (data.output_url as string).replace(/^assets\//, '')
+          const { data: signed } = await supabase.storage.from('assets').createSignedUrl(path, 3600)
+          signedUrl = signed?.signedUrl ?? null
+        }
+        setParentJobInfo({ subject: data.prompt_tags?.subject ?? 'Untitled image', signedUrl })
+      })
+  }, [parentJobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill form from URL params (e.g. when arriving from Regenerate on a job page).
   // Runs once on mount; brand-context defaults are then overridden by these explicit values.
@@ -453,7 +528,7 @@ export default function CreatePage() {
       try {
         const { data: { session } } = await supabase.auth.getSession(); if (!session) return
         const headers = { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-        const buildRes = await fetch(`${SUPABASE_URL}/functions/v1/build-prompt`, { method: 'POST', headers, body: JSON.stringify({ signal_id: signalId, prompt_tags: { ...tags, asset_type: assetType } }) })
+        const buildRes = await fetch(`${SUPABASE_URL}/functions/v1/build-prompt`, { method: 'POST', headers, body: JSON.stringify({ signal_id: signalId, prompt_tags: { ...tags, asset_type: assetType }, step_key: assetType === 'video' ? 'video_generation' : 'image_generation' }) })
         if (!buildRes.ok) { const err = await buildRes.json(); setError(err.error ?? 'Failed to build prompt'); return }
         const { content_job } = await buildRes.json()
         content_job.model_id = selectedModelId; content_job.provider_key = selectedProviderKey; content_job.asset_type = assetType
@@ -543,6 +618,20 @@ export default function CreatePage() {
           </div>
         )}
 
+        {/* Image-to-video source banner — shown when animating an existing image */}
+        {parentJobId && parentJobInfo && (
+          <div className="mb-4 flex items-center gap-3 bg-sky-500/10 border border-sky-500/30 rounded-xl px-4 py-3">
+            {parentJobInfo.signedUrl && (
+              <img src={parentJobInfo.signedUrl} alt="Source image" className="w-14 h-14 rounded-lg object-cover shrink-0 border border-slate-700" />
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-sky-300 uppercase tracking-wide">Image → Video</p>
+              <p className="text-sm text-slate-200 truncate mt-0.5">{parentJobInfo.subject}</p>
+              <p className="text-xs text-slate-500 mt-0.5">The AI will animate this image as the starting frame.</p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           {/* Left column — tag card editor */}
           <div className="lg:col-span-3 space-y-4">
@@ -558,9 +647,9 @@ export default function CreatePage() {
                 <Label className="text-sm font-medium text-slate-400">
                   Creative direction <span className="text-slate-600 font-normal text-xs">— extra instructions for the AI</span>
                 </Label>
-                {/* Preset chips — grouped by category */}
+                {/* Preset chips — context-aware: image chips vs video chips */}
                 <div className="space-y-2">
-                  {CD_PRESETS.map(({ group, chips }) => (
+                  {(assetType === 'image' ? CD_PRESETS : VIDEO_CD_PRESETS).map(({ group, chips }) => (
                     <div key={group} className="flex flex-wrap gap-1.5 items-center">
                       <span className="text-xs text-slate-600 w-16 shrink-0">{group}</span>
                       {chips.map(({ label, text }) => {
@@ -593,7 +682,9 @@ export default function CreatePage() {
                 <Textarea
                   value={tags.additional_notes}
                   onChange={e => handleTagChange('additional_notes', e.target.value)}
-                  placeholder={`Or write your own. Describe the scene like a creative director. Use quotes for exact text.\ne.g. Dark navy background, glowing sky-blue dashboard centre-frame, bold headline "Automate Your Outreach" in white at the top.`}
+                  placeholder={assetType === 'image'
+                    ? `Or write your own. Describe the scene like a creative director. Use quotes for exact text.\ne.g. Dark navy background, glowing sky-blue dashboard centre-frame, bold headline "Automate Your Outreach" in white at the top.`
+                    : `Or write your own. Open with camera movement, then subject and action. Use quotes for dialogue.\ne.g. Slow dolly-in toward a glowing dashboard on screen. A confident voice says, "This changes everything." SFX: subtle keyboard taps. Cinematic grade.`}
                   rows={4}
                   maxLength={1500}
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none text-sm"
