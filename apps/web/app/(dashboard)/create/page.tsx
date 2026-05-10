@@ -12,7 +12,7 @@ import {
   Camera, Pencil, Triangle, Box, LayoutGrid,
   ImageIcon, Video, Globe, Download, RefreshCw,
   Target, Wand2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp,
-  Loader2, Code2, X, ExternalLink, AlertCircle, Sparkles,
+  Loader2, Code2, X, ExternalLink, AlertCircle, Sparkles, HelpCircle,
 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -581,7 +581,12 @@ export default function CreatePage() {
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-semibold gtm-title tracking-tight">Create Asset</h1>
-            <p className="text-slate-400 mt-1 text-sm">AI-powered GTM content, guided by your brand.</p>
+            <p className="text-slate-400 mt-1 text-sm">
+              AI-powered GTM content, guided by your brand.{' '}
+              <a href="/help/create-guide" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors">
+                <HelpCircle className="w-3.5 h-3.5" />How does this work?
+              </a>
+            </p>
           </div>
           <div className="text-right text-xs mt-1 space-x-3">
             <span className={quotaUsed >= quotaMax ? 'text-red-400' : 'text-slate-500'}>Images: {quotaUsed}/{quotaMax}</span>
@@ -644,9 +649,14 @@ export default function CreatePage() {
                 <div className="text-right text-xs text-slate-600">{tags.subject.length}/200</div>
               </div>
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-slate-400">
-                  Creative direction <span className="text-slate-600 font-normal text-xs">— extra instructions for the AI</span>
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-slate-400">
+                    Creative direction <span className="text-slate-600 font-normal text-xs">— extra instructions for the AI</span>
+                  </Label>
+                  <a href="/help/create-guide#creative-direction" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-400 transition-colors">
+                    <HelpCircle className="w-3 h-3" />Guide
+                  </a>
+                </div>
                 {/* Preset chips — context-aware: image chips vs video chips */}
                 <div className="space-y-2">
                   {(assetType === 'image' ? CD_PRESETS : VIDEO_CD_PRESETS).map(({ group, chips }) => (
