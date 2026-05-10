@@ -511,7 +511,7 @@ export default function CreatePage() {
                 <Textarea
                   value={tags.additional_notes}
                   onChange={e => handleTagChange('additional_notes', e.target.value)}
-                  placeholder={`e.g. "Add a bold caption at the top saying Automate Your Outreach"\ne.g. "Show a laptop with a dashboard on screen, dark office background"\ne.g. "Make it feel like a premium luxury brand, not a startup"`}
+                  placeholder={`Describe the scene like a creative director. Use quotes for exact text.\ne.g. A confident founder in a navy suit at floor-to-ceiling windows overlooking a city at dusk. Bold headline "Automate Your Outreach" in white sans-serif at the top.\ne.g. Overhead flat-lay of a sleek laptop showing a dashboard, dark walnut desk, soft studio lighting, minimal aesthetic.\ne.g. Dark navy background, glowing sky-blue dashboard interface centre-frame, amber accent on one panel.`}
                   rows={5}
                   maxLength={1500}
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none text-sm"

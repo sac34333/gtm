@@ -164,6 +164,9 @@ Deno.serve(async (req: Request) => {
     const pt = prompt_tags as Record<string, string>
 
     // Combine + dedupe negatives as comma tokens
+    // Build brand style guidance (positive framing — per Nano Banana / Gemini best practices)
+    // Visual styles to avoid → converted to positive equivalents in [QUALITY] section
+    // Negatives kept as metadata only (compiled_negative) — not injected into the prompt
     const negativeRaw = [
       pt.negative_prompt ?? '',
       topicsToAvoid.join(', '),
@@ -180,7 +183,6 @@ Deno.serve(async (req: Request) => {
       brand_guidelines_text: truncate(brand.brand_guidelines_text, 400),
       active_themes: themes.join(', '),
       decision_maker_titles: titles.join(', '),
-      competitors: competitors.join(', ') || '(none specified)',
       brand_colours_block: buildColoursBlock(brand.brand_colours, pt.colour_palette),
       signal_block: buildSignalBlock(signal),
       subject: pt.subject ?? '',
@@ -190,7 +192,6 @@ Deno.serve(async (req: Request) => {
       aspect_ratio: pt.aspect_ratio ?? '1:1',
       cta_block: buildCtaBlock(pt.cta_text),
       additional_notes: truncate(pt.additional_notes, 1500),
-      negative_tokens: negativeTokens || '(none)',
     }
 
     // Load template sections from DB (org override > global)
