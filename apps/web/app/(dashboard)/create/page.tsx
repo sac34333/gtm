@@ -60,6 +60,56 @@ function SelectCard({ selected, onClick, children, disabled = false }: {
   )
 }
 
+// Creative direction preset chips — grouped by category
+const CD_PRESETS: { group: string; chips: { label: string; text: string }[] }[] = [
+  {
+    group: 'Scene',
+    chips: [
+      { label: '🖥️ Dashboard UI', text: 'Centre: a sleek dashboard interface glowing on screen, dark office background, premium SaaS aesthetic.' },
+      { label: '🌆 City at dusk', text: 'Floor-to-ceiling windows overlooking a city skyline at dusk, warm golden rim light, cinematic depth of field.' },
+      { label: '🗂️ Desk flat-lay', text: 'Overhead flat-lay of a minimalist desk with a laptop showing a dashboard, dark walnut surface, soft studio lighting.' },
+      { label: '🔵 Abstract data', text: 'Abstract visualization of flowing data streams, nodes, and connections on a dark navy background, sky-blue glow.' },
+      { label: '🏢 Boardroom', text: 'Modern glass boardroom with natural light, clean lines, empty white table, no people, architectural feel.' },
+    ],
+  },
+  {
+    group: 'Lighting',
+    chips: [
+      { label: '💡 Studio softbox', text: 'Even three-point softbox studio lighting, clean shadows, professional product-shoot feel.' },
+      { label: '🌅 Golden hour', text: 'Golden hour backlighting, long warm shadows, cinematic glow on the subject.' },
+      { label: '🎭 Chiaroscuro', text: 'Chiaroscuro lighting — high contrast, dramatic dark shadows against a bright focal point.' },
+      { label: '🔆 Neon ambient', text: 'Soft ambient neon glow in brand primary colour, dark background, moody tech atmosphere.' },
+    ],
+  },
+  {
+    group: 'Text & Headlines',
+    chips: [
+      { label: '📢 Bold top headline', text: 'Bold white sans-serif headline at the top of the image. Underneath, a smaller subtitle in light grey.' },
+      { label: '🏷️ Bottom CTA strip', text: 'A clean horizontal strip at the bottom with CTA text in white bold type on a brand-coloured background.' },
+      { label: '🔤 Wordmark only', text: 'Subtle brand wordmark in the bottom-right corner, small and understated.' },
+      { label: '🗒️ No text', text: 'No text, labels, or typography in the image — purely visual.' },
+    ],
+  },
+  {
+    group: 'Composition',
+    chips: [
+      { label: '🎯 Centre focus', text: 'Single focal point centred, generous negative space on all sides, clean minimal layout.' },
+      { label: '📐 Rule of thirds', text: 'Subject placed on the left third, right side open for text overlay, asymmetric balance.' },
+      { label: '🔭 Wide angle', text: 'Wide-angle lens perspective, expansive scene, sense of scale and environment.' },
+      { label: '🔬 Macro close-up', text: 'Extreme macro close-up, shallow depth of field, soft bokeh background.' },
+    ],
+  },
+  {
+    group: 'People',
+    chips: [
+      { label: '👤 No people', text: 'No people in the image — purely product, environment, or abstract.' },
+      { label: '👔 Exec portrait', text: 'A confident South Asian male executive in his 40s, tailored navy suit, looking off-camera, editorial portrait style.' },
+      { label: '👩‍💼 Female founder', text: 'A thoughtful South Asian woman founder in her 30s, smart casual attire, natural confident posture, soft background.' },
+      { label: '🤝 Team shot', text: 'A diverse small team of three professionals in a modern open office, candid collaborative moment, no staged poses.' },
+    ],
+  },
+]
+
 const VISUAL_STYLES = [
   { value: 'photography', label: 'Photography', Icon: Camera },
   { value: 'illustration', label: 'Illustration', Icon: Pencil },
@@ -508,11 +558,43 @@ export default function CreatePage() {
                 <Label className="text-sm font-medium text-slate-400">
                   Creative direction <span className="text-slate-600 font-normal text-xs">— extra instructions for the AI</span>
                 </Label>
+                {/* Preset chips — grouped by category */}
+                <div className="space-y-2">
+                  {CD_PRESETS.map(({ group, chips }) => (
+                    <div key={group} className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-xs text-slate-600 w-16 shrink-0">{group}</span>
+                      {chips.map(({ label, text }) => {
+                        const active = tags.additional_notes.includes(text)
+                        return (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => {
+                              if (active) {
+                                handleTagChange('additional_notes', tags.additional_notes.replace(text, '').replace(/\s{2,}/g, ' ').trim())
+                              } else {
+                                const current = tags.additional_notes.trim()
+                                handleTagChange('additional_notes', current ? `${current} ${text}` : text)
+                              }
+                            }}
+                            className={`px-2 py-1 rounded-md text-xs border transition-colors touch-manipulation ${
+                              active
+                                ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
+                                : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
                 <Textarea
                   value={tags.additional_notes}
                   onChange={e => handleTagChange('additional_notes', e.target.value)}
-                  placeholder={`Describe the scene like a creative director. Use quotes for exact text.\ne.g. A confident founder in a navy suit at floor-to-ceiling windows overlooking a city at dusk. Bold headline "Automate Your Outreach" in white sans-serif at the top.\ne.g. Overhead flat-lay of a sleek laptop showing a dashboard, dark walnut desk, soft studio lighting, minimal aesthetic.\ne.g. Dark navy background, glowing sky-blue dashboard interface centre-frame, amber accent on one panel.`}
-                  rows={5}
+                  placeholder={`Or write your own. Describe the scene like a creative director. Use quotes for exact text.\ne.g. Dark navy background, glowing sky-blue dashboard centre-frame, bold headline "Automate Your Outreach" in white at the top.`}
+                  rows={4}
                   maxLength={1500}
                   className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none text-sm"
                 />
