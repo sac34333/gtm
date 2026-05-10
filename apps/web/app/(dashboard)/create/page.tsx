@@ -44,7 +44,7 @@ type BrandContext = {
 
 const DEFAULT_TAGS: PromptTags = {
   subject: '', visual_style: 'photography', mood: 'professional', colour_palette: '',
-  platform: 'linkedin', aspect_ratio: '1:1', cta_text: '', negative_prompt: '', additional_notes: '',
+  platform: 'linkedin', aspect_ratio: '4:5', cta_text: '', negative_prompt: '', additional_notes: '',
 }
 
 function SelectCard({ selected, onClick, children, disabled = false }: {
@@ -76,7 +76,7 @@ const MOODS = [
   { value: 'warm', label: 'Warm', emoji: '☀️' },
 ]
 const PLATFORMS = [
-  { value: 'linkedin', label: 'LinkedIn', sub: 'Square · 4:5', ratio: '4:5' },
+  { value: 'linkedin', label: 'LinkedIn', sub: 'Portrait · 4:5', ratio: '4:5' },
   { value: 'instagram', label: 'Instagram', sub: 'Square or Story', ratio: '1:1' },
   { value: 'twitter', label: 'Twitter / X', sub: 'Landscape 16:9', ratio: '16:9' },
   { value: 'whatsapp', label: 'WhatsApp', sub: 'Square · 1:1', ratio: '1:1' },
