@@ -168,19 +168,58 @@ export async function callFal(
 
 /**
  * callFalVideo — submits an async video job to fal.ai queue.
+ * Supports both Veo 3.1 and Seedance 2.0 (text-to-video and image-to-video variants).
  * Always returns immediately with request_id (video is always async).
  */
 export async function callFalVideo(
   modelId: string,
-  payload: { compiled_prompt: string; compiled_negative?: string; aspect_ratio?: string; duration_seconds?: number },
+  payload: {
+    compiled_prompt: string
+    compiled_negative?: string
+    aspect_ratio?: string
+    /** Duration string — Veo format: "4s"|"6s"|"8s"; Seedance format: "auto"|"4"…"15" */
+    duration?: string
+    /** Resolution: "480p"|"720p"|"1080p"|"4k" */
+    resolution?: string
+    generate_audio?: boolean
+    /** Signed URL of the source image (image-to-video) */
+    image_url?: string
+    /** Optional end-frame image URL (Seedance i2v only) */
+    end_image_url?: string
+  },
   apiKey: string,
 ): Promise<{ request_id: string; status: string }> {
+  const isI2V = modelId.includes('image-to-video')
+  const isVeo = modelId.includes('veo')
+
   const input: Record<string, any> = {
     prompt: payload.compiled_prompt,
   }
-  if (payload.compiled_negative) input.negative_prompt = payload.compiled_negative
+
+  // Aspect ratio
   if (payload.aspect_ratio) input.aspect_ratio = payload.aspect_ratio
-  if (payload.duration_seconds) input.duration_seconds = payload.duration_seconds
+
+  // Duration — pass only if explicitly set (skip "auto" for Veo; Seedance accepts "auto")
+  if (payload.duration && payload.duration !== '') {
+    if (payload.duration !== 'auto' || !isVeo) {
+      input.duration = payload.duration
+    }
+  }
+
+  // Resolution
+  if (payload.resolution) input.resolution = payload.resolution
+
+  // Audio generation (both models support it)
+  if (payload.generate_audio !== undefined) input.generate_audio = payload.generate_audio
+
+  // Negative prompt — Veo only (Seedance schema doesn't include it)
+  if (isVeo && payload.compiled_negative) input.negative_prompt = payload.compiled_negative
+
+  // Source image — required for all i2v endpoints
+  if (isI2V && payload.image_url) input.image_url = payload.image_url
+
+  // End-frame image — Seedance i2v only
+  if (isI2V && !isVeo && payload.end_image_url) input.end_image_url = payload.end_image_url
 
   const submitRes = await fetchWithRetry(`${FAL_BASE}/${modelId}`, {
     method: 'POST',

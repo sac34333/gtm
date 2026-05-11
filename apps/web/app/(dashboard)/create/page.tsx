@@ -13,6 +13,7 @@ import {
   ImageIcon, Video, Globe, Download, RefreshCw,
   Target, Wand2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp,
   Loader2, Code2, X, ExternalLink, AlertCircle, Sparkles, HelpCircle,
+  Zap, Upload, Volume2, Film,
 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -28,11 +29,25 @@ type PromptTags = {
   negative_prompt: string; additional_notes: string
 }
 type AssetType = 'image' | 'video'
+type VideoModelCaps = {
+  family: 'veo' | 'seedance'
+  t2v_standard: string; t2v_fast: string
+  i2v_standard: string; i2v_fast: string
+  aspect_ratios: string[]
+  aspect_ratios_i2v?: string[]
+  durations: string[]
+  resolutions: string[]
+  fast_resolutions: string[]
+  supports_audio: boolean
+  supports_negative_prompt: boolean
+  supports_end_image: boolean
+  default_fast: boolean
+}
 type Model = {
   model_id: string; provider_key: string; model_label: string; model_type: string
   cost_tier: string | null; estimated_time_seconds: number | null
   requires_paid_plan: boolean; key_source: string; org_has_key: boolean
-  default_for_step_key: string[] | null
+  default_for_step_key: string[] | null; model_caps?: VideoModelCaps | null
 }
 type BrandColours = { primary?: string; secondary?: string; accent?: string }
 type BrandContext = {
@@ -178,11 +193,11 @@ const MOODS = [
   { value: 'warm', label: 'Warm', emoji: '☀️' },
 ]
 const PLATFORMS = [
-  { value: 'linkedin', label: 'LinkedIn', sub: 'Portrait · 4:5', ratio: '4:5', videoSub: 'Vertical · 9:16', videoRatio: '9:16' },
-  { value: 'instagram', label: 'Instagram', sub: 'Square or Story', ratio: '1:1', videoSub: 'Reels · 9:16', videoRatio: '9:16' },
-  { value: 'twitter', label: 'Twitter / X', sub: 'Landscape 16:9', ratio: '16:9', videoSub: 'Landscape · 16:9', videoRatio: '16:9' },
-  { value: 'whatsapp', label: 'WhatsApp', sub: 'Square · 1:1', ratio: '1:1', videoSub: 'Vertical · 9:16', videoRatio: '9:16' },
-  { value: 'generic', label: 'Generic', sub: 'Any format', ratio: '1:1', videoSub: 'Widescreen · 16:9', videoRatio: '16:9' },
+  { value: 'linkedin', label: 'LinkedIn', sub: 'Portrait · 4:5', ratio: '4:5' },
+  { value: 'instagram', label: 'Instagram', sub: 'Square or Story', ratio: '1:1' },
+  { value: 'twitter', label: 'Twitter / X', sub: 'Landscape 16:9', ratio: '16:9' },
+  { value: 'whatsapp', label: 'WhatsApp', sub: 'Square · 1:1', ratio: '1:1' },
+  { value: 'generic', label: 'Generic', sub: 'Any format', ratio: '1:1' },
 ]
 const RATIOS = [
   { value: '1:1', label: 'Square', w: 40, h: 40 },
@@ -190,8 +205,6 @@ const RATIOS = [
   { value: '9:16', label: 'Portrait/Story', w: 28, h: 48 },
   { value: '4:5', label: 'Portrait Feed', w: 36, h: 44 },
 ]
-// Veo 3.1 only supports 16:9 and 9:16 as API-level parameters.
-const VIDEO_RATIOS = RATIOS.filter(r => r.value === '16:9' || r.value === '9:16')
 
 function RefinementPanel({ open, onClose, originalJobId, originalTags, originalImageUrl, onRefined }: {
   open: boolean; onClose: () => void; originalJobId: string; originalTags: PromptTags
@@ -392,7 +405,17 @@ export default function CreatePage() {
   const [videoQuotaUsed, setVideoQuotaUsed] = useState(0)
   const [videoQuotaMax, setVideoQuotaMax] = useState(5)
   const [parentJobInfo, setParentJobInfo] = useState<{ subject: string; signedUrl: string | null } | null>(null)
-  const [videoDuration, setVideoDuration] = useState<4 | 6 | 8>(8)
+  // Video-specific state
+  const [videoDuration, setVideoDuration] = useState<string>('auto')
+  const [videoFast, setVideoFast] = useState(true)
+  const [videoResolution, setVideoResolution] = useState('720p')
+  const [generateAudio, setGenerateAudio] = useState(true)
+  const [uploadedImagePath, setUploadedImagePath] = useState<string | null>(null)
+  const [uploadedImagePreview, setUploadedImagePreview] = useState<string | null>(null)
+  const [imageUploadError, setImageUploadError] = useState<string | null>(null)
+  // Separate model tracking so switching image↔video doesn't lose model selection
+  const [videoBaseModelId, setVideoBaseModelId] = useState('')
+  const [videoBaseProviderKey, setVideoBaseProviderKey] = useState('')
   const [signalHeadline, setSignalHeadline] = useState<string | null>(null)
   const [signalBannerDismissed, setSignalBannerDismissed] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -430,6 +453,24 @@ export default function CreatePage() {
         const def = pref ? imgModels.find((m: Model) => m.model_id === pref.model_id) : imgModels.find((m: Model) => m.default_for_step_key?.includes('image_generation'))
         const first = def ?? imgModels[0]
         if (first) { setSelectedModelId(first.model_id); setSelectedProviderKey(first.provider_key) }
+
+        // Set video model default separately so switching image↔video is seamless
+        const vidModels = (data.models ?? []).filter((m: Model) => m.model_type === 'video')
+        const vidPref = prefs.find((p: any) => p.step_key === 'video_generation')
+        const vidDef = vidPref ? vidModels.find((m: Model) => m.model_id === vidPref.model_id) : vidModels.find((m: Model) => m.default_for_step_key?.includes('video_generation'))
+        const vidFirst = vidDef ?? vidModels[0]
+        if (vidFirst) {
+          setVideoBaseModelId(vidFirst.model_id)
+          setVideoBaseProviderKey(vidFirst.provider_key)
+          // If we're already in video mode (e.g. came via ?asset_type=video), switch model now
+          if (assetType === 'video') { setSelectedModelId(vidFirst.model_id); setSelectedProviderKey(vidFirst.provider_key) }
+          // Apply caps defaults
+          const caps = vidFirst.model_caps as VideoModelCaps | null
+          if (caps) {
+            setVideoFast(caps.default_fast ?? true)
+            setVideoDuration(caps.durations?.[0] ?? 'auto')
+          }
+        }
       }
       if (!brandRes.error && brandRes.data) {
         const b = brandRes.data as BrandContext; setBrand(b)
@@ -449,6 +490,15 @@ export default function CreatePage() {
       if (data?.headline) { setSignalHeadline(data.headline); setTags(prev => ({ ...prev, subject: prev.subject || data.headline.slice(0, 200) })) }
     })
   }, [signalId])
+
+  // Switch selectedModelId to the appropriate model when assetType changes
+  useEffect(() => {
+    if (assetType === 'video' && videoBaseModelId) {
+      setSelectedModelId(videoBaseModelId)
+      setSelectedProviderKey(videoBaseProviderKey)
+    }
+    // (image model is set in load effect and stays; no need to re-set on switch back)
+  }, [assetType, videoBaseModelId, videoBaseProviderKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When arriving from an "Animate this image" link, auto-switch to video and load the source image.
   useEffect(() => {
@@ -472,17 +522,33 @@ export default function CreatePage() {
       })
   }, [parentJobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-snap aspect ratio to a Veo-supported value when switching to video mode.
+  // Auto-snap aspect ratio to a model-supported value when switching to video mode.
   // Veo 3.1 only supports 16:9 and 9:16 as API parameters — 1:1 and 4:5 will fail.
+  // Seedance 2.0 supports 'auto' and a full set; snap to 'auto' if current ratio unsupported.
   useEffect(() => {
     if (assetType !== 'video') return
     setTags(prev => {
-      if (prev.aspect_ratio !== '16:9' && prev.aspect_ratio !== '9:16') {
-        return { ...prev, aspect_ratio: '9:16' }
+      const supportedRatios = videoCaps?.aspect_ratios ?? ['16:9', '9:16']
+      if (!supportedRatios.includes(prev.aspect_ratio) && !supportedRatios.includes('auto')) {
+        return { ...prev, aspect_ratio: supportedRatios[0] ?? '9:16' }
+      }
+      if (!supportedRatios.includes(prev.aspect_ratio) && supportedRatios.includes('auto')) {
+        return { ...prev, aspect_ratio: 'auto' }
       }
       return prev
     })
-  }, [assetType]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [assetType, selectedModelId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When model changes (or fast mode toggles), snap duration/resolution to first valid value.
+  useEffect(() => {
+    const caps = models.find(m => m.model_id === selectedModelId)?.model_caps as VideoModelCaps | null ?? null
+    if (!caps || assetType !== 'video') return
+    setVideoDuration(d => caps.durations.includes(d) ? d : (caps.durations[0] ?? 'auto'))
+    setVideoResolution(r => {
+      const rez = videoFast ? (caps.fast_resolutions ?? caps.resolutions) : caps.resolutions
+      return rez.includes(r) ? r : (rez[0] ?? '720p')
+    })
+  }, [selectedModelId, videoFast]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pre-fill form from URL params (e.g. when arriving from Regenerate on a job page).
   // Runs once on mount; brand-context defaults are then overridden by these explicit values.
@@ -514,6 +580,31 @@ export default function CreatePage() {
   }, [assetType, models])
 
   function handleTagChange(key: keyof PromptTags, value: string) { setTags(prev => ({ ...prev, [key]: value })) }
+
+  async function handleI2VImageUpload(file: File) {
+    setImageUploadError(null)
+    // Validate size (max 8 MB per Veo / 30 MB per Seedance — use 8 MB as safe limit)
+    if (file.size > 8 * 1024 * 1024) { setImageUploadError('Image must be under 8 MB'); return }
+    const allowed = ['image/png', 'image/jpeg', 'image/webp']
+    if (!allowed.includes(file.type)) { setImageUploadError('Only PNG, JPEG, or WebP images are supported'); return }
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const filename = `i2v_${Date.now()}.${ext}`
+      const uploadRes = await fetch(`${SUPABASE_URL}/functions/v1/get-upload-url`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bucket: 'assets', path: filename, content_type: file.type }),
+      })
+      if (!uploadRes.ok) { setImageUploadError('Could not get upload URL'); return }
+      const { signed_url, path } = await uploadRes.json()
+      const putRes = await fetch(signed_url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      if (!putRes.ok) { setImageUploadError('Upload failed'); return }
+      setUploadedImagePath(path)
+      setUploadedImagePreview(URL.createObjectURL(file))
+    } catch { setImageUploadError('Upload failed — please try again') }
+  }
   function handleJsonChange(text: string) {
     setJsonText(text)
     try { const p = JSON.parse(text); if (p.prompt_tags) setTags(prev => ({ ...prev, ...p.prompt_tags })) } catch {}
@@ -547,10 +638,15 @@ export default function CreatePage() {
         if (!buildRes.ok) { const err = await buildRes.json(); setError(err.error ?? 'Failed to build prompt'); return }
         const { content_job } = await buildRes.json()
         content_job.model_id = selectedModelId; content_job.provider_key = selectedProviderKey; content_job.asset_type = assetType
-        if (assetType === 'video') content_job.video_duration = videoDuration
+        if (assetType === 'video') {
+          content_job.video_duration = videoDuration
+          content_job.video_resolution = videoResolution
+          content_job.generate_audio = generateAudio
+          if (uploadedImagePath) content_job.i2v_source_path = uploadedImagePath
+        }
 
         async function callGenerate() {
-          const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: selectedModelId, provider_key: selectedProviderKey, ...(parentJobId ? { parent_job_id: parentJobId } : {}) }) })
+          const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: assetType === 'video' ? effectiveVideoModelId : selectedModelId, provider_key: selectedProviderKey, ...(parentJobId ? { parent_job_id: parentJobId } : {}) }) })
           if (!genRes.ok) {
             const err = await genRes.json()
             if (genRes.status === 402 || err.error === 'quota_exceeded') { setQuotaError(err); setShowUpgradeModal(true); return null }
@@ -589,6 +685,33 @@ export default function CreatePage() {
   const filteredModels = models.filter(m => m.model_type === assetType)
   const selectedModel = filteredModels.find(m => m.model_id === selectedModelId)
   const quotaRemaining = assetType === 'image' ? quotaMax - quotaUsed : videoQuotaMax - videoQuotaUsed
+
+  // Derived video model capabilities — from the DB model_caps column
+  const videoCaps: VideoModelCaps | null = selectedModel?.model_caps ?? null
+  const isI2V = !!(parentJobId || uploadedImagePath)
+  const effectiveVideoModelId = assetType === 'video' && videoCaps
+    ? isI2V
+      ? (videoFast ? videoCaps.i2v_fast : videoCaps.i2v_standard)
+      : (videoFast ? videoCaps.t2v_fast : videoCaps.t2v_standard)
+    : selectedModelId
+  // Aspect ratios available for the current video model and mode
+  const videoAspectRatios = assetType === 'video' && videoCaps
+    ? isI2V ? (videoCaps.aspect_ratios_i2v ?? videoCaps.aspect_ratios) : videoCaps.aspect_ratios
+    : null
+  // Map caps aspect_ratio strings to visual box dimensions
+  const ratioBoxMap: Record<string, { w: number; h: number; label: string }> = {
+    'auto': { w: 40, h: 40, label: 'Auto' },
+    '16:9': { w: 56, h: 32, label: 'Landscape' },
+    '9:16': { w: 28, h: 48, label: 'Portrait' },
+    '1:1':  { w: 40, h: 40, label: 'Square' },
+    '4:3':  { w: 48, h: 36, label: '4:3' },
+    '3:4':  { w: 36, h: 48, label: '3:4' },
+    '4:5':  { w: 36, h: 44, label: 'Portrait Feed' },
+    '21:9': { w: 56, h: 24, label: 'Cinematic' },
+  }
+  const activeResolutions = assetType === 'video' && videoCaps
+    ? (videoFast ? videoCaps.fast_resolutions : videoCaps.resolutions)
+    : null
 
   return (
     <div className="min-h-screen">
@@ -719,22 +842,54 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Visual Style */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">Visual Style</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {VISUAL_STYLES.map(({ value, label, Icon }) => {
-                  // In video mode, 'photography' means cinematic live-action — rename the label
-                  const displayLabel = (assetType === 'video' && value === 'photography') ? 'Cinematic' : label
-                  return (
+            {/* Input Image — video only, not shown when coming from Library (parentJobId covers that) */}
+            {assetType === 'video' && !parentJobId && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-slate-400">
+                    Input Image <span className="text-slate-600 font-normal">— optional, animates from a starting frame</span>
+                  </Label>
+                  {uploadedImagePath && (
+                    <button type="button" onClick={() => { setUploadedImagePath(null); setUploadedImagePreview(null) }}
+                      className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1">
+                      <X className="w-3 h-3" />Remove
+                    </button>
+                  )}
+                </div>
+                {uploadedImagePreview ? (
+                  <div className="relative w-full">
+                    <img src={uploadedImagePreview} alt="Source frame" className="w-full max-h-48 object-contain rounded-lg border border-slate-700" />
+                    <span className="absolute top-2 left-2 text-[10px] bg-sky-600 text-white px-1.5 py-0.5 rounded font-medium">i2v source</span>
+                  </div>
+                ) : (
+                  <label className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-slate-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-colors cursor-pointer">
+                    <Upload className="w-5 h-5 text-slate-500" />
+                    <span className="text-sm text-slate-400">Upload image to animate</span>
+                    <span className="text-xs text-slate-600">PNG, JPEG, WebP · max 8 MB</span>
+                    <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) handleI2VImageUpload(f) }} />
+                  </label>
+                )}
+                {imageUploadError && (
+                  <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3 shrink-0" />{imageUploadError}</p>
+                )}
+              </div>
+            )}
+
+            {/* Visual Style — image only; for video style is expressed via Creative Direction chips */}
+            {assetType === 'image' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <Label className="text-sm font-medium text-slate-400">Visual Style</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  {VISUAL_STYLES.map(({ value, label, Icon }) => (
                     <SelectCard key={value} selected={tags.visual_style === value} onClick={() => handleTagChange('visual_style', value)}>
                       <Icon className="w-5 h-5 text-slate-300" />
-                      <span className="text-xs text-slate-300 leading-tight">{displayLabel}</span>
+                      <span className="text-xs text-slate-300 leading-tight">{label}</span>
                     </SelectCard>
-                  )
-                })}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Mood */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
@@ -749,32 +904,42 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Platform */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">Platform</Label>
-              <div className="grid grid-cols-5 gap-2">
-                {PLATFORMS.map(({ value, label, sub, ratio, videoSub, videoRatio }) => (
-                  <SelectCard key={value} selected={tags.platform === value} onClick={() => { handleTagChange('platform', value); handleTagChange('aspect_ratio', assetType === 'video' ? videoRatio : ratio) }}>
-                    <Globe className="w-4 h-4 text-slate-400" />
-                    <span className="text-xs text-slate-300 font-medium leading-tight">{label}</span>
-                    <span className="text-[10px] text-slate-500 leading-tight">{assetType === 'video' ? videoSub : sub}</span>
-                  </SelectCard>
-                ))}
+            {/* Platform — image only; for video aspect ratio is driven by caps, not platform */}
+            {assetType === 'image' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <Label className="text-sm font-medium text-slate-400">Platform</Label>
+                <div className="grid grid-cols-5 gap-2">
+                  {PLATFORMS.map(({ value, label, sub, ratio }) => (
+                    <SelectCard key={value} selected={tags.platform === value} onClick={() => { handleTagChange('platform', value); handleTagChange('aspect_ratio', ratio) }}>
+                      <Globe className="w-4 h-4 text-slate-400" />
+                      <span className="text-xs text-slate-300 font-medium leading-tight">{label}</span>
+                      <span className="text-[10px] text-slate-500 leading-tight">{sub}</span>
+                    </SelectCard>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Aspect Ratio */}
+            {/* Aspect Ratio — image: static list; video: caps-driven from model_caps.aspect_ratios */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">
-                Aspect Ratio
-                {assetType === 'video' && <span className="text-slate-600 font-normal text-xs ml-2">— Veo 3.1 supports 16:9 and 9:16 only</span>}
-              </Label>
-              <div className={`grid gap-2 ${assetType === 'video' ? 'grid-cols-2' : 'grid-cols-4'}`}>
-                {(assetType === 'video' ? VIDEO_RATIOS : RATIOS).map(({ value, label, w, h }) => (
+              <Label className="text-sm font-medium text-slate-400">Aspect Ratio</Label>
+              <div className={`grid gap-2 ${
+                assetType === 'video' && videoAspectRatios
+                  ? videoAspectRatios.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'
+                  : 'grid-cols-4'
+              }`}>
+                {(assetType === 'video' && videoAspectRatios
+                  ? videoAspectRatios.map(r => ({ value: r, ...(ratioBoxMap[r] ?? { w: 40, h: 40, label: r }) }))
+                  : RATIOS
+                ).map(({ value, label, w, h }) => (
                   <SelectCard key={value} selected={tags.aspect_ratio === value} onClick={() => handleTagChange('aspect_ratio', value)}>
-                    <svg width={w} height={h}>
-                      <rect x={1} y={1} width={w - 2} height={h - 2} rx={2} className="fill-slate-700 stroke-slate-500" strokeWidth={1.5} />
-                    </svg>
+                    {value === 'auto' ? (
+                      <span className="text-slate-400 text-base leading-none">⊞</span>
+                    ) : (
+                      <svg width={w} height={h}>
+                        <rect x={1} y={1} width={w - 2} height={h - 2} rx={2} className="fill-slate-700 stroke-slate-500" strokeWidth={1.5} />
+                      </svg>
+                    )}
                     <span className="text-[11px] text-slate-300 leading-tight">{label}</span>
                     <span className="text-[10px] text-slate-500">{value}</span>
                   </SelectCard>
@@ -782,26 +947,73 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Clip Duration — video only. Veo 3.1 supports 4 s, 6 s, 8 s as an API parameter. */}
-            {assetType === 'video' && (
+            {/* Clip Duration — video only, driven by model_caps.durations */}
+            {assetType === 'video' && videoCaps && (
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
                 <Label className="text-sm font-medium text-slate-400">Clip Duration <span className="text-slate-600 font-normal">— How long should the clip be?</span></Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {([4, 6, 8] as const).map(s => (
-                    <SelectCard key={s} selected={videoDuration === s} onClick={() => setVideoDuration(s)}>
-                      <span className="text-lg font-semibold text-slate-200">{s}s</span>
-                      <span className="text-[10px] text-slate-500">{s === 4 ? 'Short' : s === 6 ? 'Standard' : 'Long'}</span>
+                <div className={`grid gap-2 ${videoCaps.durations.length > 6 ? 'grid-cols-4 sm:grid-cols-6' : 'grid-cols-3'}`}>
+                  {videoCaps.durations.map(d => (
+                    <SelectCard key={d} selected={videoDuration === d} onClick={() => setVideoDuration(d)}>
+                      <span className={`font-semibold text-slate-200 ${videoCaps.durations.length > 6 ? 'text-sm' : 'text-lg'}`}>
+                        {d === 'auto' ? '∞' : d}
+                      </span>
+                      {d !== 'auto' && <span className="text-[10px] text-slate-500">sec</span>}
                     </SelectCard>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Colour Palette */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">Colour Palette</Label>
-              <ColourPaletteCards value={tags.colour_palette} onChange={v => handleTagChange('colour_palette', v)} brandColours={brand?.brand_colours ?? null} />
-            </div>
+            {/* Resolution — video only, caps-driven; fast mode may restrict available resolutions */}
+            {assetType === 'video' && activeResolutions && activeResolutions.length > 0 && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <Label className="text-sm font-medium text-slate-400">Resolution</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {activeResolutions.map(res => (
+                    <SelectCard key={res} selected={videoResolution === res} onClick={() => setVideoResolution(res)}>
+                      <span className="text-sm font-semibold text-slate-200">{res}</span>
+                    </SelectCard>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Video Settings — Fast/Standard toggle + Audio toggle, video only */}
+            {assetType === 'video' && videoCaps && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <Label className="text-sm font-medium text-slate-400">Video Settings</Label>
+                <div className="space-y-2">
+                  <button type="button" onClick={() => setVideoFast(v => !v)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                      videoFast
+                        ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300'
+                        : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                    }`}>
+                    <span className="flex items-center gap-2"><Zap className="w-3.5 h-3.5" />Fast mode</span>
+                    <span className="text-xs text-slate-500">{videoFast ? 'On · quicker, slightly lower quality' : 'Off · best quality, slower'}</span>
+                  </button>
+                  {videoCaps.supports_audio && (
+                    <button type="button" onClick={() => setGenerateAudio(v => !v)}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                        generateAudio
+                          ? 'border-sky-500/60 bg-sky-500/10 text-sky-300'
+                          : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
+                      }`}>
+                      <span className="flex items-center gap-2"><Volume2 className="w-3.5 h-3.5" />Generate audio</span>
+                      <span className="text-xs text-slate-500">{generateAudio ? 'On · ambient sound + music' : 'Off · silent video'}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Colour Palette — image only; video colour grade lives in Creative Direction chips */}
+            {assetType === 'image' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <Label className="text-sm font-medium text-slate-400">Colour Palette</Label>
+                <ColourPaletteCards value={tags.colour_palette} onChange={v => handleTagChange('colour_palette', v)} brandColours={brand?.brand_colours ?? null} />
+              </div>
+            )}
 
             {/* CTA — images only; for video use the Voiceover audio chip instead */}
             {assetType === 'image' && (

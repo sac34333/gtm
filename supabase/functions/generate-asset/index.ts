@@ -134,6 +134,17 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Image-to-video via a freshly uploaded source image (user uploaded via get-upload-url).
+    // Path is relative to the assets bucket: e.g. "{org_id}/i2v_sources/filename.jpg"
+    if (!referenceImageUrl && content_job.i2v_source_path) {
+      const sourcePath = String(content_job.i2v_source_path)
+      // Security: must be under the requesting org's folder
+      if (sourcePath.startsWith(`${org_id}/i2v_sources/`)) {
+        const { data: signed } = await db.storage.from('assets').createSignedUrl(sourcePath, 3600)
+        if (signed?.signedUrl) referenceImageUrl = signed.signedUrl
+      }
+    }
+
     // Write generation_jobs row
     const { data: job, error: jobError } = await db
       .from('generation_jobs')

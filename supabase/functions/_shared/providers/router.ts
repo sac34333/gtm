@@ -259,6 +259,11 @@ export async function routeVideoGeneration(
         compiled_prompt: prompt,
         compiled_negative: negativePrompt,
         aspect_ratio: payload.prompt_tags?.aspect_ratio ?? payload.aspect_ratio,
+        duration: payload.video_duration as string | undefined,
+        resolution: payload.video_resolution as string | undefined,
+        generate_audio: payload.generate_audio as boolean | undefined,
+        image_url: payload.reference_image_url as string | undefined,
+        end_image_url: payload.end_image_url as string | undefined,
       }, apiKey)
       return { request_id: result.request_id, status: 'pending' }
     }

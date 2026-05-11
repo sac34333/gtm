@@ -42,7 +42,8 @@ Deno.serve(async (req: Request) => {
         key_source, default_for_step_key, is_recommended, recommendation_order,
         context_length, max_output_tokens, output_modalities, compatible_step_keys,
         recommendation_text, requires_paid_plan, estimated_time_seconds, release_date,
-        cost_per_1k_input_tokens, cost_per_1k_output_tokens, notes, is_active
+        cost_per_1k_input_tokens, cost_per_1k_output_tokens, notes, is_active,
+        model_caps
       `)
       .eq('is_active', true)
       .order('recommendation_order', { ascending: true, nullsFirst: false })

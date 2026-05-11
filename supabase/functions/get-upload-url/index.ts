@@ -69,9 +69,9 @@ Deno.serve(async (req: Request) => {
     const { bucket, path: requestedPath, content_type } = body
 
     // 4. Validate inputs
-    if (bucket !== 'brands') {
+    if (bucket !== 'brands' && bucket !== 'assets') {
       return new Response(
-        JSON.stringify({ error: 'invalid_bucket', detail: 'only the brands bucket is allowed' }),
+        JSON.stringify({ error: 'invalid_bucket', detail: 'only brands or assets bucket is allowed' }),
         { status: 400, headers: corsHeaders },
       )
     }
@@ -81,7 +81,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Strip any directory traversal and extract just the filename
-    const filename = requestedPath.split('/').pop()
+    const filename = requestedPath.split('/').filter(Boolean).pop()
     if (!filename || filename.length === 0 || filename.length > 255) {
       return new Response(JSON.stringify({ error: 'invalid_path' }), { status: 400, headers: corsHeaders })
     }
@@ -94,12 +94,26 @@ Deno.serve(async (req: Request) => {
     }
 
     // 5. Build the full path — always prefixed with org_id (enforced here, not from client)
-    const fullPath = `${org_id}/${filename}`
+    //    For assets bucket: only allow i2v_sources/ sub-path (source images for image-to-video)
+    let fullPath: string
+    if (bucket === 'assets') {
+      // Restrict to image types only (no PDF for video source uploads)
+      const IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp'])
+      if (!IMAGE_TYPES.has(content_type)) {
+        return new Response(
+          JSON.stringify({ error: 'invalid_content_type', detail: 'assets bucket only accepts image/png, image/jpeg, image/webp' }),
+          { status: 400, headers: corsHeaders },
+        )
+      }
+      fullPath = `${org_id}/i2v_sources/${filename}`
+    } else {
+      fullPath = `${org_id}/${filename}`
+    }
 
     // 6. Create signed upload URL (60s expiry)
     const { data: uploadData, error: storageError } = await serviceClient
       .storage
-      .from('brands')
+      .from(bucket)
       .createSignedUploadUrl(fullPath)
 
     if (storageError || !uploadData) {
