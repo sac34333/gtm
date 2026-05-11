@@ -99,8 +99,8 @@ const CD_PRESETS: { group: string; chips: { label: string; text: string }[] }[] 
   {
     group: 'Text & Headlines',
     chips: [
-      { label: '📢 Bold top headline', text: 'Bold white sans-serif headline at the top of the image. Underneath, a smaller subtitle in light grey.' },
-      { label: '🏷️ Bottom CTA strip', text: 'A clean horizontal strip at the bottom with CTA text in white bold type on a brand-coloured background.' },
+      { label: '📢 Bold headline', text: 'Bold white sans-serif headline at the top of the image. Underneath, a smaller subtitle in light grey.' },
+      { label: '🏷️ Bottom CTA', text: 'A clean horizontal strip at the bottom with CTA text in white bold type on a brand-coloured background.' },
       { label: '🔤 Wordmark only', text: 'Subtle brand wordmark in the bottom-right corner, small and understated.' },
       { label: '🗒️ No text', text: 'No text, labels, or typography in the image — purely visual.' },
     ],
@@ -134,15 +134,15 @@ const VIDEO_CD_PRESETS: { group: string; chips: { label: string; text: string }[
       { label: '📸 Tracking shot', text: 'Side tracking shot following subject as they move through the scene, steady and fluid.' },
       { label: '🦅 Aerial crane', text: 'Aerial crane shot rising and tilting down to reveal the full scene from above.' },
       { label: '🔄 360° orbit', text: 'Camera orbits 360° around the subject in a smooth continuous cinematic rotation.' },
-      { label: '🎭 Push to close-up', text: 'Slow push-in to extreme close-up, revealing product detail or a subtle facial expression.' },
+      { label: '🎭 Push in', text: 'Slow push-in to extreme close-up, revealing product detail or a subtle facial expression.' },
     ],
   },
   {
     group: 'Shot type',
     chips: [
-      { label: '🖼️ Wide establishing', text: 'Wide establishing shot, full environment visible, conveys scale and spatial context.' },
+      { label: '🖼️ Wide shot', text: 'Wide establishing shot, full environment visible, conveys scale and spatial context.' },
       { label: '👤 Medium shot', text: 'Medium shot framing subject from waist up, neutral and grounded perspective.' },
-      { label: '🔍 Extreme close-up', text: 'Extreme close-up on a single detail — hands on keyboard, screen interface, or product surface.' },
+      { label: '🔍 Close-up', text: 'Extreme close-up on a single detail — hands on keyboard, screen interface, or product surface.' },
       { label: '📐 Low angle', text: 'Low angle looking up at subject, conveying authority, power, and scale.' },
       { label: '👁️ POV', text: 'First-person POV — viewer moves through the scene as the protagonist.' },
     ],
@@ -151,10 +151,10 @@ const VIDEO_CD_PRESETS: { group: string; chips: { label: string; text: string }[
     group: 'Audio',
     chips: [
       { label: '🔇 Silent', text: 'No dialogue or voiceover. Pure visuals with subtle ambient texture only.' },
-      { label: '🎵 Ambient sound', text: 'SFX: gentle ambient office soundscape — air conditioning hum, distant keyboard taps, soft background murmur.' },
+      { label: '🎵 Ambient', text: 'SFX: gentle ambient office soundscape — air conditioning hum, distant keyboard taps, soft background murmur.' },
       { label: '💬 Voiceover', text: 'A confident clear voice says, "This changes everything." Authoritative mid-tone delivery.' },
-      { label: '🔊 UI sound FX', text: 'SFX: crisp UI interaction sounds — clicks, swooshes, subtle notification chime as elements appear.' },
-      { label: '🎼 Cinematic score', text: 'Underscore with minimal cinematic score — low strings building tension, resolving to warmth at end.' },
+      { label: '🔊 UI sounds', text: 'SFX: crisp UI interaction sounds — clicks, swooshes, subtle notification chime as elements appear.' },
+      { label: '🎼 Cinematic', text: 'Underscore with minimal cinematic score — low strings building tension, resolving to warmth at end.' },
     ],
   },
   {
@@ -776,7 +776,7 @@ export default function CreatePage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-w-0">
           {/* Left column — tag card editor */}
           <div className="lg:col-span-3 space-y-4">
 
@@ -797,10 +797,11 @@ export default function CreatePage() {
                   </a>
                 </div>
                 {/* Preset chips — context-aware: image chips vs video chips */}
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {(assetType === 'image' ? CD_PRESETS : VIDEO_CD_PRESETS).map(({ group, chips }) => (
-                    <div key={group} className="flex flex-wrap gap-1.5 items-center">
-                      <span className="text-xs text-slate-600 w-16 shrink-0">{group}</span>
+                    <div key={group} className="space-y-1">
+                      <span className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">{group}</span>
+                      <div className="flex flex-wrap gap-1 min-w-0">
                       {chips.map(({ label, text }) => {
                         const active = tags.additional_notes.includes(text)
                         return (
@@ -815,7 +816,7 @@ export default function CreatePage() {
                                 handleTagChange('additional_notes', current ? `${current} ${text}` : text)
                               }
                             }}
-                            className={`px-2 py-1 rounded-md text-xs border transition-colors touch-manipulation ${
+                            className={`px-1.5 py-0.5 rounded-md text-[11px] border transition-colors touch-manipulation ${
                               active
                                 ? 'bg-sky-500/20 border-sky-500/50 text-sky-300'
                                 : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-500 hover:text-slate-300'
@@ -825,6 +826,7 @@ export default function CreatePage() {
                           </button>
                         )
                       })}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -891,18 +893,20 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Mood */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">Mood</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {MOODS.map(({ value, label, emoji }) => (
-                  <SelectCard key={value} selected={tags.mood === value} onClick={() => handleTagChange('mood', value)}>
-                    <span className="text-xl">{emoji}</span>
-                    <span className="text-xs text-slate-300">{label}</span>
-                  </SelectCard>
-                ))}
+            {/* Mood — image only; for video, tone is expressed via Creative Direction chips */}
+            {assetType === 'image' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <Label className="text-sm font-medium text-slate-400">Mood</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {MOODS.map(({ value, label, emoji }) => (
+                    <SelectCard key={value} selected={tags.mood === value} onClick={() => handleTagChange('mood', value)}>
+                      <span className="text-xl">{emoji}</span>
+                      <span className="text-xs text-slate-300">{label}</span>
+                    </SelectCard>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Platform — image only; for video aspect ratio is driven by caps, not platform */}
             {assetType === 'image' && (
@@ -1047,7 +1051,7 @@ export default function CreatePage() {
           </div>
 
           {/* Right column — brand context + model + generate */}
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-4 lg:sticky lg:top-6 lg:self-start">
 
             {/* Brand context accordion */}
             {brand && (
