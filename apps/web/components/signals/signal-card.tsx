@@ -87,13 +87,25 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
     }
   }
 
+  // Sanitise signal URL — signals are untrusted external data; reject any
+  // non-http(s) scheme (e.g. javascript:) to prevent XSS on click.
+  const safeUrl = (() => {
+    if (!signal.url) return '#'
+    try {
+      const parsed = new URL(signal.url)
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? signal.url : '#'
+    } catch {
+      return '#'
+    }
+  })()
+
   return (
     <Card className={`bg-slate-900 border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 hover:shadow-glow-indigo transition-all duration-300 ${isDismissed ? 'opacity-60' : ''}`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <a
-              href={signal.url ?? '#'}
+              href={safeUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-slate-100 font-medium leading-snug hover:text-indigo-400 transition-colors line-clamp-2 group"

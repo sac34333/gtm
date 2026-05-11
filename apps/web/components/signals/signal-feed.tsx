@@ -88,12 +88,19 @@ export function SignalFeed({ orgId }: { orgId: string }) {
   const [sourceFilter, setSourceFilter] = useState<string>('all')
   const [relevanceFilter, setRelevanceFilter] = useState<'all' | RelevanceTier>('all')
 
-  const { data: signals = [], isLoading, isFetching, dataUpdatedAt } = useQuery({
+  const { data: signals = [], isLoading, isFetching, isError, dataUpdatedAt } = useQuery({
     queryKey: ['signals', orgId, showDismissed, dateRange],
     queryFn: () => fetchSignals(orgId, showDismissed, dateRange),
     refetchInterval: 60 * 1000, // refresh every 60s
     staleTime: 30 * 1000,
   })
+
+  // Reset client-side filters whenever the DB query changes so users can't get
+  // stuck at 0 results with an invisible filter active.
+  useEffect(() => {
+    setSourceFilter('all')
+    setRelevanceFilter('all')
+  }, [dateRange, showDismissed])
 
   // "Last ingested" = newest created_at across the loaded rows.
   // This reflects when the cron job actually wrote new signals, not when the
@@ -159,6 +166,16 @@ export function SignalFeed({ orgId }: { orgId: string }) {
         {[...Array(5)].map((_, i) => (
           <Skeleton key={i} className="h-36 bg-slate-800 rounded-xl" />
         ))}
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-8 text-center space-y-3">
+        <TrendingUp className="w-8 h-8 text-red-400 mx-auto" />
+        <p className="text-red-300 font-medium">Failed to load signals</p>
+        <p className="text-red-400/70 text-sm">Check your connection and try refreshing the page.</p>
       </div>
     )
   }
