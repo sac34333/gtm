@@ -12,7 +12,7 @@ import {
   Camera, Pencil, Triangle, Box, LayoutGrid,
   ImageIcon, Video, Globe, Download, RefreshCw,
   Target, Wand2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp,
-  Loader2, Code2, X, ExternalLink, AlertCircle, Sparkles, HelpCircle,
+  Loader2, X, ExternalLink, AlertCircle, Sparkles, HelpCircle,
   Zap, Upload, Volume2, Film,
 } from 'lucide-react'
 import {
@@ -390,9 +390,7 @@ export default function CreatePage() {
 
   const [tags, setTags] = useState<PromptTags>(DEFAULT_TAGS)
   const [assetType, setAssetType] = useState<AssetType>('image')
-  const [showAdvanced, setShowAdvanced] = useState(false)
-  const [showJson, setShowJson] = useState(false)
-  const [jsonText, setJsonText] = useState('')
+
   const [showBrandPanel, setShowBrandPanel] = useState(false)
   const [models, setModels] = useState<Model[]>([])
   const [selectedModelId, setSelectedModelId] = useState('')
@@ -570,8 +568,6 @@ export default function CreatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  useEffect(() => { if (showJson) setJsonText(JSON.stringify({ signal_id: signalId, prompt_tags: tags }, null, 2)) }, [tags, showJson, signalId])
-
   useEffect(() => {
     const filtered = models.filter(m => m.model_type === assetType)
     if (!filtered.find(m => m.model_id === selectedModelId) && filtered.length > 0) {
@@ -605,11 +601,6 @@ export default function CreatePage() {
       setUploadedImagePreview(URL.createObjectURL(file))
     } catch { setImageUploadError('Upload failed — please try again') }
   }
-  function handleJsonChange(text: string) {
-    setJsonText(text)
-    try { const p = JSON.parse(text); if (p.prompt_tags) setTags(prev => ({ ...prev, ...p.prompt_tags })) } catch {}
-  }
-
   async function submitFeedback(thumb: 'up' | 'down') {
     if (!generatedJobId) return
     // Allow toggling: clicking same thumb again clears it; clicking the other swaps it.
@@ -1052,33 +1043,13 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Advanced */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-              <button type="button" onClick={() => setShowAdvanced(v => !v)} className="w-full flex items-center justify-between px-5 py-3.5 text-sm font-medium text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 transition-colors">
-                <span>Advanced options</span>
-                {showAdvanced ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </button>
-              {showAdvanced && (
-                <div className="px-5 pb-5 space-y-4 border-t border-slate-800 pt-4">
-                  {/* Negative prompt — only shown for Veo (supports_negative_prompt: true).
-                      Gemini image models use positive-framing only (issue #1). Seedance ignores it. */}
-                  {assetType === 'video' && videoCaps?.supports_negative_prompt && (
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-slate-400">
-                        Exclude from video <span className="text-slate-600 font-normal">— things you do not want to appear</span>
-                      </Label>
-                      <Textarea value={tags.negative_prompt} onChange={e => handleTagChange('negative_prompt', e.target.value)} placeholder="e.g. people, red colours, busy backgrounds" rows={2} maxLength={500} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none" />
-                    </div>
-                  )}
-                  <div>
-                    <button type="button" onClick={() => setShowJson(v => !v)} className="text-xs text-slate-500 hover:text-indigo-400 flex items-center gap-1">
-                      <Code2 className="w-3 h-3" />{showJson ? 'Hide' : 'View'} full JSON
-                    </button>
-                    {showJson && <Textarea value={jsonText} onChange={e => handleJsonChange(e.target.value)} rows={10} className="mt-2 bg-slate-950 border-slate-700 text-slate-300 font-mono text-xs resize-none" />}
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* Negative prompt — Veo only (inline, no accordion) */}
+            {assetType === 'video' && videoCaps?.supports_negative_prompt && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
+                <Label className="text-sm font-medium text-slate-400">Exclude from video <span className="text-slate-600 font-normal">— things to leave out</span></Label>
+                <Textarea value={tags.negative_prompt} onChange={e => handleTagChange('negative_prompt', e.target.value)} placeholder="e.g. people, red colours, busy backgrounds" rows={2} maxLength={500} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none" />
+              </div>
+            )}
           </div>
 
           {/* Right column — brand context + model + generate */}
