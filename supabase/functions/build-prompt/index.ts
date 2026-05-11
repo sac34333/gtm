@@ -192,6 +192,13 @@ Deno.serve(async (req: Request) => {
       aspect_ratio: pt.aspect_ratio ?? '1:1',
       cta_block: buildCtaBlock(pt.cta_text),
       additional_notes: truncate(pt.additional_notes, 1500),
+      video_output_spec: (() => {
+        const dur = pt.video_duration && pt.video_duration !== 'auto'
+          ? (pt.video_duration.endsWith('s') ? pt.video_duration : `${pt.video_duration}s`)
+          : ''
+        const parts = [dur ? `${dur} clip` : '', pt.video_resolution ?? ''].filter(Boolean)
+        return parts.length ? `(${parts.join(', ')})` : ''
+      })(),
     }
 
     // Load template sections from DB (org override > global)

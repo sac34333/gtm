@@ -139,8 +139,11 @@ export async function callOpenRouterImage(
     body.modalities = modalities
   }
 
-  if (imageConfig?.aspect_ratio) {
-    body.image_config = { aspect_ratio: imageConfig.aspect_ratio }
+  if (imageConfig?.aspect_ratio || imageConfig?.image_size) {
+    body.image_config = {
+      ...(imageConfig.aspect_ratio ? { aspect_ratio: imageConfig.aspect_ratio } : {}),
+      ...(imageConfig.image_size ? { image_size: imageConfig.image_size } : {}),
+    }
   }
 
   const res = await fetchWithRetry(`${OPENROUTER_BASE}/chat/completions`, {

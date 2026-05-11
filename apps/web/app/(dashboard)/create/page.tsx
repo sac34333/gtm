@@ -634,7 +634,7 @@ export default function CreatePage() {
       try {
         const { data: { session } } = await supabase.auth.getSession(); if (!session) return
         const headers = { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
-        const buildRes = await fetch(`${SUPABASE_URL}/functions/v1/build-prompt`, { method: 'POST', headers, body: JSON.stringify({ signal_id: signalId, prompt_tags: { ...tags, asset_type: assetType }, step_key: assetType === 'video' ? 'video_generation' : 'image_generation' }) })
+        const buildRes = await fetch(`${SUPABASE_URL}/functions/v1/build-prompt`, { method: 'POST', headers, body: JSON.stringify({ signal_id: signalId, prompt_tags: { ...tags, asset_type: assetType, ...(assetType === 'video' ? { video_duration: videoDuration, video_resolution: videoResolution } : {}) }, step_key: assetType === 'video' ? 'video_generation' : 'image_generation' }) })
         if (!buildRes.ok) { const err = await buildRes.json(); setError(err.error ?? 'Failed to build prompt'); return }
         const { content_job } = await buildRes.json()
         content_job.model_id = selectedModelId; content_job.provider_key = selectedProviderKey; content_job.asset_type = assetType
@@ -698,17 +698,6 @@ export default function CreatePage() {
   const videoAspectRatios = assetType === 'video' && videoCaps
     ? isI2V ? (videoCaps.aspect_ratios_i2v ?? videoCaps.aspect_ratios) : videoCaps.aspect_ratios
     : null
-  // Map caps aspect_ratio strings to visual box dimensions
-  const ratioBoxMap: Record<string, { w: number; h: number; label: string }> = {
-    'auto': { w: 40, h: 40, label: 'Auto' },
-    '16:9': { w: 56, h: 32, label: 'Landscape' },
-    '9:16': { w: 28, h: 48, label: 'Portrait' },
-    '1:1':  { w: 40, h: 40, label: 'Square' },
-    '4:3':  { w: 48, h: 36, label: '4:3' },
-    '3:4':  { w: 36, h: 48, label: '3:4' },
-    '4:5':  { w: 36, h: 44, label: 'Portrait Feed' },
-    '21:9': { w: 56, h: 24, label: 'Cinematic' },
-  }
   const activeResolutions = assetType === 'video' && videoCaps
     ? (videoFast ? videoCaps.fast_resolutions : videoCaps.resolutions)
     : null
@@ -941,90 +930,109 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Aspect Ratio — image: static list; video: caps-driven from model_caps.aspect_ratios */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">Aspect Ratio</Label>
-              <div className={`grid gap-2 ${
-                assetType === 'video' && videoAspectRatios
-                  ? videoAspectRatios.length <= 3 ? 'grid-cols-3' : 'grid-cols-4'
-                  : 'grid-cols-4'
-              }`}>
-                {(assetType === 'video' && videoAspectRatios
-                  ? videoAspectRatios.map(r => ({ value: r, ...(ratioBoxMap[r] ?? { w: 40, h: 40, label: r }) }))
-                  : RATIOS
-                ).map(({ value, label, w, h }) => (
-                  <SelectCard key={value} selected={tags.aspect_ratio === value} onClick={() => handleTagChange('aspect_ratio', value)}>
-                    {value === 'auto' ? (
-                      <span className="text-slate-400 text-base leading-none">⊞</span>
-                    ) : (
-                      <svg width={w} height={h}>
-                        <rect x={1} y={1} width={w - 2} height={h - 2} rx={2} className="fill-slate-700 stroke-slate-500" strokeWidth={1.5} />
-                      </svg>
-                    )}
-                    <span className="text-[11px] text-slate-300 leading-tight">{label}</span>
-                    <span className="text-[10px] text-slate-500">{value}</span>
-                  </SelectCard>
-                ))}
-              </div>
-            </div>
-
-            {/* Clip Duration — video only, driven by model_caps.durations */}
-            {assetType === 'video' && videoCaps && (
+            {/* Aspect Ratio — image only; video uses Output Settings card below */}
+            {assetType === 'image' && (
               <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <Label className="text-sm font-medium text-slate-400">Clip Duration <span className="text-slate-600 font-normal">— How long should the clip be?</span></Label>
-                <div className={`grid gap-2 ${videoCaps.durations.length > 6 ? 'grid-cols-4 sm:grid-cols-6' : 'grid-cols-3'}`}>
-                  {videoCaps.durations.map(d => (
-                    <SelectCard key={d} selected={videoDuration === d} onClick={() => setVideoDuration(d)}>
-                      <span className={`font-semibold text-slate-200 ${videoCaps.durations.length > 6 ? 'text-sm' : 'text-lg'}`}>
-                        {d === 'auto' ? '∞' : d}
-                      </span>
-                      {d !== 'auto' && <span className="text-[10px] text-slate-500">sec</span>}
+                <Label className="text-sm font-medium text-slate-400">Aspect Ratio</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {RATIOS.map(({ value, label, w, h }) => (
+                    <SelectCard key={value} selected={tags.aspect_ratio === value} onClick={() => handleTagChange('aspect_ratio', value)}>
+                      {value === 'auto' ? (
+                        <span className="text-slate-400 text-base leading-none">⊞</span>
+                      ) : (
+                        <svg width={w} height={h}>
+                          <rect x={1} y={1} width={w - 2} height={h - 2} rx={2} className="fill-slate-700 stroke-slate-500" strokeWidth={1.5} />
+                        </svg>
+                      )}
+                      <span className="text-[11px] text-slate-300 leading-tight">{label}</span>
+                      <span className="text-[10px] text-slate-500">{value}</span>
                     </SelectCard>
                   ))}
                 </div>
               </div>
             )}
 
-            {/* Resolution — video only, caps-driven; fast mode may restrict available resolutions */}
-            {assetType === 'video' && activeResolutions && activeResolutions.length > 0 && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <Label className="text-sm font-medium text-slate-400">Resolution</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {activeResolutions.map(res => (
-                    <SelectCard key={res} selected={videoResolution === res} onClick={() => setVideoResolution(res)}>
-                      <span className="text-sm font-semibold text-slate-200">{res}</span>
-                    </SelectCard>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Video Settings — Fast/Standard toggle + Audio toggle, video only */}
+            {/* Output Settings — video only; aspect ratio + duration + resolution + fast/audio in one compact card */}
             {assetType === 'video' && videoCaps && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <Label className="text-sm font-medium text-slate-400">Video Settings</Label>
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-4">
+                <Label className="text-sm font-medium text-slate-400">Output Settings</Label>
+
+                {/* Aspect Ratio */}
+                {videoAspectRatios && videoAspectRatios.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Aspect Ratio</p>
+                    <div className="flex flex-wrap gap-2">
+                      {videoAspectRatios.map(r => (
+                        <button key={r} type="button" onClick={() => handleTagChange('aspect_ratio', r)}
+                          className={`rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
+                            tags.aspect_ratio === r
+                              ? 'border-indigo-500/70 bg-indigo-500/15 text-indigo-300'
+                              : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                          }`}>
+                          {r === 'auto' ? 'Auto' : r}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Duration */}
                 <div className="space-y-2">
-                  <button type="button" onClick={() => setVideoFast(v => !v)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                      videoFast
-                        ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300'
-                        : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
-                    }`}>
-                    <span className="flex items-center gap-2"><Zap className="w-3.5 h-3.5" />Fast mode</span>
-                    <span className="text-xs text-slate-500">{videoFast ? 'On · quicker, slightly lower quality' : 'Off · best quality, slower'}</span>
-                  </button>
-                  {videoCaps.supports_audio && (
-                    <button type="button" onClick={() => setGenerateAudio(v => !v)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg border text-sm transition-colors ${
-                        generateAudio
-                          ? 'border-sky-500/60 bg-sky-500/10 text-sky-300'
-                          : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
-                      }`}>
-                      <span className="flex items-center gap-2"><Volume2 className="w-3.5 h-3.5" />Generate audio</span>
-                      <span className="text-xs text-slate-500">{generateAudio ? 'On · ambient sound + music' : 'Off · silent video'}</span>
-                    </button>
-                  )}
+                  <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Duration</p>
+                  <div className="flex flex-wrap gap-2">
+                    {videoCaps.durations.map(d => (
+                      <button key={d} type="button" onClick={() => setVideoDuration(d)}
+                        className={`rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
+                          videoDuration === d
+                            ? 'border-indigo-500/70 bg-indigo-500/15 text-indigo-300'
+                            : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                        }`}>
+                        {d === 'auto' ? 'Auto' : d.endsWith('s') ? d : `${d}s`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
+
+                {/* Resolution, Fast mode, Audio */}
+                {activeResolutions && activeResolutions.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">Resolution &amp; Quality</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {activeResolutions.map(res => (
+                        <button key={res} type="button" onClick={() => setVideoResolution(res)}
+                          className={`rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
+                            videoResolution === res
+                              ? 'border-indigo-500/70 bg-indigo-500/15 text-indigo-300'
+                              : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                          }`}>
+                          {res}
+                        </button>
+                      ))}
+                      <div className="flex items-center gap-2 ml-auto">
+                        <button type="button" onClick={() => setVideoFast(v => !v)}
+                          className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
+                            videoFast
+                              ? 'border-indigo-500/70 bg-indigo-500/15 text-indigo-300'
+                              : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                          }`}>
+                          <Zap className="w-3.5 h-3.5" />
+                          Fast
+                        </button>
+                        {videoCaps.supports_audio && (
+                          <button type="button" onClick={() => setGenerateAudio(v => !v)}
+                            className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium border transition-colors ${
+                              generateAudio
+                                ? 'border-sky-500/70 bg-sky-500/15 text-sky-300'
+                                : 'border-slate-700 bg-slate-800/60 text-slate-400 hover:border-slate-500 hover:text-slate-300'
+                            }`}>
+                            <Volume2 className="w-3.5 h-3.5" />
+                            Audio
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
