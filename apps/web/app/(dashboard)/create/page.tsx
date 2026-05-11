@@ -707,12 +707,16 @@ export default function CreatePage() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
               <Label className="text-sm font-medium text-slate-400">Visual Style</Label>
               <div className="grid grid-cols-5 gap-2">
-                {VISUAL_STYLES.map(({ value, label, Icon }) => (
-                  <SelectCard key={value} selected={tags.visual_style === value} onClick={() => handleTagChange('visual_style', value)}>
-                    <Icon className="w-5 h-5 text-slate-300" />
-                    <span className="text-xs text-slate-300 leading-tight">{label}</span>
-                  </SelectCard>
-                ))}
+                {VISUAL_STYLES.map(({ value, label, Icon }) => {
+                  // In video mode, 'photography' means cinematic live-action — rename the label
+                  const displayLabel = (assetType === 'video' && value === 'photography') ? 'Cinematic' : label
+                  return (
+                    <SelectCard key={value} selected={tags.visual_style === value} onClick={() => handleTagChange('visual_style', value)}>
+                      <Icon className="w-5 h-5 text-slate-300" />
+                      <span className="text-xs text-slate-300 leading-tight">{displayLabel}</span>
+                    </SelectCard>
+                  )
+                })}
               </div>
             </div>
 
@@ -765,11 +769,13 @@ export default function CreatePage() {
               <ColourPaletteCards value={tags.colour_palette} onChange={v => handleTagChange('colour_palette', v)} brandColours={brand?.brand_colours ?? null} />
             </div>
 
-            {/* CTA */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
-              <Label className="text-sm font-medium text-slate-400">Call to action overlay <span className="text-slate-600 font-normal">(optional)</span></Label>
-              <Input value={tags.cta_text} onChange={e => handleTagChange('cta_text', e.target.value)} placeholder="e.g. Book a free demo →" maxLength={80} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500" />
-            </div>
+            {/* CTA — images only; for video use the Voiceover audio chip instead */}
+            {assetType === 'image' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-2">
+                <Label className="text-sm font-medium text-slate-400">Call to action overlay <span className="text-slate-600 font-normal">(optional)</span></Label>
+                <Input value={tags.cta_text} onChange={e => handleTagChange('cta_text', e.target.value)} placeholder="e.g. Book a free demo →" maxLength={80} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500" />
+              </div>
+            )}
 
             {/* Advanced */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
@@ -780,7 +786,7 @@ export default function CreatePage() {
               {showAdvanced && (
                 <div className="px-5 pb-5 space-y-4 border-t border-slate-800 pt-4">
                   <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-400">Exclude from image <span className="text-slate-600 font-normal">— Things you do not want to appear</span></Label>
+                    <Label className="text-sm font-medium text-slate-400">{assetType === 'video' ? 'Exclude from video' : 'Exclude from image'} <span className="text-slate-600 font-normal">— Things you do not want to appear</span></Label>
                     <Textarea value={tags.negative_prompt} onChange={e => handleTagChange('negative_prompt', e.target.value)} placeholder="e.g. people, red colours, busy backgrounds" rows={2} maxLength={500} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none" />
                   </div>
                   <div>
