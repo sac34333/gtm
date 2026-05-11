@@ -13,7 +13,7 @@ import {
   ImageIcon, Video, Globe, Download, RefreshCw,
   Target, Wand2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp,
   Loader2, X, ExternalLink, AlertCircle, Sparkles, HelpCircle,
-  Zap, Upload, Volume2, Film,
+  Zap, Upload, Volume2,
 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -323,7 +323,7 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
                   <Button size="sm" className="w-full bg-indigo-600 hover:bg-indigo-500" onClick={() => { if (refinedJobId) onRefined(refinedJobId, refinedUrl); onClose() }}>Use refined</Button>
                 </div>
               </div>
-              <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => { setRefinedUrl(null); setRefinedJobId(null); setChips([]) }}>Refine again</Button>
+              <Button variant="ghost" size="sm" className="text-slate-400" onClick={() => { setRefinedUrl(null); setRefinedJobId(null); setChipKeys([]) }}>Refine again</Button>
             </div>
           ) : (
             <>
