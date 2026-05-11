@@ -776,6 +776,21 @@ export default function CreatePage() {
           </div>
         )}
 
+        {/* Asset type — full-width above grid so it's the first thing on mobile */}
+        <div className="mb-4 bg-slate-900 border border-slate-800 rounded-xl p-4">
+          <div className="flex items-center gap-3">
+            <Label className="text-sm font-medium text-slate-400 shrink-0">Asset type</Label>
+            <div className="grid grid-cols-2 gap-2 flex-1">
+              <SelectCard selected={assetType === 'image'} onClick={() => setAssetType('image')}>
+                <ImageIcon className="w-5 h-5 text-slate-300" /><span className="text-sm font-medium text-slate-200">Image</span>
+              </SelectCard>
+              <SelectCard selected={assetType === 'video'} onClick={() => setAssetType('video')}>
+                <Video className="w-5 h-5 text-slate-300" /><span className="text-sm font-medium text-slate-200">Video</span>
+              </SelectCard>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-w-0">
           {/* Left column — tag card editor */}
           <div className="lg:col-span-3 space-y-4">
@@ -787,6 +802,40 @@ export default function CreatePage() {
                 <Input value={tags.subject} onChange={e => handleTagChange('subject', e.target.value)} placeholder="e.g. AI is changing the way financial teams work" maxLength={200} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500" />
                 <div className="text-right text-xs text-slate-600">{tags.subject.length}/200</div>
               </div>
+
+              {/* Input Image — video only, inline compact strip so it's immediately visible */}
+              {assetType === 'video' && !parentJobId && (
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium text-slate-400">
+                      Start from an image <span className="text-slate-600 font-normal text-xs">— optional · animates this frame</span>
+                    </Label>
+                    {uploadedImagePath && (
+                      <button type="button" onClick={() => { setUploadedImagePath(null); setUploadedImagePreview(null) }}
+                        className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1">
+                        <X className="w-3 h-3" />Remove
+                      </button>
+                    )}
+                  </div>
+                  {uploadedImagePreview ? (
+                    <div className="relative">
+                      <img src={uploadedImagePreview} alt="Source frame" className="w-full max-h-36 object-contain rounded-lg border border-slate-700" />
+                      <span className="absolute top-2 left-2 text-[10px] bg-sky-600 text-white px-1.5 py-0.5 rounded font-medium">i2v source</span>
+                    </div>
+                  ) : (
+                    <label className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-dashed border-slate-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-colors cursor-pointer">
+                      <Upload className="w-4 h-4 text-slate-500 shrink-0" />
+                      <span className="text-sm text-slate-400">Upload image to animate</span>
+                      <span className="ml-auto text-xs text-slate-600">PNG · JPEG · WebP · max 8 MB</span>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleI2VImageUpload(f) }} />
+                    </label>
+                  )}
+                  {imageUploadError && (
+                    <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3 shrink-0" />{imageUploadError}</p>
+                  )}
+                </div>
+              )}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium text-slate-400">
@@ -844,39 +893,7 @@ export default function CreatePage() {
               </div>
             </div>
 
-            {/* Input Image — video only, not shown when coming from Library (parentJobId covers that) */}
-            {assetType === 'video' && !parentJobId && (
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label className="text-sm font-medium text-slate-400">
-                    Input Image <span className="text-slate-600 font-normal">— optional, animates from a starting frame</span>
-                  </Label>
-                  {uploadedImagePath && (
-                    <button type="button" onClick={() => { setUploadedImagePath(null); setUploadedImagePreview(null) }}
-                      className="text-xs text-slate-500 hover:text-red-400 flex items-center gap-1">
-                      <X className="w-3 h-3" />Remove
-                    </button>
-                  )}
-                </div>
-                {uploadedImagePreview ? (
-                  <div className="relative w-full">
-                    <img src={uploadedImagePreview} alt="Source frame" className="w-full max-h-48 object-contain rounded-lg border border-slate-700" />
-                    <span className="absolute top-2 left-2 text-[10px] bg-sky-600 text-white px-1.5 py-0.5 rounded font-medium">i2v source</span>
-                  </div>
-                ) : (
-                  <label className="flex flex-col items-center gap-2 p-4 rounded-lg border-2 border-dashed border-slate-700 hover:border-indigo-500 hover:bg-indigo-500/5 transition-colors cursor-pointer">
-                    <Upload className="w-5 h-5 text-slate-500" />
-                    <span className="text-sm text-slate-400">Upload image to animate</span>
-                    <span className="text-xs text-slate-600">PNG, JPEG, WebP · max 8 MB</span>
-                    <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
-                      onChange={e => { const f = e.target.files?.[0]; if (f) handleI2VImageUpload(f) }} />
-                  </label>
-                )}
-                {imageUploadError && (
-                  <p className="text-xs text-red-400 flex items-center gap-1"><AlertCircle className="w-3 h-3 shrink-0" />{imageUploadError}</p>
-                )}
-              </div>
-            )}
+            {/* Input Image card removed — now inline inside Subject card above */}
 
             {/* Visual Style — image only; for video style is expressed via Creative Direction chips */}
             {assetType === 'image' && (
@@ -1080,18 +1097,7 @@ export default function CreatePage() {
               </div>
             )}
 
-            {/* Asset type */}
-            <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">Asset type</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <SelectCard selected={assetType === 'image'} onClick={() => setAssetType('image')}>
-                  <ImageIcon className="w-6 h-6 text-slate-300" /><span className="text-sm font-medium text-slate-200">Image</span>
-                </SelectCard>
-                <SelectCard selected={assetType === 'video'} onClick={() => setAssetType('video')}>
-                  <Video className="w-6 h-6 text-slate-300" /><span className="text-sm font-medium text-slate-200">Video</span>
-                </SelectCard>
-              </div>
-            </div>
+            {/* Asset type — moved above grid; keeping model selector and generate button here */}
 
             {/* Model selector — hidden when org can't change models (starter / byok).
                 Shows a passive "Using X" line so the user knows what's running. */}
