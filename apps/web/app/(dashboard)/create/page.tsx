@@ -178,11 +178,11 @@ const MOODS = [
   { value: 'warm', label: 'Warm', emoji: '☀️' },
 ]
 const PLATFORMS = [
-  { value: 'linkedin', label: 'LinkedIn', sub: 'Portrait · 4:5', ratio: '4:5' },
-  { value: 'instagram', label: 'Instagram', sub: 'Square or Story', ratio: '1:1' },
-  { value: 'twitter', label: 'Twitter / X', sub: 'Landscape 16:9', ratio: '16:9' },
-  { value: 'whatsapp', label: 'WhatsApp', sub: 'Square · 1:1', ratio: '1:1' },
-  { value: 'generic', label: 'Generic', sub: 'Any format', ratio: '1:1' },
+  { value: 'linkedin', label: 'LinkedIn', sub: 'Portrait · 4:5', ratio: '4:5', videoSub: 'Vertical · 9:16', videoRatio: '9:16' },
+  { value: 'instagram', label: 'Instagram', sub: 'Square or Story', ratio: '1:1', videoSub: 'Reels · 9:16', videoRatio: '9:16' },
+  { value: 'twitter', label: 'Twitter / X', sub: 'Landscape 16:9', ratio: '16:9', videoSub: 'Landscape · 16:9', videoRatio: '16:9' },
+  { value: 'whatsapp', label: 'WhatsApp', sub: 'Square · 1:1', ratio: '1:1', videoSub: 'Vertical · 9:16', videoRatio: '9:16' },
+  { value: 'generic', label: 'Generic', sub: 'Any format', ratio: '1:1', videoSub: 'Widescreen · 16:9', videoRatio: '16:9' },
 ]
 const RATIOS = [
   { value: '1:1', label: 'Square', w: 40, h: 40 },
@@ -190,6 +190,8 @@ const RATIOS = [
   { value: '9:16', label: 'Portrait/Story', w: 28, h: 48 },
   { value: '4:5', label: 'Portrait Feed', w: 36, h: 44 },
 ]
+// Veo 3.1 only supports 16:9 and 9:16 as API-level parameters.
+const VIDEO_RATIOS = RATIOS.filter(r => r.value === '16:9' || r.value === '9:16')
 
 function RefinementPanel({ open, onClose, originalJobId, originalTags, originalImageUrl, onRefined }: {
   open: boolean; onClose: () => void; originalJobId: string; originalTags: PromptTags
@@ -390,6 +392,7 @@ export default function CreatePage() {
   const [videoQuotaUsed, setVideoQuotaUsed] = useState(0)
   const [videoQuotaMax, setVideoQuotaMax] = useState(5)
   const [parentJobInfo, setParentJobInfo] = useState<{ subject: string; signedUrl: string | null } | null>(null)
+  const [videoDuration, setVideoDuration] = useState<4 | 6 | 8>(8)
   const [signalHeadline, setSignalHeadline] = useState<string | null>(null)
   const [signalBannerDismissed, setSignalBannerDismissed] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -469,6 +472,18 @@ export default function CreatePage() {
       })
   }, [parentJobId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Auto-snap aspect ratio to a Veo-supported value when switching to video mode.
+  // Veo 3.1 only supports 16:9 and 9:16 as API parameters — 1:1 and 4:5 will fail.
+  useEffect(() => {
+    if (assetType !== 'video') return
+    setTags(prev => {
+      if (prev.aspect_ratio !== '16:9' && prev.aspect_ratio !== '9:16') {
+        return { ...prev, aspect_ratio: '9:16' }
+      }
+      return prev
+    })
+  }, [assetType]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Pre-fill form from URL params (e.g. when arriving from Regenerate on a job page).
   // Runs once on mount; brand-context defaults are then overridden by these explicit values.
   useEffect(() => {
@@ -532,6 +547,7 @@ export default function CreatePage() {
         if (!buildRes.ok) { const err = await buildRes.json(); setError(err.error ?? 'Failed to build prompt'); return }
         const { content_job } = await buildRes.json()
         content_job.model_id = selectedModelId; content_job.provider_key = selectedProviderKey; content_job.asset_type = assetType
+        if (assetType === 'video') content_job.video_duration = videoDuration
 
         async function callGenerate() {
           const genRes = await fetch(`${SUPABASE_URL}/functions/v1/generate-asset`, { method: 'POST', headers, body: JSON.stringify({ content_job, model_id: selectedModelId, provider_key: selectedProviderKey, ...(parentJobId ? { parent_job_id: parentJobId } : {}) }) })
@@ -737,11 +753,11 @@ export default function CreatePage() {
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
               <Label className="text-sm font-medium text-slate-400">Platform</Label>
               <div className="grid grid-cols-5 gap-2">
-                {PLATFORMS.map(({ value, label, sub, ratio }) => (
-                  <SelectCard key={value} selected={tags.platform === value} onClick={() => { handleTagChange('platform', value); handleTagChange('aspect_ratio', ratio) }}>
+                {PLATFORMS.map(({ value, label, sub, ratio, videoSub, videoRatio }) => (
+                  <SelectCard key={value} selected={tags.platform === value} onClick={() => { handleTagChange('platform', value); handleTagChange('aspect_ratio', assetType === 'video' ? videoRatio : ratio) }}>
                     <Globe className="w-4 h-4 text-slate-400" />
                     <span className="text-xs text-slate-300 font-medium leading-tight">{label}</span>
-                    <span className="text-[10px] text-slate-500 leading-tight">{sub}</span>
+                    <span className="text-[10px] text-slate-500 leading-tight">{assetType === 'video' ? videoSub : sub}</span>
                   </SelectCard>
                 ))}
               </div>
@@ -749,9 +765,12 @@ export default function CreatePage() {
 
             {/* Aspect Ratio */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
-              <Label className="text-sm font-medium text-slate-400">Aspect Ratio</Label>
-              <div className="grid grid-cols-4 gap-2">
-                {RATIOS.map(({ value, label, w, h }) => (
+              <Label className="text-sm font-medium text-slate-400">
+                Aspect Ratio
+                {assetType === 'video' && <span className="text-slate-600 font-normal text-xs ml-2">— Veo 3.1 supports 16:9 and 9:16 only</span>}
+              </Label>
+              <div className={`grid gap-2 ${assetType === 'video' ? 'grid-cols-2' : 'grid-cols-4'}`}>
+                {(assetType === 'video' ? VIDEO_RATIOS : RATIOS).map(({ value, label, w, h }) => (
                   <SelectCard key={value} selected={tags.aspect_ratio === value} onClick={() => handleTagChange('aspect_ratio', value)}>
                     <svg width={w} height={h}>
                       <rect x={1} y={1} width={w - 2} height={h - 2} rx={2} className="fill-slate-700 stroke-slate-500" strokeWidth={1.5} />
@@ -762,6 +781,21 @@ export default function CreatePage() {
                 ))}
               </div>
             </div>
+
+            {/* Clip Duration — video only. Veo 3.1 supports 4 s, 6 s, 8 s as an API parameter. */}
+            {assetType === 'video' && (
+              <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">
+                <Label className="text-sm font-medium text-slate-400">Clip Duration <span className="text-slate-600 font-normal">— How long should the clip be?</span></Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([4, 6, 8] as const).map(s => (
+                    <SelectCard key={s} selected={videoDuration === s} onClick={() => setVideoDuration(s)}>
+                      <span className="text-lg font-semibold text-slate-200">{s}s</span>
+                      <span className="text-[10px] text-slate-500">{s === 4 ? 'Short' : s === 6 ? 'Standard' : 'Long'}</span>
+                    </SelectCard>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Colour Palette */}
             <div className="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-3">

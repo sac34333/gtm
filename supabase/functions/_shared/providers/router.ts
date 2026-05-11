@@ -264,7 +264,9 @@ export async function routeVideoGeneration(
     }
     case 'google_ai_studio': {
       const { callGoogleAIStudioVideo } = await import('./google_ai_studio.ts')
-      const result = await callGoogleAIStudioVideo(modelId, prompt, negativePrompt, apiKey)
+      const aspectRatio = payload.prompt_tags?.aspect_ratio ?? payload.aspect_ratio ?? '9:16'
+      const duration = (payload.video_duration ?? 8) as number
+      const result = await callGoogleAIStudioVideo(modelId, prompt, negativePrompt, apiKey, aspectRatio, duration)
       return { operationName: result.operationName, status: 'pending' }
     }
     case 'openrouter': {

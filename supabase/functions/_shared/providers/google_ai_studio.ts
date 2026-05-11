@@ -184,7 +184,13 @@ export async function callGoogleAIStudioVideo(
   prompt: string,
   negativePrompt: string,
   apiKey: string,
+  aspectRatio: string = '9:16',
+  durationSeconds: number = 8,
 ): Promise<{ operationName: string; status: string }> {
+  // Veo 3.1 only supports 16:9 and 9:16 as API parameters. Coerce any other value to 9:16.
+  const validRatio = ['16:9', '9:16'].includes(aspectRatio) ? aspectRatio : '9:16'
+  // Veo 3.1 only supports 4 s, 6 s, or 8 s. Clamp to nearest valid value.
+  const validDuration = [4, 6, 8].includes(durationSeconds) ? durationSeconds : 8
   const res = await fetchWithRetry(
     `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:predictLongRunning?key=${apiKey}`,
     {
@@ -192,7 +198,7 @@ export async function callGoogleAIStudioVideo(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         instances: [{ prompt, negativePrompt }],
-        parameters: { aspectRatio: '16:9', durationSeconds: 8 },
+        parameters: { aspectRatio: validRatio, durationSeconds: validDuration },
       }),
       timeoutMs: 60_000,
       provider: 'Google AI Studio Veo',
