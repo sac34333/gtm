@@ -1052,10 +1052,16 @@ export default function CreatePage() {
               </button>
               {showAdvanced && (
                 <div className="px-5 pb-5 space-y-4 border-t border-slate-800 pt-4">
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium text-slate-400">{assetType === 'video' ? 'Exclude from video' : 'Exclude from image'} <span className="text-slate-600 font-normal">— Things you do not want to appear</span></Label>
-                    <Textarea value={tags.negative_prompt} onChange={e => handleTagChange('negative_prompt', e.target.value)} placeholder="e.g. people, red colours, busy backgrounds" rows={2} maxLength={500} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none" />
-                  </div>
+                  {/* Negative prompt — only shown for Veo (supports_negative_prompt: true).
+                      Gemini image models use positive-framing only (issue #1). Seedance ignores it. */}
+                  {assetType === 'video' && videoCaps?.supports_negative_prompt && (
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-slate-400">
+                        Exclude from video <span className="text-slate-600 font-normal">— things you do not want to appear</span>
+                      </Label>
+                      <Textarea value={tags.negative_prompt} onChange={e => handleTagChange('negative_prompt', e.target.value)} placeholder="e.g. people, red colours, busy backgrounds" rows={2} maxLength={500} className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-500 resize-none" />
+                    </div>
+                  )}
                   <div>
                     <button type="button" onClick={() => setShowJson(v => !v)} className="text-xs text-slate-500 hover:text-indigo-400 flex items-center gap-1">
                       <Code2 className="w-3 h-3" />{showJson ? 'Hide' : 'View'} full JSON
