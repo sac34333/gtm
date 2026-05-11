@@ -212,8 +212,17 @@ export async function callFalVideo(
   // Audio generation (both models support it)
   if (payload.generate_audio !== undefined) input.generate_audio = payload.generate_audio
 
-  // Negative prompt — Veo only (Seedance schema doesn't include it)
-  if (isVeo && payload.compiled_negative) input.negative_prompt = payload.compiled_negative
+  // Negative prompt — Veo only (Seedance schema doesn't include it).
+  // Per Veo docs: use noun/adjective form ("wall, frame") NOT instructive ("no walls", "don't show").
+  // Sanitize to strip common instructive prefixes from each comma-separated token.
+  if (isVeo && payload.compiled_negative) {
+    const sanitized = payload.compiled_negative
+      .split(',')
+      .map(token => token.trim().replace(/^(no |don't |dont |avoid |without |exclude |remove )/i, '').trim())
+      .filter(Boolean)
+      .join(', ')
+    if (sanitized) input.negative_prompt = sanitized
+  }
 
   // Source image — required for all i2v endpoints
   if (isI2V && payload.image_url) input.image_url = payload.image_url
