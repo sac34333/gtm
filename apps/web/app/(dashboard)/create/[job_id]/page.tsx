@@ -146,12 +146,29 @@ export default function JobResultPage() {
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '')
     const ext = job?.asset_type === 'video' ? 'mp4' : 'png'
     const filename = (orgSlug || 'gtm') + '_' + dateStr + '_' + jobId.slice(0, 8) + '.' + ext
-    const res = await fetch(signedUrl)
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
+    try {
+      const res = await fetch(signedUrl)
+      if (!res.ok) throw new Error('Download failed: ' + res.status)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = filename; a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // Signed URL may have expired — re-fetch and retry once
+      if (!job?.output_url) return
+      const path = job.output_url.replace(/^assets\//, '')
+      const { data: refreshed } = await supabase.storage.from('assets').createSignedUrl(path, 3600)
+      if (!refreshed?.signedUrl) return
+      setSignedUrl(refreshed.signedUrl)
+      const res2 = await fetch(refreshed.signedUrl)
+      if (!res2.ok) return
+      const blob2 = await res2.blob()
+      const url2 = URL.createObjectURL(blob2)
+      const a2 = document.createElement('a')
+      a2.href = url2; a2.download = filename; a2.click()
+      URL.revokeObjectURL(url2)
+    }
   }
 
   async function handleFeedback() {
@@ -159,7 +176,7 @@ export default function JobResultPage() {
     setSubmittingFeedback(true)
     setFeedbackError(null)
     const token = await getToken()
-    if (!token) return
+    if (!token) { setSubmittingFeedback(false); return }
     try {
       const res = await fetch(SUPABASE_URL + '/functions/v1/submit-feedback', {
         method: 'POST',
@@ -168,8 +185,7 @@ export default function JobResultPage() {
       })
       if (res.ok) setFeedbackSaved(true)
       else { const e = await res.json(); setFeedbackError(e.error ?? 'Save failed') }
-    } catch { setFeedbackError('Unexpected error') }
-    setSubmittingFeedback(false)
+    } catch { setFeedbackError('Unexpected error') } finally { setSubmittingFeedback(false) }
   }
 
   function handleRegenerate() {

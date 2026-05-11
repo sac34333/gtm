@@ -499,8 +499,12 @@ export default function CreatePage() {
   }, [assetType, videoBaseModelId, videoBaseProviderKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When arriving from an "Animate this image" link, auto-switch to video and load the source image.
+  // If asset_type=image is explicitly set (e.g. Regenerate from image job detail), keep image mode —
+  // parent_job_id is used only for version linking in that case.
   useEffect(() => {
     if (!parentJobId) return
+    const explicitAt = searchParams.get('asset_type')
+    if (explicitAt === 'image') return
     setAssetType('video')
     const supabase = getSupabaseBrowserClient()
     supabase

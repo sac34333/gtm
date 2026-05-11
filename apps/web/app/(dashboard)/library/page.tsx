@@ -274,6 +274,11 @@ export default function LibraryPage() {
     queryKey: ['library-jobs', filter],
     queryFn: () => fetchJobs(filter),
     staleTime: 30 * 1000,
+    // Auto-refresh every 5 s while any job is still generating
+    refetchInterval: (query) => {
+      const rows = query.state.data as JobRow[] | undefined
+      return rows?.some(j => j.status === 'pending' || j.status === 'processing') ? 5000 : false
+    },
   })
 
   const stacks = groupIntoStacks(jobs)
