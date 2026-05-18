@@ -106,6 +106,35 @@ const DEFAULT_SOURCES: FeedConfig[] = [
   { source_type: 'hackernews', source_url: '', source_label: 'Hacker News', keywords: [], requires_api_key: false, auto_activated: true, cron_expression: '0 */6 * * *' },
 ]
 
+/**
+ * Universal sources seeded for EVERY org, regardless of country.
+ * These are the foundation — relevant to any B2B SaaS company.
+ * Regional sources are added on top.
+ */
+const UNIVERSAL_SOURCES: FeedConfig[] = [
+  // AI-powered search using the org's own themes as queries — platform key handles auth
+  { source_type: 'tavily', source_url: '', source_label: 'Tavily Search', keywords: [], requires_api_key: false, auto_activated: true, cron_expression: '0 */12 * * *' },
+  // Global tech community — highest signal-to-noise for SaaS/developer topics
+  { source_type: 'hackernews', source_url: '', source_label: 'Hacker News', keywords: [], requires_api_key: false, auto_activated: true, cron_expression: '0 */6 * * *' },
+  // New product launches — competitor intel + market trends
+  { source_type: 'rss', source_url: 'https://www.producthunt.com/feed', source_label: 'Product Hunt', keywords: [], requires_api_key: false, auto_activated: true, cron_expression: '0 */6 * * *' },
+  // Global B2B SaaS news — funding, product launches, martech
+  { source_type: 'rss', source_url: 'https://techcrunch.com/feed/', source_label: 'TechCrunch', keywords: [], requires_api_key: false, auto_activated: true, cron_expression: '0 */3 * * *' },
+  // MarTech-specific: marketing technology trends and tools
+  { source_type: 'rss', source_url: 'https://martech.org/feed/', source_label: 'MarTech Today', keywords: [], requires_api_key: false, auto_activated: true, cron_expression: '0 */12 * * *' },
+]
+
 export function getRegionalSources(countryCode: string): FeedConfig[] {
-  return REGIONAL_SOURCES[countryCode?.toUpperCase()] || DEFAULT_SOURCES
+  const regional = REGIONAL_SOURCES[countryCode?.toUpperCase()] ?? []
+  // Merge universal + regional, deduplicating by source_url+source_type
+  const seen = new Set<string>()
+  const merged: FeedConfig[] = []
+  for (const s of [...UNIVERSAL_SOURCES, ...regional]) {
+    const key = `${s.source_type}::${s.source_url}`
+    if (!seen.has(key)) {
+      seen.add(key)
+      merged.push(s)
+    }
+  }
+  return merged
 }
