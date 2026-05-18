@@ -15,6 +15,9 @@ const STOPWORDS = new Set([
   'how','why','who','what','when','where','which','they','them','you','his',
   'her','him','she','one','two','new','use','using','used','very','some',
   'small','medium','sized','teams','team','based','via','per',
+  // Short particles that add noise when used as query terms
+  'in','is','at','be','do','it','no','up','if','so','to','of','or','vs','by',
+  'on','an','as','io','co','inc','ltd',
 ])
 
 function tokenize(text: string): string[] {
@@ -88,32 +91,38 @@ export function scoreRelevance(
   const signalTokens = tokenize(signalText)
   const signalTF = termFrequency(signalTokens)
 
-  // Build query token set from themes + keywords
+  // Build query token set from themes + keywords, filtering stopwords
   const queryTerms = new Set<string>()
   for (const phrase of [...themes, ...keywords]) {
     for (const token of tokenize(phrase)) {
-      queryTerms.add(token)
+      if (!STOPWORDS.has(token)) queryTerms.add(token)
     }
   }
 
   if (queryTerms.size === 0) return 0.5
 
-  let matchedWeight = 0
-  let totalWeight = 0
+  let matchedCount = 0
+  let matchedScore = 0
 
   for (const term of queryTerms) {
     const tf = signalTF.get(term) ?? 0
-    // Inverse document frequency approximation: rare terms get higher weight
-    const idf = 1 + Math.log(1 + tf)
-    totalWeight += idf
     if (tf > 0) {
-      matchedWeight += idf * tf * 10 // scale for visibility
+      matchedCount++
+      // Each matched term contributes 0–1 based on how frequently it appears.
+      // TF * 20: a term appearing once per 50 tokens (TF=0.02) → 0.4 contribution.
+      matchedScore += Math.min(1.0, tf * 20)
     }
   }
 
-  if (totalWeight === 0) return 0
+  if (matchedCount === 0) return 0
 
-  const raw = matchedWeight / totalWeight
-  // Normalize to 0–1 with sigmoid-like clamping
+  // coverage: fraction of query terms that appear in the signal (0–1)
+  const coverage = matchedCount / queryTerms.size
+  // intensity: average per-term TF score among matched terms (0–1)
+  const intensity = matchedScore / matchedCount
+
+  // Weighted combination: coverage drives the score, intensity refines it.
+  // A relevant article matching 4/15 keywords with TF≈0.02 each → ~0.28 (HIGH).
+  const raw = coverage * 0.7 + intensity * 0.3
   return Math.min(1.0, Math.max(0.0, raw))
 }
