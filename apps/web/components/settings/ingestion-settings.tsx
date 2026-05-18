@@ -8,7 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2 } from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2, Plus } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
@@ -30,12 +30,30 @@ const DATA_SOURCE_KEYS = [
   { key: 'newsapi_key', label: 'NewsAPI Key', group: 'NewsAPI' },
   { key: 'twitter_bearer', label: 'Twitter Bearer Token', group: 'Twitter' },
   { key: 'youtube_api_key', label: 'YouTube API Key', group: 'YouTube' },
-  { key: 'tavily_api_key', label: 'Tavily API Key', group: 'Tavily' },
   { key: 'brave_search_api_key', label: 'Brave Search API Key', group: 'Brave Search' },
   { key: 'clearbit_key', label: 'Clearbit API Key', group: 'Clearbit' },
   { key: 'apify_token', label: 'Apify Token', group: 'LinkedIn (Apify)' },
   { key: 'github_token', label: 'GitHub Token', group: 'GitHub' },
 ]
+
+interface FeedConfig {
+  id: string
+  source_type: string
+  source_label: string
+  source_url: string | null
+  is_active: boolean
+  auto_activated: boolean
+}
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  rss: 'RSS',
+  hackernews: 'Hacker News',
+  tavily: 'Tavily (built-in)',
+  reddit: 'Reddit',
+  newsapi: 'NewsAPI',
+  youtube: 'YouTube',
+  producthunt: 'Product Hunt',
+}
 
 interface IngestionSettingsProps {
   initialEnabled: boolean
@@ -43,6 +61,8 @@ interface IngestionSettingsProps {
   lastIngestionAt: string | null
   existingKeys: string[]
   isAdmin: boolean
+  orgId: string
+  initialFeedConfigs: FeedConfig[]
 }
 
 async function callEdgeFunction(path: string, body: unknown, method = 'POST') {
@@ -69,6 +89,8 @@ export function IngestionSettings({
   lastIngestionAt,
   existingKeys,
   isAdmin,
+  orgId,
+  initialFeedConfigs,
 }: IngestionSettingsProps) {
   const [enabled, setEnabled] = useState(initialEnabled)
   const [frequency, setFrequency] = useState(initialFrequency || 'daily')
@@ -81,6 +103,12 @@ export function IngestionSettings({
   const [savingKey, setSavingKey] = useState<string | null>(null)
   const [deletingKey, setDeletingKey] = useState<string | null>(null)
   const [linkedInConsent, setLinkedInConsent] = useState(false)
+  const [feeds, setFeeds] = useState<FeedConfig[]>(initialFeedConfigs)
+  const [newRssUrl, setNewRssUrl] = useState('')
+  const [newRssLabel, setNewRssLabel] = useState('')
+  const [addingRss, setAddingRss] = useState(false)
+  const [togglingFeedId, setTogglingFeedId] = useState<string | null>(null)
+  const [deletingFeedId, setDeletingFeedId] = useState<string | null>(null)
 
   async function handleToggle(newEnabled: boolean) {
     startToggling(async () => {
@@ -147,6 +175,58 @@ export function IngestionSettings({
       toast.error(`Failed to delete: ${err}`)
     } finally {
       setDeletingKey(null)
+    }
+  }
+
+  async function handleAddRssFeed() {
+    const url = newRssUrl.trim()
+    if (!url) return toast.error('Enter a feed URL')
+    try { new URL(url) } catch { return toast.error('Enter a valid URL (must start with https://)') }
+    const label = newRssLabel.trim() || new URL(url).hostname
+    setAddingRss(true)
+    try {
+      const { data, error } = await supabase
+        .from('feed_configs')
+        .insert({ org_id: orgId, source_type: 'rss', source_url: url, source_label: label, is_active: true, auto_activated: false })
+        .select('id, source_type, source_label, source_url, is_active, auto_activated')
+        .single()
+      if (error) throw new Error(error.message)
+      setFeeds((prev) => [...prev, data])
+      setNewRssUrl('')
+      setNewRssLabel('')
+      toast.success(`"${label}" added`)
+    } catch (err) {
+      toast.error(`Failed to add: ${err}`)
+    } finally {
+      setAddingRss(false)
+    }
+  }
+
+  async function handleToggleFeed(id: string, newActive: boolean) {
+    setTogglingFeedId(id)
+    try {
+      const { error } = await supabase.from('feed_configs').update({ is_active: newActive }).eq('id', id)
+      if (error) throw new Error(error.message)
+      setFeeds((prev) => prev.map((f) => (f.id === id ? { ...f, is_active: newActive } : f)))
+    } catch (err) {
+      toast.error(`Failed: ${err}`)
+    } finally {
+      setTogglingFeedId(null)
+    }
+  }
+
+  async function handleDeleteFeed(id: string, label: string) {
+    if (!confirm(`Remove "${label}"? This cannot be undone.`)) return
+    setDeletingFeedId(id)
+    try {
+      const { error } = await supabase.from('feed_configs').delete().eq('id', id)
+      if (error) throw new Error(error.message)
+      setFeeds((prev) => prev.filter((f) => f.id !== id))
+      toast.success('Feed removed')
+    } catch (err) {
+      toast.error(`Failed: ${err}`)
+    } finally {
+      setDeletingFeedId(null)
     }
   }
 
@@ -232,6 +312,90 @@ export function IngestionSettings({
                 )}
               </Button>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Data Sources & RSS Feeds */}
+      <Card className="bg-slate-900 border-slate-800">
+        <CardHeader>
+          <CardTitle className="text-slate-100">Data Sources</CardTitle>
+          <CardDescription className="text-slate-400">
+            Manage your signal feeds. Built-in sources (HackerNews, Tavily, ProductHunt) run on the platform. Toggle any feed or add your own custom RSS feeds.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            {feeds.map((feed) => (
+              <div key={feed.id} className="flex items-center justify-between rounded-lg border border-slate-700 px-4 py-3 gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <span className="text-xs text-slate-500 shrink-0 w-28">
+                    {SOURCE_TYPE_LABELS[feed.source_type] ?? feed.source_type}
+                  </span>
+                  <span className="text-slate-200 text-sm truncate">{feed.source_label}</span>
+                  {!feed.auto_activated && (
+                    <Badge variant="outline" className="border-slate-700 text-slate-500 text-xs shrink-0">custom</Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Switch
+                    checked={feed.is_active}
+                    onCheckedChange={(checked) => !disabled && handleToggleFeed(feed.id, checked)}
+                    disabled={disabled || togglingFeedId === feed.id}
+                  />
+                  {!feed.auto_activated && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleDeleteFeed(feed.id, feed.source_label)}
+                      disabled={disabled || deletingFeedId === feed.id}
+                      className="border-red-900 text-red-400 hover:bg-red-900/20 h-7 w-7 p-0"
+                    >
+                      {deletingFeedId === feed.id
+                        ? <Loader2 className="h-3 w-3 animate-spin" />
+                        : <Trash2 className="h-3 w-3" />}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            ))}
+            {feeds.length === 0 && (
+              <p className="text-slate-500 text-sm text-center py-4">No feeds configured yet.</p>
+            )}
+          </div>
+
+          {isAdmin && (
+            <>
+              <Separator className="bg-slate-800" />
+              <div className="space-y-3">
+                <p className="text-slate-300 text-sm font-medium">Add custom RSS feed</p>
+                <div className="flex gap-2 flex-wrap">
+                  <Input
+                    placeholder="https://example.com/feed.rss"
+                    value={newRssUrl}
+                    onChange={(e) => setNewRssUrl(e.target.value)}
+                    disabled={disabled || addingRss}
+                    className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 flex-1 min-w-48"
+                  />
+                  <Input
+                    placeholder="Label (optional)"
+                    value={newRssLabel}
+                    onChange={(e) => setNewRssLabel(e.target.value)}
+                    disabled={disabled || addingRss}
+                    className="bg-slate-800 border-slate-700 text-slate-100 placeholder:text-slate-600 w-40"
+                  />
+                  <Button
+                    onClick={handleAddRssFeed}
+                    disabled={disabled || addingRss || !newRssUrl.trim()}
+                    className="bg-indigo-600 hover:bg-indigo-500 shrink-0"
+                  >
+                    {addingRss
+                      ? <Loader2 className="h-4 w-4 animate-spin" />
+                      : <><Plus className="h-4 w-4 mr-1" />Add</>}
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

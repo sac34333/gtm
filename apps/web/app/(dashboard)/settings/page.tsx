@@ -8,10 +8,11 @@ export default async function SettingsPage() {
   const orgId = user?.app_metadata?.org_id
   if (!orgId) redirect('/create-org')
 
-  const [{ data: org }, { data: orgMember }, { data: apiKeys }] = await Promise.all([
+  const [{ data: org }, { data: orgMember }, { data: apiKeys }, { data: feedConfigs }] = await Promise.all([
     supabase.from('orgs').select('signal_ingestion_enabled, signal_ingestion_frequency, last_signal_ingestion_at, plan_tier').eq('id', orgId).single(),
     supabase.from('org_members').select('role').eq('org_id', orgId).eq('user_id', user!.id).single(),
     supabase.from('org_api_keys').select('key_name').eq('org_id', orgId),
+    supabase.from('feed_configs').select('id, source_type, source_label, source_url, is_active, auto_activated').eq('org_id', orgId).order('auto_activated', { ascending: false }).order('source_label'),
   ])
 
   const role = orgMember?.role ?? 'member'
@@ -31,6 +32,8 @@ export default async function SettingsPage() {
         lastIngestionAt={org?.last_signal_ingestion_at ?? null}
         existingKeys={existingKeys}
         isAdmin={isAdmin}
+        orgId={orgId}
+        initialFeedConfigs={feedConfigs ?? []}
       />
     </div>
   )
