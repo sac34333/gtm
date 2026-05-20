@@ -23,16 +23,48 @@ const FREQUENCY_INTERVALS: Record<string, number> = {
   monthly: 30 * 24 * 60 * 60 * 1000,
 }
 
+const ALLOWED_ORIGINS = ['https://gtmengine.qubitlyventures.com', 'http://localhost:3000']
+
 Deno.serve(async (req: Request) => {
-  // Cron-triggered: accept either CRON_SECRET (x-cron-secret header) or service role key (Authorization)
+  const origin = req.headers.get('origin') ?? ''
+  const corsHeaders = ALLOWED_ORIGINS.includes(origin)
+    ? { 'Access-Control-Allow-Origin': origin, 'Content-Type': 'application/json' }
+    : { 'Content-Type': 'application/json' }
+
+  if (req.method === 'OPTIONS') {
+    if (!ALLOWED_ORIGINS.includes(origin)) return new Response(null, { status: 403 })
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type, x-client-info, apikey, x-cron-secret',
+      },
+    })
+  }
+
+  // Auth — three accepted paths:
+  // 1. CRON_SECRET header (pg_cron trigger)
+  // 2. Service role key in Authorization (internal calls)
+  // 3. User JWT — browser "Fetch now"; scoped to that org only, bypasses throttle
   const cronSecretHeader = req.headers.get('x-cron-secret') ?? ''
   const cronSecret = Deno.env.get('CRON_SECRET') ?? ''
   const authHeader = req.headers.get('Authorization') ?? ''
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   const cronOk = cronSecret.length > 0 && cronSecretHeader === cronSecret
   const srOk = serviceRoleKey.length > 0 && authHeader.includes(serviceRoleKey)
+
+  let singleOrgId: string | null = null
+
   if (!cronOk && !srOk) {
-    return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401 })
+    // Try user JWT
+    const jwt = authHeader.replace('Bearer ', '').trim()
+    if (!jwt) return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: corsHeaders })
+    const db = createServiceClient()
+    const { data: { user }, error: authErr } = await db.auth.getUser(jwt)
+    if (authErr || !user?.app_metadata?.org_id) {
+      return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: corsHeaders })
+    }
+    singleOrgId = user.app_metadata.org_id as string
   }
 
   const db = createServiceClient()
@@ -51,11 +83,14 @@ Deno.serve(async (req: Request) => {
 
     for (const org of orgs || []) {
       try {
-        // Skip if ingestion disabled
-        if (!org.signal_ingestion_enabled) continue
+        // If triggered by user JWT, only process their org
+        if (singleOrgId !== null && org.id !== singleOrgId) continue
 
-        // Check frequency
-        if (org.last_signal_ingestion_at) {
+        // Skip if ingestion disabled (but allow user-triggered fetch regardless)
+        if (singleOrgId === null && !org.signal_ingestion_enabled) continue
+
+        // Check frequency — bypass for user-triggered "Fetch now"
+        if (singleOrgId === null && org.last_signal_ingestion_at) {
           const lastRun = new Date(org.last_signal_ingestion_at).getTime()
           const interval = FREQUENCY_INTERVALS[org.signal_ingestion_frequency ?? 'every_2_days'] ?? FREQUENCY_INTERVALS.every_2_days
           if (now - lastRun < interval) continue

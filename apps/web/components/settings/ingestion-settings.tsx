@@ -139,7 +139,7 @@ export function IngestionSettings({
   function handleFetchNow() {
     startFetching(async () => {
       try {
-        await callEdgeFunction('update-org-settings', { signal_ingestion_enabled: true })
+        await callEdgeFunction('ingest-signals', {})
         setLastAt(new Date().toISOString())
         toast.success('Fetch triggered — signals updating now')
       } catch (err) {
@@ -321,7 +321,7 @@ export function IngestionSettings({
         <CardHeader>
           <CardTitle className="text-slate-100">Data Sources</CardTitle>
           <CardDescription className="text-slate-400">
-            Manage your signal feeds. Built-in sources (HackerNews, Tavily, ProductHunt) run on the platform. Toggle any feed or add your own custom RSS feeds.
+            Manage your signal feeds. Sources seeded at onboarding (based on your industry) run on the platform — no API keys needed. Toggle any feed or add your own custom RSS feeds.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
