@@ -141,14 +141,18 @@ export function IngestionSettings({
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
 
-      // Real failures (401, 403, network down) come back in < 2s.
-      // A running function takes 60-90s. Abort after 8s:
-      //   → AbortError = function is running in background (treat as success)
-      //   → HTTP 4xx/5xx = genuine failure (show error)
-      //   → HTTP 2xx before timeout = fast success
+      // Snapshot state before firing so we can diff after job completes
+      const [{ count: countBefore }, { data: orgBefore }] = await Promise.all([
+        supabase.from('signals').select('*', { count: 'exact', head: true })
+          .eq('org_id', orgId).not('status', 'in', '("archived","dismissed")'),
+        supabase.from('orgs').select('last_signal_ingestion_at').eq('id', orgId).single(),
+      ])
+      const prevLastAt = orgBefore?.last_signal_ingestion_at ?? null
+      const prevCount = countBefore ?? 0
+
+      // Fire-and-forget with 8s abort window to catch real failures fast
       const controller = new AbortController()
       const timer = setTimeout(() => controller.abort(), 8000)
-
       try {
         const res = await fetch(`${SUPABASE_URL}/functions/v1/ingest-signals`, {
           method: 'POST',
@@ -166,15 +170,40 @@ export function IngestionSettings({
         clearTimeout(timer)
         const isAbort = err instanceof Error && err.name === 'AbortError'
         if (!isAbort) {
-          // Real network failure (no connection, CORS blocked, DNS failure)
           toast.error(`Fetch failed: ${err instanceof Error ? err.message : 'Network error'}`)
           return
         }
-        // AbortError = function is still running in the background (expected)
+        // AbortError = function is running in background (expected for 88s jobs)
       }
 
-      setLastAt(new Date().toISOString())
-      toast.success('Fetch triggered — signals will appear within 1-2 minutes')
+      toast.info('Fetching signals in background — will notify you when done…')
+
+      // Poll last_signal_ingestion_at every 8s for up to 3 minutes
+      let attempts = 0
+      const poll = setInterval(async () => {
+        attempts++
+        if (attempts > 22) { clearInterval(poll); return } // 22 × 8s ≈ 3 min timeout
+
+        const { data: orgNow } = await supabase.from('orgs')
+          .select('last_signal_ingestion_at').eq('id', orgId).single()
+
+        const newLastAt = orgNow?.last_signal_ingestion_at ?? null
+        if (!newLastAt || newLastAt === prevLastAt) return // job not done yet
+
+        clearInterval(poll)
+        setLastAt(newLastAt)
+
+        const { count: countAfter } = await supabase.from('signals')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', orgId).not('status', 'in', '("archived","dismissed")')
+
+        const newCount = (countAfter ?? 0) - prevCount
+        if (newCount > 0) {
+          toast.success(`${newCount} new signal${newCount !== 1 ? 's' : ''} added — refresh to see them`)
+        } else {
+          toast.info('All feeds checked — nothing new to fetch right now')
+        }
+      }, 8000)
     })
   }
 
