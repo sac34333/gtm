@@ -138,13 +138,17 @@ export function IngestionSettings({
 
   function handleFetchNow() {
     startFetching(async () => {
-      try {
-        await callEdgeFunction('ingest-signals', {})
-        setLastAt(new Date().toISOString())
-        toast.success('Fetch triggered — signals updating now')
-      } catch (err) {
-        toast.error(`Fetch failed: ${err}`)
-      }
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token
+      // Fire-and-forget — ingest-signals processes 10+ RSS feeds and takes 60-90s.
+      // Don't await the response; the function runs to completion in the background.
+      fetch(`${SUPABASE_URL}/functions/v1/ingest-signals`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).catch(() => {}) // network timeout is expected — ignore it
+      setLastAt(new Date().toISOString())
+      toast.success('Fetch triggered — signals will appear within 1-2 minutes')
     })
   }
 
