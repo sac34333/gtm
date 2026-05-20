@@ -140,13 +140,39 @@ export function IngestionSettings({
     startFetching(async () => {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token
-      // Fire-and-forget — ingest-signals processes 10+ RSS feeds and takes 60-90s.
-      // Don't await the response; the function runs to completion in the background.
-      fetch(`${SUPABASE_URL}/functions/v1/ingest-signals`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      }).catch(() => {}) // network timeout is expected — ignore it
+
+      // Real failures (401, 403, network down) come back in < 2s.
+      // A running function takes 60-90s. Abort after 8s:
+      //   → AbortError = function is running in background (treat as success)
+      //   → HTTP 4xx/5xx = genuine failure (show error)
+      //   → HTTP 2xx before timeout = fast success
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), 8000)
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/ingest-signals`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+          signal: controller.signal,
+        })
+        clearTimeout(timer)
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ error: res.statusText }))
+          toast.error(`Fetch failed: ${err.error || 'Unknown error'}`)
+          return
+        }
+      } catch (err: unknown) {
+        clearTimeout(timer)
+        const isAbort = err instanceof Error && err.name === 'AbortError'
+        if (!isAbort) {
+          // Real network failure (no connection, CORS blocked, DNS failure)
+          toast.error(`Fetch failed: ${err instanceof Error ? err.message : 'Network error'}`)
+          return
+        }
+        // AbortError = function is still running in the background (expected)
+      }
+
       setLastAt(new Date().toISOString())
       toast.success('Fetch triggered — signals will appear within 1-2 minutes')
     })
