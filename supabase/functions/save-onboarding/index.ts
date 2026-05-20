@@ -1,5 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { getRegionalSources } from '../_shared/sources/regional.ts'
+import { getRegionalSources, getIndustrySources } from '../_shared/sources/regional.ts'
 
 const ALLOWED_ORIGINS = [
   'https://gtmengine.qubitlyventures.com',
@@ -147,24 +147,35 @@ Deno.serve(async (req: Request) => {
 
       onboarding_complete = true
 
-      // Activate regional feed sources based on country_code (silent on failure)
+      // Activate regional + industry feed sources (silent on failure)
       try {
         const countryCode = (brandPayload.country_code as string | undefined) ?? ''
-        if (countryCode) {
-          const regionalSources = getRegionalSources(countryCode)
-          if (regionalSources.length > 0) {
+        const industrySector = (brandPayload.industry_sector as string | undefined) ?? ''
+        if (countryCode || industrySector) {
+          const regionalSources = countryCode ? getRegionalSources(countryCode) : []
+          const industrySources = industrySector ? getIndustrySources(industrySector) : []
+          // Merge: universal (inside regional) + regional + industry, deduplicating by key
+          const seen = new Set<string>(regionalSources.map((s) => `${s.source_type}::${s.source_url}`))
+          const finalSources = [...regionalSources]
+          for (const s of industrySources) {
+            const key = `${s.source_type}::${s.source_url}`
+            if (!seen.has(key)) {
+              seen.add(key)
+              finalSources.push(s)
+            }
+          }
+          if (finalSources.length > 0) {
             // Only insert sources that don't already exist for this org
             const { data: existing } = await serviceClient
               .from('feed_configs')
               .select('source_url, source_type')
               .eq('org_id', org_id)
-              .eq('auto_activated', true)
 
             const existingKeys = new Set(
               (existing ?? []).map((fc) => `${fc.source_type}::${fc.source_url}`)
             )
 
-            const toInsert = regionalSources
+            const toInsert = finalSources
               .filter((s) => !existingKeys.has(`${s.source_type}::${s.source_url}`))
               .map((s) => ({
                 org_id,
