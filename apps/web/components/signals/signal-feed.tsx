@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase/client'
 import { type Tables } from '@/lib/supabase/types'
@@ -64,6 +64,17 @@ const SOURCE_PILL_LABELS: Record<string, string> = {
   regional_auto: 'Regional News',
 }
 
+// Source types that are always platform-level (never user-added)
+const PLATFORM_TYPES = new Set(['tavily', 'hackernews'])
+
+type SourceTier = 'platform' | 'industry' | 'custom'
+
+function getSignalTier(signal: Signal, tierMap: Map<string, SourceTier>): SourceTier {
+  if (PLATFORM_TYPES.has(signal.source_type ?? '')) return 'platform'
+  if (signal.feed_config_id) return tierMap.get(signal.feed_config_id) ?? 'custom'
+  return 'custom'
+}
+
 type RelevanceTier = 'high' | 'medium' | 'low'
 
 function tierFor(score: number | null, publishedAt: string | null): RelevanceTier {
@@ -85,15 +96,33 @@ export function SignalFeed({ orgId }: { orgId: string }) {
   const queryClient = useQueryClient()
   const [showDismissed, setShowDismissed] = useState(false)
   const [dateRange, setDateRange] = useState<DateRange>('30d')
-  const [sourceFilter, setSourceFilter] = useState<string>('all')
+  const [sourceFilter, setSourceFilter] = useState<'all' | SourceTier>('all')
   const [relevanceFilter, setRelevanceFilter] = useState<'all' | RelevanceTier>('all')
 
   const { data: signals = [], isLoading, isFetching, isError, dataUpdatedAt } = useQuery({
     queryKey: ['signals', orgId, showDismissed, dateRange],
     queryFn: () => fetchSignals(orgId, showDismissed, dateRange),
-    refetchInterval: 60 * 1000, // refresh every 60s
+    refetchInterval: 60 * 1000,
     staleTime: 30 * 1000,
   })
+
+  // Feed configs for tier classification (platform / industry / custom)
+  const { data: feedConfigs = [] } = useQuery({
+    queryKey: ['feed_configs_tier', orgId],
+    queryFn: async () => {
+      const { data } = await supabase.from('feed_configs').select('id, auto_activated').eq('org_id', orgId)
+      return data ?? []
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const tierMap = useMemo(() => {
+    const map = new Map<string, SourceTier>()
+    for (const fc of feedConfigs) {
+      map.set(fc.id, fc.auto_activated ? 'industry' : 'custom')
+    }
+    return map
+  }, [feedConfigs])
 
   // Reset client-side filters whenever the DB query changes so users can't get
   // stuck at 0 results with an invisible filter active.
@@ -128,16 +157,17 @@ export function SignalFeed({ orgId }: { orgId: string }) {
     )
   }, [queryClient, orgId, showDismissed, dateRange])
 
-  // Derive distinct source types from loaded signals + per-source counts
-  const sourceCounts = signals.reduce<Record<string, number>>((acc, s) => {
-    if (!s.source_type) return acc
-    acc[s.source_type] = (acc[s.source_type] ?? 0) + 1
-    return acc
-  }, {})
-  const sourceTypes = Object.keys(sourceCounts).sort((a, b) => sourceCounts[b]! - sourceCounts[a]!)
+  // Per-tier source counts
+  const sourceTierCounts = useMemo(() => {
+    const counts: Record<SourceTier, number> = { platform: 0, industry: 0, custom: 0 }
+    for (const s of signals) counts[getSignalTier(s, tierMap)]++
+    return counts
+  }, [signals, tierMap])
 
-  // Per-tier counts (after source filter applied, before relevance filter)
-  const sourceFiltered = signals.filter((s) => sourceFilter === 'all' || s.source_type === sourceFilter)
+  // Which tiers have at least one signal (to show only relevant pills)
+  const activeTiers = (['platform', 'industry', 'custom'] as SourceTier[]).filter(t => sourceTierCounts[t] > 0)
+
+  const sourceFiltered = signals.filter((s) => sourceFilter === 'all' || getSignalTier(s, tierMap) === sourceFilter)
   const tierCounts = sourceFiltered.reduce<Record<RelevanceTier, number>>(
     (acc, s) => { acc[tierFor(s.relevance_score, s.published_at ?? null)]++; return acc },
     { high: 0, medium: 0, low: 0 },
@@ -223,32 +253,31 @@ export function SignalFeed({ orgId }: { orgId: string }) {
         </div>
       </div>
 
-      {/* Source pills with counts */}
-      {sourceTypes.length > 0 && (
+      {/* Source tier pills */}
+      {activeTiers.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => setSourceFilter('all')}
             className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-              sourceFilter === 'all'
-                ? 'bg-slate-700 text-white'
-                : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
+              sourceFilter === 'all' ? 'bg-slate-700 text-white' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
             }`}
           >
             All <span className="text-slate-500 ml-1">{signals.length}</span>
           </button>
-          {sourceTypes.map((t) => (
-            <button
-              key={t}
-              onClick={() => setSourceFilter(t)}
-              className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
-                sourceFilter === t
-                  ? 'bg-slate-700 text-white'
-                  : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
-              }`}
-            >
-              {SOURCE_PILL_LABELS[t] ?? t} <span className="text-slate-500 ml-1">{sourceCounts[t]}</span>
-            </button>
-          ))}
+          {activeTiers.map((tier) => {
+            const label = tier === 'platform' ? 'Platform' : tier === 'industry' ? 'Industry' : 'Custom'
+            return (
+              <button
+                key={tier}
+                onClick={() => setSourceFilter(tier)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors ${
+                  sourceFilter === tier ? 'bg-slate-700 text-white' : 'bg-slate-800/60 text-slate-400 hover:bg-slate-800'
+                }`}
+              >
+                {label} <span className="text-slate-500 ml-1">{sourceTierCounts[tier]}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 
