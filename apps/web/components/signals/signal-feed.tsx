@@ -106,6 +106,18 @@ export function SignalFeed({ orgId }: { orgId: string }) {
     staleTime: 30 * 1000,
   })
 
+  // When the ingestion job last ran — from orgs table, not from signal timestamps.
+  // This updates even if no new signals were inserted (all duplicates).
+  const { data: lastIngestionAt } = useQuery({
+    queryKey: ['org_last_ingestion', orgId],
+    queryFn: async () => {
+      const { data } = await supabase.from('orgs').select('last_signal_ingestion_at').eq('id', orgId).single()
+      return data?.last_signal_ingestion_at ?? null
+    },
+    refetchInterval: 30 * 1000,
+    staleTime: 15 * 1000,
+  })
+
   // Feed configs for tier classification (platform / industry / custom)
   const { data: feedConfigs = [] } = useQuery({
     queryKey: ['feed_configs_tier', orgId],
@@ -132,16 +144,10 @@ export function SignalFeed({ orgId }: { orgId: string }) {
   }, [dateRange, showDismissed])
 
   // "Last ingested" = newest created_at across the loaded rows.
-  // This reflects when the cron job actually wrote new signals, not when the
-  // browser last polled the DB (dataUpdatedAt would be misleading here).
-  const lastIngestedAt = signals.reduce<number>((max, s) => {
-    const t = s.created_at ? new Date(s.created_at).getTime() : 0
-    return t > max ? t : max
-  }, 0)
-  const lastUpdatedLabel = lastIngestedAt
-    ? formatDistanceToNow(new Date(lastIngestedAt), { addSuffix: true })
+  // Format when ingest-signals last ran for this org
+  const lastUpdatedLabel = lastIngestionAt
+    ? formatDistanceToNow(new Date(lastIngestionAt), { addSuffix: true })
     : null
-  // Suppress unused warning while keeping the import handy if you want to switch back
   void dataUpdatedAt
 
   const handleDismiss = useCallback((id: string) => {
