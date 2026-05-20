@@ -351,48 +351,96 @@ export function IngestionSettings({
         <CardHeader>
           <CardTitle className="text-slate-100">Data Sources</CardTitle>
           <CardDescription className="text-slate-400">
-            Manage your signal feeds. Sources seeded at onboarding (based on your industry) run on the platform — no API keys needed. Toggle any feed or add your own custom RSS feeds.
+            Your signal feeds are organised in three tiers. Platform sources run on GTM Engine's infrastructure — no API keys needed. Industry sources were seeded at onboarding based on your industry. Custom feeds are ones you added manually.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            {feeds.map((feed) => (
-              <div key={feed.id} className="flex items-center justify-between rounded-lg border border-slate-700 px-4 py-3 gap-3">
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <span className="text-xs text-slate-500 shrink-0 w-28">
-                    {SOURCE_TYPE_LABELS[feed.source_type] ?? feed.source_type}
-                  </span>
-                  <span className="text-slate-200 text-sm truncate">{feed.source_label}</span>
-                  {!feed.auto_activated && (
-                    <Badge variant="outline" className="border-slate-700 text-slate-500 text-xs shrink-0">custom</Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <Switch
-                    checked={feed.is_active}
-                    onCheckedChange={(checked) => !disabled && handleToggleFeed(feed.id, checked)}
-                    disabled={disabled || togglingFeedId === feed.id}
-                  />
-                  {!feed.auto_activated && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleDeleteFeed(feed.id, feed.source_label)}
-                      disabled={disabled || deletingFeedId === feed.id}
-                      className="border-red-900 text-red-400 hover:bg-red-900/20 h-7 w-7 p-0"
-                    >
-                      {deletingFeedId === feed.id
-                        ? <Loader2 className="h-3 w-3 animate-spin" />
-                        : <Trash2 className="h-3 w-3" />}
-                    </Button>
-                  )}
-                </div>
+        <CardContent className="space-y-6">
+
+          {/* ── Tier 1: Platform Built-ins ─────────────────────────────── */}
+          {(() => {
+            const universalTypes = new Set(['tavily', 'hackernews'])
+            const builtIns = feeds.filter(f => universalTypes.has(f.source_type))
+            if (builtIns.length === 0) return null
+            return (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Platform · Always on</p>
+                {builtIns.map((feed) => (
+                  <div key={feed.id} className="flex items-center justify-between rounded-lg border border-slate-700/60 bg-slate-800/30 px-4 py-3 gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="text-xs text-slate-500 shrink-0 w-28">{SOURCE_TYPE_LABELS[feed.source_type] ?? feed.source_type}</span>
+                      <span className="text-slate-200 text-sm truncate">{feed.source_label}</span>
+                    </div>
+                    <Switch checked disabled className="opacity-50 cursor-not-allowed" />
+                  </div>
+                ))}
               </div>
-            ))}
-            {feeds.length === 0 && (
-              <p className="text-slate-500 text-sm text-center py-4">No feeds configured yet.</p>
-            )}
-          </div>
+            )
+          })()}
+
+          {/* ── Tier 2: Industry Sources ───────────────────────────────── */}
+          {(() => {
+            const universalTypes = new Set(['tavily', 'hackernews'])
+            const industrySources = feeds.filter(f => f.auto_activated && !universalTypes.has(f.source_type))
+            if (industrySources.length === 0) return null
+            return (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Industry · Seeded at onboarding</p>
+                {industrySources.map((feed) => (
+                  <div key={feed.id} className="flex items-center justify-between rounded-lg border border-slate-700 px-4 py-3 gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <span className="text-xs text-slate-500 shrink-0 w-28">{SOURCE_TYPE_LABELS[feed.source_type] ?? feed.source_type}</span>
+                      <span className="text-slate-200 text-sm truncate">{feed.source_label}</span>
+                    </div>
+                    <Switch
+                      checked={feed.is_active}
+                      onCheckedChange={(checked) => !disabled && handleToggleFeed(feed.id, checked)}
+                      disabled={disabled || togglingFeedId === feed.id}
+                    />
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* ── Tier 3: Custom Feeds ───────────────────────────────────── */}
+          {(() => {
+            const customFeeds = feeds.filter(f => !f.auto_activated)
+            if (customFeeds.length === 0 && !isAdmin) return null
+            return (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Custom · Added by you</p>
+                {customFeeds.length === 0
+                  ? <p className="text-slate-600 text-sm py-2">No custom feeds yet — add one below.</p>
+                  : customFeeds.map((feed) => (
+                    <div key={feed.id} className="flex items-center justify-between rounded-lg border border-slate-700 px-4 py-3 gap-3">
+                      <div className="flex items-center gap-3 min-w-0 flex-1">
+                        <span className="text-xs text-slate-500 shrink-0 w-28">{SOURCE_TYPE_LABELS[feed.source_type] ?? feed.source_type}</span>
+                        <span className="text-slate-200 text-sm truncate">{feed.source_label || feed.source_url}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Switch
+                          checked={feed.is_active}
+                          onCheckedChange={(checked) => !disabled && handleToggleFeed(feed.id, checked)}
+                          disabled={disabled || togglingFeedId === feed.id}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteFeed(feed.id, feed.source_label)}
+                          disabled={disabled || deletingFeedId === feed.id}
+                          className="border-red-900 text-red-400 hover:bg-red-900/20 h-7 w-7 p-0"
+                        >
+                          {deletingFeedId === feed.id
+                            ? <Loader2 className="h-3 w-3 animate-spin" />
+                            : <Trash2 className="h-3 w-3" />}
+                        </Button>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            )
+          })()}
 
           {isAdmin && (
             <>
