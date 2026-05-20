@@ -31,8 +31,6 @@ const DATA_SOURCE_KEYS = [
   { key: 'twitter_bearer', label: 'Twitter Bearer Token', group: 'Twitter' },
   { key: 'youtube_api_key', label: 'YouTube API Key', group: 'YouTube' },
   { key: 'brave_search_api_key', label: 'Brave Search API Key', group: 'Brave Search' },
-  { key: 'clearbit_key', label: 'Clearbit API Key', group: 'Clearbit' },
-  { key: 'apify_token', label: 'Apify Token', group: 'LinkedIn (Apify)' },
   { key: 'github_token', label: 'GitHub Token', group: 'GitHub' },
 ]
 
