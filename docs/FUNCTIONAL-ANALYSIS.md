@@ -68,7 +68,7 @@ Signals ──► Content ──► ICP Discovery ──► Campaigns ──► 
   /onboarding ─────────── 5-step brand/ICP setup wizard
 
 /Dashboard Routes (authenticated, org required, onboarding required)/
-  /dashboard ──────────── Trend Intelligence (signal feed)
+  /dashboard ──────────── Trend Intelligence (signal feed + quota meters)
   /dashboard/signal/[id] ─ Signal detail + "Use this trend" CTA
   /create ─────────────── Asset generation workbench (image/video)
   /create/[job_id] ────── Result detail, version history, feedback, captions
@@ -78,6 +78,7 @@ Signals ──► Content ──► ICP Discovery ──► Campaigns ──► 
   /campaigns ───────────── Campaign list with filters
   /campaigns/new ───────── 3-step campaign creation wizard
   /campaigns/[id] ─────── Campaign detail (calendar, prospects, brief, Ask AI)
+  /help/create-guide ───── How-to guide for asset creation
   /settings ────────────── General settings (signal ingestion)
   /settings/brand ──────── Brand & ICP settings
   /settings/billing ───── Plan management + checkout
@@ -226,11 +227,14 @@ The 5-step onboarding wizard collects:
 - Themes matched via whole-phrase matching first, then partial token matching
 
 **Dashboard UI:**
-- Signal feed with 4 filters: date range (7d/30d/90d/all), source tier (Platform/Industry/Custom), relevance tier (High/Medium/Low), dismissed toggle
+- **Quota meters** (top-right): Image usage (`X/Y`) and Video usage (`A/B`) with icons. Turn red when at capacity.
+- **Ingestion disabled banner**: If `org.signal_ingestion_enabled` is falsy, a bordered alert box appears linking to `/settings` to re-enable.
+- **Signal feed** with 4 filters: date range (7d/30d/90d/all), source tier (Platform/Industry/Custom), relevance tier (High/Medium/Low), dismissed toggle
+- **"Last fetched" indicator**: Green pulsing dot while fetching, dimmer when idle. Shows "last fetched X ago" from `orgs.last_signal_ingestion_at`. Auto-refreshes every 60s via React Query (`refetchInterval: 60000`).
 - Age-aware relevance badges on cards (≥0.25 = High if ≤30 days old)
 - Signal cards: headline, source label, timestamp, relevance percentage, summary, theme chips
 - Actions: Dismiss/Restore, "Use this trend" (detail page only, TODO on card)
-- Active generation jobs widget with Realtime subscription
+- **Active generation jobs widget**: Up to 5 pending/processing jobs displayed in a 2-column grid. Each card shows asset type icon, subject text (truncated), status + elapsed time, and "View →" link. Subscribes to both `postgres_changes` on `generation_jobs` and broadcast channel `job:{id}` for instant completion updates. Auto-navigates to `/create/{id}` on completion.
 
 **Ingestion settings (Settings):**
 - Toggle ingestion on/off (calls `update-org-settings`)
@@ -282,12 +286,27 @@ User clicks Generate
     → If async (video): deducts quota, returns { job_id, status: pending }
 ```
 
+**Video generation UX:**
+- On submit, the page shows an animated pulse with "Generating your video..." text and a note that "Video is generated asynchronously. You can leave this page."
+- The client subscribes to a Supabase Realtime broadcast channel `job:{jobId}` for `job_complete` events.
+- As a fallback, the client also polls the job every 3 seconds via `generation_jobs` query.
+- The `ActiveGenerationJobs` widget on `/dashboard` also monitors the job and auto-navigates to `/create/{job_id}` on completion.
+- `poll-job-status` cron runs every minute and sends an email notification when a video job completes.
+
 **Post-generation:**
-- **Captions**: `generate-captions` runs fire-and-forget after image completion. Generates LinkedIn, X, Instagram, WhatsApp captions from brand voice + asset context.
-- **Refinement**: "Refine" button opens a full panel with chip options, custom text, strength slider. Re-calls `build-prompt` + `generate-asset` with `parent_job_id`.
-- **Version history**: All versions (original + refinements) are linked via `parent_job_id`. The job detail page shows the full version tree.
-- **Feedback**: Thumbs up/down, 1-5 star rating, optional note via `submit-feedback`.
-- **Download**: Signed URL with auto-refresh on expiry.
+- **Captions**: `generate-captions` runs fire-and-forget after image completion. Generates LinkedIn, X, Instagram, WhatsApp captions from brand voice + asset context. Each platform gets its own prompt template. The caption blob is stored as JSON in `generation_jobs.captions` with `_status` tracking (pending/ready/failed). A `captions_ready` broadcast event signals the UI to update instantly.
+- **Refinement system**: "Refine" button opens a full-screen slide-over panel with:
+  - **Refinement options** loaded from `refinement_options` table (org overrides take precedence over global defaults). Options are grouped by type:
+    - `chip`: Clickable text options (e.g., "Make it more energetic", "Add more contrast")
+    - `strength`: 1-5 slider controlling how strongly the refinement is applied
+    - `toggle`: Boolean switches (e.g., "Keep original composition")
+  - **Custom text input** for freeform instructions (max 1500 chars, additional_notes)
+  - Re-calls `build-prompt` with the original `prompt_tags` + refinement instructions + `parent_job_id`, then calls `generate-asset`.
+  - Result page shows side-by-side "Keep original" / "Use refined" comparison.
+  - All versions linked via `parent_job_id` forming a version tree.
+- **Version history**: All versions (original + refinements) are linked via `parent_job_id`. The job detail page shows a horizontal thumbnail strip at the top plus a sidebar list on the right. Each version shows thumbnail, version number, date, generation time, style tag, and status badge. Clicking navigates to `/create/{version_id}`.
+- **Feedback**: Thumbs up/down, 1-5 star rating, optional text note. Stored in `generation_feedback` with upsert on `(job_id, user_id)` so users can change their vote.
+- **Download**: Signed URL with auto-refresh on expiry. Filename format: `{orgSlug}_{date}_{jobIdShort}.{ext}`. If the signed URL has expired, the client re-fetches a fresh one automatically.
 - **Use for campaign**: Links to `/icp?job_id=<id>` for personalisation or `/campaigns/new` for campaign creation.
 
 **Quota system:**
@@ -415,6 +434,20 @@ User clicks "Generate Brief"
   → Returns { brief_id, pdf_url, copy_count, channel_summary }
 ```
 
+**Campaign brief PDF structure:**
+1. Cover page (org name, campaign name, date)
+2. Audience profile (total prospects, top industries, seniorities, company sizes, geographies, average ICP score)
+3. Executive summary + rationale ("Why this brief was built this way")
+4. Key messages + primary CTA
+5. Day-by-day launch arc (phases color-coded: amber=pre_launch, indigo=launch, emerald=sustain, violet=recap)
+6. Channel content sections (LinkedIn posts, email variants, Twitter threads, DM templates, Facebook posts)
+7. Hashtag bank (grouped: branded, industry, general, niche, regional)
+8. Timing recommendations (best times per channel per day)
+9. Footer
+
+**`copies_only` mode:**
+When "Regenerate copies" is clicked (on the Prospects & Copy tab), `generate-campaign-brief` is called with `copies_only: true`. This skips brief generation, PDF creation, and campaign status promotion. It only regenerates outreach copies for each prospect × channel combination, then stamps `updated_at` and auto-promotes `draft → active`.
+
 ### 3.7 Asset Library
 
 - Grid of all generation jobs (images and videos) with stacked version display
@@ -431,7 +464,12 @@ User clicks "Generate Brief"
 1. User creates a LinkedIn App via the developer portal (7-step guide at `/settings/integrations/linkedin-setup`)
 2. User generates a 60-day access token and finds their Ad Account ID
 3. User pastes token + ad account ID + display name into the integrations page
-4. `save-linkedin-connection` validates the token against LinkedIn's API, encrypts it (AES-256-GCM), stores it in `org_linkedin_connections`
+4. Three mandatory consent checkboxes must be checked before the "Connect LinkedIn" button is enabled:
+   - "I am authorized to use this LinkedIn account for my organisation"
+   - "I understand my access token will be encrypted and stored securely"
+   - "I agree to the Terms of Service regarding LinkedIn data usage"
+5. `save-linkedin-connection` validates the token against LinkedIn's `/rest/adAccounts/{id}` API before storing it. If the API returns 401/403, the connection is rejected. If it returns a non-2xx status (e.g., 404 for an account without ads), a soft warning is issued but the connection is still saved.
+6. Token is encrypted with AES-256-GCM and stored in `org_linkedin_connections`
 
 **Post to LinkedIn:**
 - Compose dialog with 3000-char limit, optional image attachment from library or upload
@@ -541,7 +579,59 @@ The system uses a 3-tier model resolution chain:
 
 ---
 
-## 4. Data Model Summary
+## 4. Entity Lifecycles & State Machines
+
+### 4.1 Campaign Status Lifecycle
+
+```
+draft ──► active ──► paused ──► active (resume)
+                 ├──► completed
+                 └──► (deleted/archived via update-campaign)
+```
+
+- `draft`: Initial state on creation. No brief generated yet.
+- `active`: Auto-promoted when brief is generated (`generate-campaign-brief` sets status to `active`). Also promoted by `copies_only` mode on first brief generation. Manually settable via status dropdown.
+- `paused`: Set via the campaign status dropdown on the detail page. Uses optimistic update with rollback on error.
+- `completed`: Set manually via the status dropdown.
+
+### 4.2 Generation Job Status Lifecycle
+
+```
+pending ──► processing ──► completed
+                └──► failed
+```
+
+- `pending`: Created immediately on `generate-asset` call. For videos, this is the state while the provider processes.
+- `processing`: Intermediate state for some providers. `poll-job-status` cron checks every minute.
+- `completed`: Image appears inline (sync) or video URL becomes available (async via Realtime broadcast).
+- `failed`: Provider error or timeout. Quota is refunded by `poll-job-status`. User sees a red error card with "Try again" button.
+
+### 4.3 Prospect Status Lifecycle
+
+```
+new ──► contacted ──► replied ──► qualified
+                 └──► disqualified
+```
+
+- `new`: Default on creation from ICP enrichment.
+- `contacted`: Auto-set when `personalise` or `generate-campaign-brief` generates copy for this prospect. Never downgrades: if already `replied`, stays `replied`.
+- `replied`/`qualified`/`disqualified`: Manually set via the status dropdown on the ICP table.
+
+### 4.4 Outreach Copy Status Lifecycle
+
+```
+draft ──► approved ──► exported
+   └──► rejected
+```
+
+- `draft`: Default on creation from `personalise` or `generate-campaign-brief`.
+- `approved`: Set when user clicks "Approve" on the personalise page or in the campaign prospects tab.
+- `exported`: Set when user clicks "Copy to clipboard".
+- `rejected`: Set when user clicks "Reject" in the campaign prospects tab.
+
+---
+
+## 5. Data Model Summary
 
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
@@ -569,7 +659,7 @@ The system uses a 3-tier model resolution chain:
 
 ---
 
-## 5. Cron Jobs
+## 6. Cron Jobs
 
 | Job | Schedule | Purpose |
 |-----|----------|---------|
@@ -581,7 +671,7 @@ The system uses a 3-tier model resolution chain:
 
 ---
 
-## 6. Edge Functions (38)
+## 7. Edge Functions (38)
 
 | Function | Auth | Purpose |
 |----------|------|---------|
@@ -626,7 +716,7 @@ The system uses a 3-tier model resolution chain:
 
 ---
 
-## 7. Realtime & Live Updates
+## 8. Realtime & Live Updates
 
 | Channel | Events | Used By |
 |---------|--------|---------|
@@ -637,7 +727,83 @@ The system uses a 3-tier model resolution chain:
 
 ---
 
-## 8. Known Gaps & Functional Notes
+## 9. Mobile Experience
+
+The dashboard uses a responsive layout with a `MobileShell` component for viewports < 768px:
+
+- **Top bar**: Fixed iOS-style bar with centered title (derived from pathname) and a hamburger menu on the left. On nested routes (e.g., `/campaigns/[id]`), the hamburger is replaced by a "Back" button.
+- **Drawer**: Slide-out navigation drawer with the full `SidebarNav` contents. Includes a "Sign out" button at the bottom (ensures it's reachable even on small screens). Drawer auto-closes on route change via `useEffect`. Body scroll is locked while the drawer is open.
+- **Filter chips**: On `/campaigns`, filter chips scroll horizontally within their container bar; the outer page does not scroll horizontally.
+- **Touch targets**: All interactive elements are at least 36px tall.
+- **Asset previews**: Images and videos fit 100% width with no horizontal overflow.
+- **Tables**: The ICP prospects table scrolls horizontally within its container.
+- **Social copy**: "Ready" status and "Regenerate all" text are visible (not greyed/invisible on dark mode).
+
+Desktop at 1440px+ is pixel-identical to pre-mobile-layout designs.
+
+---
+
+## 10. Brand File Upload Flow
+
+Brand assets (logos and guidelines PDFs) follow a signed-upload pattern:
+
+1. **File selection**: User clicks "Upload logo" or "Upload guidelines" in the Brand & ICP settings form (`BrandFileUpload` component).
+2. **File validation**: Client-side check for allowed types (PNG, JPEG, SVG, WebP for images; PDF for guidelines) and size limits.
+3. **Signed URL request**: Client calls `get-upload-url` edge function with `{ bucket: 'brands', filename, content_type }`. The function returns a pre-signed PUT URL scoped to `{org_id}/{filename}`.
+4. **Direct upload**: Client PUTs the file binary directly to the signed URL (bypassing the edge function).
+5. **Path persistence**: Client calls `save-onboarding` with the storage path to persist it on the `brand_contexts` row.
+6. **Viewing**: When the settings page loads, `get-upload-url` generates a 1-hour signed URL for viewing the stored file.
+
+For **image-to-video (i2v) source uploads**, the same pattern applies but with `{ bucket: 'assets', filename, content_type }` and the path is restricted to `{org_id}/i2v_sources/{filename}`.
+
+---
+
+## 11. Error Handling & UI Patterns
+
+### Toast Notifications (via `sonner`)
+- Success, error, and info toasts for all mutation operations (save, generate, delete, invite, etc.).
+- Supabase error messages are surfaced to the user (e.g., "Failed to dismiss signal").
+- Auth errors (`401`) trigger a redirect to `/login`.
+
+### Inline Validation
+- `/create` page: Subject is required (inline red border + message). Creative direction chips are optional.
+- `/signup` and `/login`: Email format validation, password min-length check.
+- `/onboarding` Step 1: Company name, country, industry, company size, and pitch are required.
+
+### Quota Exceeded Modal
+- Triggered when `generate-asset` returns HTTP 402.
+- Shows current usage (`X images of Y`, `A videos of B`), plan name, next reset date.
+- "Upgrade" button links to `/settings/billing`.
+- "Try again later" dismiss option.
+
+### Optimistic UI Updates
+- **Signal dismiss/restore**: Instant card removal or restoration without refetch. Uses React Query `setQueryData` to mutate cache directly.
+- **Campaign status dropdown**: Dropdown changes status immediately; on error, rolls back to previous status with a toast.
+- **LinkedIn post compose**: Compose dialog closes immediately; post creation happens asynchronously.
+- **Chat message send**: User message appended immediately; on LLM error, the optimistic message is removed and the input text is restored for retry.
+
+### Error Boundaries
+- `global-error.tsx`: Catches unhandled exceptions in the root layout. Shows a full-page error with a "Try again" button.
+- Sentry integration: All unhandled errors are reported to Sentry (conditional on `SENTRY_AUTH_TOKEN` env var).
+
+### Rate Limiting
+- Campaign chat: 6 messages per minute burst cap, 50 messages / 200K tokens per day per workspace.
+- Generation: Server-side quota enforcement returns 402 when limits are exceeded.
+- ICP enrichment: Monthly run cap (currently disabled with `false &&` — see Known Gaps).
+
+---
+
+## 12. Content Management (Sanity CMS)
+
+The `/blog` and `/blog/[slug]` pages are powered by **Sanity CMS** via `@sanity/client`. A separate Sanity Studio app exists in the `studio/` directory (`gtmengine-studio`) for authoring blog content.
+
+- Blog content is rendered using `@portabletext/react` for rich text.
+- The marketing layout wraps blog, FAQ, contact, privacy, and terms pages.
+- Public pages (login, signup, etc.) use the `AuthShell` component with a marketing panel showing feature highlights.
+
+---
+
+## 13. Known Gaps & Functional Notes
 
 ### Features Marked TODO in Code
 
@@ -680,6 +846,17 @@ The system uses a 3-tier model resolution chain:
 - Non-admins see "View-only" banner; admins on non-paid plans see "Locked on your current plan"
 - Each step has a hardcoded default model that's used when no preference is set
 
+### Signal Card vs Detail Page Inconsistencies
+
+- Signal card sanitizes `signal.url` against XSS (validates scheme is `http:` or `https:`), but the signal detail page passes the URL directly to `<a href>` without sanitization.
+- Signal card has the "Use this trend" link commented out (`TODO: re-enable post-launch`), but the detail page has it working.
+- The signal detail page filters out archived and dismissed signals (via `.maybeSingle()`), but doesn't redirect if the signal is archived — it shows a 404 instead of a helpful message.
+
+### Campaign Chat Daily Cap
+
+- The daily message cap (50 messages, 200K tokens) is checked with a read-then-write race condition. Under concurrent requests, the cap can be exceeded by 1 message per concurrent request.
+- Burst rate limit (6 messages/minute) is checked correctly (count-based, no race condition).
+
 ### Storage Buckets
 
 | Bucket | Visibility | Purpose |
@@ -702,7 +879,7 @@ The system uses a 3-tier model resolution chain:
 
 ---
 
-## 9. End-to-End User Journeys
+## 14. End-to-End User Journeys
 
 ### Journey 1: New User to First Signal
 
@@ -768,7 +945,7 @@ The system uses a 3-tier model resolution chain:
 
 ---
 
-## 10. Suggested Functional Test Priority
+## 15. Suggested Functional Test Priority
 
 Based on feature criticality and demo impact:
 
