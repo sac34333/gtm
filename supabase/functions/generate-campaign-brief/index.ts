@@ -892,11 +892,11 @@ Only include "timing_recommendations" entries for channels in scope: ${channelLi
       )
 
       try {
-        // Strip markdown code fences if present
         const cleaned = briefRaw.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim()
         briefData = JSON.parse(cleaned)
-      } catch {
-        return new Response(JSON.stringify({ error: 'brief_parse_failed' }), {
+      } catch (parseErr) {
+        console.error('brief_parse_failed. Raw response (first 2000 chars):', briefRaw.slice(0, 2000))
+        return new Response(JSON.stringify({ error: 'brief_parse_failed', detail: (parseErr as Error).message, raw_preview: briefRaw.slice(0, 500) }), {
           status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
