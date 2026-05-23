@@ -14,6 +14,25 @@ function dedupeTokens(s: string): string {
   )).join(', ')
 }
 
+function stripTextDirectives(notes: string): string {
+  const patterns = [
+    /[A-Z][a-z]+(?:\s+[a-z]+)*\s+(?:white\s+)?sans-serif\s+headline[^.]*\./gi,
+    /Underneath,?\s+a\s+smaller\s+subtitle[^.]*\./gi,
+    /Render\s+.*?(?:typography|text|CTA)[^.]*\./gi,
+    /(?:Clean|Bold|Large)\s+.*?typography[^.]*\./gi,
+    /\btext\s+overlay[^.]*\./gi,
+    /\bheadline[^.]*\b(?:top|bottom)[^.]*\./gi,
+    /\bsubtitle[^.]*\./gi,
+    /\btext\s+(?:in|at|on|overlay)[^.]*\./gi,
+    /open\s+for\s+text\s+overlay[^.]*\./gi,
+  ]
+  let result = notes
+  for (const p of patterns) {
+    result = result.replace(p, '')
+  }
+  return result.replace(/\s{2,}/g, ' ').trim()
+}
+
 function buildColoursBlock(brandColours: any, ptColourPalette?: string): string {
   if (brandColours && typeof brandColours === 'object') {
     const parts: string[] = []
@@ -191,7 +210,7 @@ Deno.serve(async (req: Request) => {
       platform: pt.platform ?? 'linkedin',
       aspect_ratio: pt.aspect_ratio ?? '1:1',
       cta_block: buildCtaBlock(pt.cta_text),
-      additional_notes: truncate(pt.additional_notes, 1500),
+      additional_notes: truncate(stripTextDirectives(pt.additional_notes ?? ''), 1500),
       video_output_spec: (() => {
         const dur = pt.video_duration && pt.video_duration !== 'auto'
           ? (pt.video_duration.endsWith('s') ? pt.video_duration : `${pt.video_duration}s`)
