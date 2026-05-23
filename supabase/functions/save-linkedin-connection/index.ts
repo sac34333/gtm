@@ -29,12 +29,11 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}))
     const accessToken = typeof body?.access_token === 'string' ? body.access_token.trim() : ''
-    const adAccountUrn = typeof body?.ad_account_urn === 'string' ? body.ad_account_urn.trim() : ''
+const adAccountUrn = typeof body?.ad_account_urn === 'string' ? body.ad_account_urn.trim() : ''
     const accountNameInput = typeof body?.account_name === 'string' ? body.account_name.trim().slice(0, 200) : ''
     const consentGiven = body?.consent_given === true
 
-    // Validate token shape — LinkedIn access tokens are typically 200-500 chars,
-    // base64-ish (alphanumeric + a few safe symbols). Reject anything suspicious.
+    // Validate token
     if (!accessToken || accessToken.length < 20 || accessToken.length > 2048) {
       return new Response(JSON.stringify({ error: 'invalid_token_format' }), { status: 400, headers: corsHeaders })
     }
@@ -43,51 +42,72 @@ Deno.serve(async (req: Request) => {
     if (!consentGiven) {
       return new Response(JSON.stringify({ error: 'consent_required' }), { status: 400, headers: corsHeaders })
     }
-    // Validate ad account URN format
-    const urnMatch = adAccountUrn.match(/^urn:li:sponsoredAccount:(\d+)$/)
-    if (!urnMatch) {
-      return new Response(JSON.stringify({
-        error: 'invalid_ad_account_urn',
-        detail: 'Must be in the form urn:li:sponsoredAccount:1234567890',
-      }), { status: 400, headers: corsHeaders })
-    }
-    const accountId = urnMatch[1]
 
-    // Test the token: GET /rest/adAccounts/{id}
-    // If the token is invalid/expired or doesn't have access to this account
-    // → LinkedIn returns 401/403. We refuse to save in that case.
+    // Ad account URN is optional — only needed for ad analytics
+    let accountId = ''
+    if (adAccountUrn) {
+      const urnMatch = adAccountUrn.match(/^urn:li:sponsoredAccount:(\d+)$/)
+      if (!urnMatch) {
+        return new Response(JSON.stringify({
+          error: 'invalid_ad_account_urn',
+          detail: 'Must be in the form urn:li:sponsoredAccount:1234567890 — or leave blank if you don\'t have an ad account.',
+        }), { status: 400, headers: corsHeaders })
+      }
+      accountId = urnMatch[1]
+    }
+
+    // Test the token: try /rest/orgAccounts first (works for all org tokens),
+    // then try /rest/adAccounts (only works if token has ads access).
+    // We save the connection as long as ORG access works — ads access is optional.
     let accountName = accountNameInput || ''
     let tokenWorks = false
+    let hasAdsAccess = false
+
     try {
-      const testRes = await fetch(`https://api.linkedin.com/rest/adAccounts/${accountId}`, {
+      // Test 1: Organization access (w_organization_social / r_organization_admin)
+      const orgRes = await fetch('https://api.linkedin.com/rest/orgAccounts?q=verifiedAccounts', {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'LinkedIn-Version': '202401',
+          'LinkedIn-Version': '202501',
           'X-Restli-Protocol-Version': '2.0.0',
         },
       })
-      if (testRes.ok) {
+
+      if (orgRes.ok) {
         tokenWorks = true
-        const j = await testRes.json().catch(() => ({}))
-        if (!accountName && typeof j?.name === 'string') accountName = j.name.slice(0, 200)
-      } else if (testRes.status === 401 || testRes.status === 403) {
+      } else if (orgRes.status === 401 || orgRes.status === 403) {
+        const detail = orgRes.status === 401
+          ? 'LinkedIn rejected the token as unauthorized (401). The token may be expired or invalid.'
+          : 'LinkedIn rejected the token (403). Make sure it has w_organization_social or r_organization_admin scope.'
         return new Response(JSON.stringify({
           error: 'linkedin_auth_failed',
-          detail: 'LinkedIn rejected the token (401/403). Make sure it has r_ads + r_ads_reporting scopes and access to this ad account.',
+          detail,
         }), { status: 400, headers: corsHeaders })
-      } else if (testRes.status === 404) {
-        return new Response(JSON.stringify({
-          error: 'ad_account_not_found',
-          detail: 'LinkedIn could not find this ad account or your token cannot see it.',
-        }), { status: 400, headers: corsHeaders })
-      } else {
-        // Other LinkedIn error — let through with a soft warning, don't reveal upstream body
-        console.error('linkedin verify non-2xx:', testRes.status)
       }
     } catch (e) {
-      // Network blip — proceed with save but surface a soft message
-      console.error('linkedin verify network error:', (e as Error).message)
+      console.error('linkedin org verify network error:', (e as Error).message)
+    }
+
+    // Test 2: Ads access (optional — only needed for campaign analytics)
+    if (tokenWorks && accountId) {
+      try {
+        const adRes = await fetch(`https://api.linkedin.com/rest/adAccounts/${accountId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'LinkedIn-Version': '202401',
+            'X-Restli-Protocol-Version': '2.0.0',
+          },
+        })
+        if (adRes.ok) {
+          hasAdsAccess = true
+          const j = await adRes.json().catch(() => ({}))
+          if (!accountName && typeof j?.name === 'string') accountName = j.name.slice(0, 200)
+        }
+      } catch (e) {
+        console.error('linkedin ads verify network error:', (e as Error).message)
+      }
     }
 
     const encrypted = await encrypt(accessToken)
@@ -116,6 +136,7 @@ Deno.serve(async (req: Request) => {
       connected: true,
       account_name: accountName || null,
       verified: tokenWorks,
+      has_ads_access: hasAdsAccess,
     }), { status: 200, headers: corsHeaders })
   } catch (err) {
     if (err instanceof Response) return err
