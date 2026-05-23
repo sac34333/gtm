@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
 
     // Validate token shape — LinkedIn access tokens are typically 200-500 chars,
     // base64-ish (alphanumeric + a few safe symbols). Reject anything suspicious.
-    if (!/^[A-Za-z0-9_\-.]{40,800}$/.test(accessToken)) {
+    if (!accessToken || accessToken.length < 20 || accessToken.length > 2048) {
       return new Response(JSON.stringify({ error: 'invalid_token_format' }), { status: 400, headers: corsHeaders })
     }
 
