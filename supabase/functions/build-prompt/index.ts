@@ -179,8 +179,8 @@ Deno.serve(async (req: Request) => {
     const vars: Record<string, string> = {
       company_name: brand.company_name ?? 'the company',
       one_sentence_pitch: brand.one_sentence_pitch ?? '',
-      extended_description: truncate(brand.extended_description, 400),
-      brand_guidelines_text: truncate(brand.brand_guidelines_text, 400),
+      extended_description: truncate(brand.extended_description, 1200),
+      brand_guidelines_text: truncate(brand.brand_guidelines_text, 2500),
       active_themes: themes.join(', '),
       decision_maker_titles: titles.join(', '),
       brand_colours_block: buildColoursBlock(brand.brand_colours, pt.colour_palette),

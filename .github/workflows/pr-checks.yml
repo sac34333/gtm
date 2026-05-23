@@ -1,0 +1,88 @@
+name: PR Checks
+
+# Runs on every Pull Request targeting main.
+# All jobs must pass before a PR can be merged.
+# Configure branch protection in: GitHub → Settings → Branches → main → Require status checks.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 1 — Unit Tests
+  # Pure function tests. No internet, no DB, no secrets needed.
+  # Fast (~30 seconds). Always runs.
+  # ─────────────────────────────────────────────────────────────────────────────
+  unit-tests:
+    name: "Phase 1 — Unit Tests"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run unit tests
+        run: |
+          deno test --allow-all \
+            supabase/functions/icp-enrich/icp-enrich.test.ts \
+            supabase/functions/personalise/personalise.test.ts \
+            supabase/functions/_shared/enrichment/web_search.test.ts \
+            supabase/functions/generate-campaign-brief/brief.test.ts
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 3 — E2E Smoke Tests (against staging Supabase)
+  # Fires real HTTP requests at the staging project.
+  # Only runs after unit tests pass.
+  # Enabled once you set STAGING_ENABLED = true in GitHub → Settings → Variables.
+  # ─────────────────────────────────────────────────────────────────────────────
+  e2e-smoke:
+    name: "Phase 3 — E2E Smoke (Staging)"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: ${{ vars.STAGING_ENABLED == 'true' }}
+    env:
+      STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+      STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run E2E smoke tests
+        run: deno test --allow-all testing/e2e/smoke.test.ts
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 4 — Security Tests (against staging Supabase)
+  # Checks: JWT enforcement, RLS (org isolation), CORS, rate limiting.
+  # Only runs after unit tests pass.
+  # ─────────────────────────────────────────────────────────────────────────────
+  security:
+    name: "Phase 4 — Security Tests (Staging)"
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: ${{ vars.STAGING_ENABLED == 'true' }}
+    env:
+      STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      STAGING_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_ANON_KEY }}
+      STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run security tests
+        run: deno test --allow-all testing/security/security.test.ts

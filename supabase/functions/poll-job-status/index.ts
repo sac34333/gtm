@@ -199,9 +199,8 @@ Deno.serve(async (req: Request) => {
             switch (job.provider_key) {
               case 'fal': {
                 const { pollFalJob } = await import('../_shared/providers/fal.ts')
-                const falResult = await pollFalJob(job.openrouter_job_id, apiKey)
-                const imageUrl = falResult?.data?.images?.[0]?.url
-                result = { status: imageUrl ? 'completed' : 'pending', outputUrl: imageUrl }
+                const falResult = await pollFalJob(job.openrouter_job_id, apiKey, job.model_id)
+                result = { status: falResult.status, outputUrl: falResult.imageUrl, error: falResult.error }
                 break
               }
               case 'openrouter': {

@@ -1,0 +1,102 @@
+name: Deploy to Production
+
+# Runs automatically when a PR is merged into main.
+# Steps:
+#   1. Deploy Edge Functions to production Supabase
+#   2. Build and deploy frontend to Cloudflare Pages
+#   3. Run production smoke tests to confirm everything is live
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Deploy backend (Supabase Edge Functions)
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-functions:
+    name: "Deploy Edge Functions → Production Supabase"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy all Edge Functions
+        run: |
+          supabase functions deploy \
+            --project-ref ${{ secrets.PROD_SUPABASE_PROJECT_REF }} \
+            --no-verify-jwt
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Deploy frontend (Cloudflare Pages)
+  # ─────────────────────────────────────────────────────────────────────────────
+  deploy-frontend:
+    name: "Deploy Frontend → Cloudflare Pages"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build for Cloudflare Pages
+        working-directory: apps/web
+        run: npm run pages:build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy .vercel/output/static --project-name=gtm-engine
+          workingDirectory: apps/web
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # PHASE 6 — Production Smoke Tests
+  # Runs after both deploys succeed.
+  # Light checks: can the live site respond, can an API call complete?
+  # ─────────────────────────────────────────────────────────────────────────────
+  production-smoke:
+    name: "Phase 6 — Production Smoke Tests"
+    runs-on: ubuntu-latest
+    needs: [deploy-functions, deploy-frontend]
+    env:
+      PROD_SUPABASE_URL: ${{ secrets.PROD_SUPABASE_URL }}
+      PROD_SUPABASE_ANON_KEY: ${{ secrets.PROD_SUPABASE_ANON_KEY }}
+      PROD_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.PROD_SUPABASE_SERVICE_ROLE_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run production smoke tests
+        run: deno test --allow-all testing/e2e/production-smoke.test.ts
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Production smoke tests failed after deploy. Check https://gtmengine.qubitlyventures.com"
+          echo "Review Edge Function logs: supabase functions logs --project-ref ${{ secrets.PROD_SUPABASE_PROJECT_REF }}"

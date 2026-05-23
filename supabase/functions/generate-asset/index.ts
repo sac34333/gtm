@@ -205,7 +205,7 @@ Deno.serve(async (req: Request) => {
 
     const startTime = Date.now()
 
-    // Call provider � video always async, image can be sync or async
+    // Call provider: video always async, images sync (including fal.ai with sync_mode)
     let result: any
     try {
       if (assetType === 'video') {

@@ -2,14 +2,123 @@
 
 This folder is the single home for all QA, security, and pre-handoff verification artifacts. Use it for every future testing cycle.
 
-## Contents
+---
 
-| File | Purpose |
-|---|---|
-| [TESTING.md](TESTING.md) | Master test plan — ~210 cases across auth/RLS, onboarding, signals, generation, ICP, campaigns, settings, billing, edge fn security, observability, mobile, and full E2E client journey. Each case has ID, P0/P1/P2 priority, severity, `@demo` tag, and a status checkbox. |
-| [security-verification.sql](security-verification.sql) | 12 read-only SQL checks: RLS coverage, CRUD policy completeness, cron health, storage privacy, encrypted-at-rest spot check, hot-path indexes, cross-tenant smoke, quota integrity, stale jobs, `SECURITY DEFINER` `search_path`, default-model-per-step. Paste into Supabase SQL editor or run via the Supabase MCP. |
-| [security-verification.ps1](security-verification.ps1) | 21 network probes: CORS allow/deny, JWT-required endpoints, the 8 self-validating fns, cron-secret enforcement, webhook signature, body-size cap, storage privacy, security headers, no service-role key in client HTML. PowerShell 5.1 compatible. |
-| `FINDINGS-YYYY-MM-DD.md` | One file per test run. Records date, environment, results table, hardening items, action plan, sign-off. See `FINDINGS-2026-05-05.md` for the template. |
+## Objective
+
+Guarantee that every release reaching production clients passes a structured, automated quality gate. No code merges to `main` unless all automated checks are green. No code reaches production unless the live site passes post-deploy smoke tests.
+
+The strategy uses a **staging Supabase project** (separate from production) as the only test environment — no Docker, no local Supabase stack needed.
+
+---
+
+## Current Status — May 2026
+
+### ✅ Done
+
+| What | Detail |
+|------|--------|
+| **149 unit tests — all passing** | ICP enrich (29), personalise (25), web_search enrichment (61), campaign brief (34) |
+| **ICP Tech Spec** | Full OpenAPI-style spec for `icp-enrich`, `personalise`, `generate-campaign-brief` — request/response shapes, all error codes, ICP score algorithm |
+| **CI/CD pipeline — PR checks** | `.github/workflows/pr-checks.yml` — runs Unit Tests + E2E Smoke + Security on every PR; blocks merge if any fail |
+| **CI/CD pipeline — Deploy** | `.github/workflows/deploy.yml` — on merge to `main`: deploys Edge Functions → Supabase, frontend → Cloudflare Pages, then runs production smoke tests |
+| **Security verification scripts** | `security-verification.sql` (12 DB checks) + `security-verification.ps1` (21 network probes) |
+| **Production test plan** | `PRODUCTION-TEST-PLAN.md` — 6-phase strategy, coverage targets, go/no-go checklist |
+
+### ⏳ Pending — needs staging project first
+
+| What | Blocked on |
+|------|-----------|
+| **Staging Supabase project** | You need to create it at supabase.com → provide project ref + anon key + service role key |
+| **`testing/e2e/smoke.test.ts`** | Staging project credentials |
+| **`testing/security/security.test.ts`** | Staging project credentials |
+| **GitHub Actions secrets** | 12 secrets to add in GitHub → Settings → Secrets (list below) |
+| **`STAGING_ENABLED = true`** | GitHub → Settings → Variables — flip this after staging is set up to activate Phase 3 + 4 in the pipeline |
+| **Unit tests for remaining Edge Functions** | `_shared/auth.ts`, `_shared/encryption.ts`, `build-prompt`, `check-quota`, `ingest-signals`, source adapters |
+
+### ❌ Explicitly out of scope
+
+| What | Why |
+|------|-----|
+| Integration tests (mocked handlers) | Removed — not needed for this project |
+| Performance / load tests (k6) | Deferred to post-client-launch |
+| Docker / local Supabase stack | Docker not installed; staging project replaces this |
+
+---
+
+## CI/CD Pipeline (live)
+
+```
+Developer opens PR
+        ↓
+[pr-checks.yml triggers automatically]
+        ↓
+Phase 1 — Unit Tests (always runs, ~30 sec)
+        ↓  pass
+Phase 3 — E2E Smoke → Staging    Phase 4 — Security → Staging
+        ↓  both pass
+GitHub allows PR to be merged
+        ↓
+[deploy.yml triggers automatically on merge]
+        ↓
+Deploy Edge Functions → Production Supabase
+Deploy Frontend → Cloudflare Pages
+        ↓
+Phase 6 — Production Smoke Tests
+        ↓  pass = release complete   fail = GitHub marks deploy as failed + alerts
+```
+
+**Workflow files:** [.github/workflows/pr-checks.yml](../.github/workflows/pr-checks.yml) · [.github/workflows/deploy.yml](../.github/workflows/deploy.yml)
+
+---
+
+## GitHub Secrets required (add once)
+
+Go to: **GitHub repo → Settings → Secrets and variables → Actions**
+
+| Secret | Source |
+|--------|--------|
+| `SUPABASE_ACCESS_TOKEN` | supabase.com → Account → Access Tokens |
+| `PROD_SUPABASE_PROJECT_REF` | Production project → Settings |
+| `PROD_SUPABASE_URL` | Production project → Settings → API |
+| `PROD_SUPABASE_ANON_KEY` | Production project → Settings → API |
+| `PROD_SUPABASE_SERVICE_ROLE_KEY` | Production project → Settings → API |
+| `NEXT_PUBLIC_SUPABASE_URL` | Same as `PROD_SUPABASE_URL` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Same as `PROD_SUPABASE_ANON_KEY` |
+| `STAGING_SUPABASE_URL` | Staging project → Settings → API |
+| `STAGING_SUPABASE_ANON_KEY` | Staging project → Settings → API |
+| `STAGING_SUPABASE_SERVICE_ROLE_KEY` | Staging project → Settings → API |
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens |
+| `CLOUDFLARE_ACCOUNT_ID` | Cloudflare dashboard → right sidebar |
+
+Add one **Variable** (not a secret): `STAGING_ENABLED = true` — set this after staging is ready to activate Phase 3 + 4 in the pipeline.
+
+---
+
+## What needs to happen next (in order)
+
+1. **You** — create staging Supabase project at supabase.com
+2. **You** — share staging project ref + anon key + service role key
+3. **Agent** — writes `testing/e2e/smoke.test.ts` and `testing/security/security.test.ts`
+4. **You** — add all 12 GitHub secrets + set `STAGING_ENABLED = true`
+5. **Agent** — writes unit tests for remaining Edge Functions
+6. Pipeline is fully operational for all future client releases
+
+---
+
+## Files
+
+| File | Status | Purpose |
+|------|--------|---------|
+| [TESTING.md](TESTING.md) | ✅ Live | Master test plan — ~210 cases across auth/RLS, onboarding, signals, generation, ICP, campaigns, settings, billing, edge fn security, observability, mobile, and full E2E client journey. |
+| [PRODUCTION-TEST-PLAN.md](PRODUCTION-TEST-PLAN.md) | ✅ Live | 6-phase strategy, coverage targets, go/no-go checklist, open blocking items. |
+| [ICP-TECH-SPEC.md](ICP-TECH-SPEC.md) | ✅ Live | OpenAPI-style spec for `icp-enrich`, `personalise`, `generate-campaign-brief` — request/response shapes, all error codes, ICP score algorithm. |
+| [ICP-TESTING.md](ICP-TESTING.md) | ✅ Live | 149 unit test coverage map, what's tested/not tested, test run history. |
+| [security-verification.sql](security-verification.sql) | ✅ Live | 12 read-only SQL checks: RLS coverage, cron health, storage privacy, cross-tenant smoke, quota integrity. Paste into Supabase SQL editor. |
+| [security-verification.ps1](security-verification.ps1) | ✅ Live | 21 network probes: CORS, JWT enforcement, webhook signature, body-size cap, security headers. PowerShell 5.1 compatible. |
+| `FINDINGS-YYYY-MM-DD.md` | ✅ Template | One file per test run. See `FINDINGS-2026-05-05.md` for the template. |
+| `e2e/smoke.test.ts` | ⏳ Pending | E2E smoke tests against staging. Written once staging project credentials are provided. |
+| `security/security.test.ts` | ⏳ Pending | Automated security tests (JWT, RLS, CORS) against staging. |
 
 ## How to run a full verification cycle
 

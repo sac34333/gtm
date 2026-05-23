@@ -1,13 +1,13 @@
 'use client'
 
-import Link from 'next/link'
+// import Link from 'next/link' // TODO: re-enable with 'Use this trend' feature
 import { useState } from 'react'
 import { type Tables } from '@/lib/supabase/types'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatDistanceToNow } from 'date-fns'
-import { ExternalLink, Zap, X, RotateCcw, Loader2 } from 'lucide-react'
+import { ExternalLink, X, RotateCcw, Loader2 } from 'lucide-react' // Zap removed with 'Use this trend' feature
 import { supabase } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 
@@ -171,6 +171,7 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
             </Button>
           ) : (
             <>
+              {/* TODO: re-enable 'Use this trend' post-launch
               <Link
                 href={`/create?signal_id=${signal.id}`}
                 className="inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
@@ -178,6 +179,7 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
                 <Zap className="h-3 w-3 mr-1" />
                 Use this trend
               </Link>
+              */
               <Button
                 size="sm"
                 variant="ghost"

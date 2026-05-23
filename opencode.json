@@ -1,0 +1,64 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "github": {
+      "type": "remote",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": "Bearer ${GITHUB_PAT}"
+      },
+      "enabled": true
+    },
+    "supabase": {
+      "type": "remote",
+      "url": "https://mcp.supabase.com/mcp?project_ref=ycsfossrrntwhegmyrze&features=database,functions,development,docs,debugging,storage",
+      "enabled": true
+    },
+    "gemini-api-docs-mcp": {
+      "type": "remote",
+      "url": "https://gemini-api-docs-mcp.dev",
+      "enabled": true
+    },
+    "dodopayments": {
+      "type": "local",
+      "command": ["npx", "-y", "dodopayments-mcp@latest"],
+      "environment": {
+        "DODO_PAYMENTS_API_KEY": "${DODO_PAYMENTS_API_KEY}",
+        "DODO_PAYMENTS_WEBHOOK_KEY": "${DODO_PAYMENTS_WEBHOOK_KEY}",
+        "DODO_PAYMENTS_ENVIRONMENT": "${DODO_PAYMENTS_ENVIRONMENT}"
+      },
+      "enabled": true
+    },
+    "dodo-knowledge": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-remote@latest", "https://knowledge.dodopayments.com/mcp"],
+      "enabled": true
+    },
+    "cloudflare": {
+      "type": "remote",
+      "url": "https://mcp.cloudflare.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${CLOUDFLARE_API_TOKEN}"
+      },
+      "enabled": true
+    },
+    "fal-ai": {
+      "type": "remote",
+      "url": "https://mcp.fal.ai/mcp",
+      "headers": {
+        "Authorization": "Bearer ${FAL_KEY}"
+      },
+      "enabled": true
+    },
+    "sentry": {
+      "type": "remote",
+      "url": "https://mcp.sentry.dev/mcp",
+      "enabled": true
+    },
+    "resend": {
+      "type": "remote",
+      "url": "https://resend.com/docs/mcp",
+      "enabled": true
+    }
+  }
+}

@@ -124,6 +124,7 @@ export async function callOpenRouterImage(
   const body: any = {
     model: modelId,
     messages: [{ role: 'user', content: userContent }],
+    n: 1,
     user: orgId,
     session_id: jobId,
     trace: {

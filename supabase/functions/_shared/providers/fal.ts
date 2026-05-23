@@ -59,6 +59,31 @@ function buildFalInput(modelId: string, payload: any): Record<string, any> {
     }
   }
 
+  if (modelId === 'fal-ai/gemini-3.1-flash-image-preview') {
+    const systemPrompt = payload.brand_context_summary as string | undefined
+    const ctaText = payload.prompt_tags?.cta_text as string | undefined
+    return {
+      prompt,
+      system_prompt: systemPrompt || undefined,
+      aspect_ratio: aspectRatio === '4:5' ? '4:5' : aspectRatio,
+      output_format: 'png',
+      safety_tolerance: '4',
+      sync_mode: true,
+      limit_generations: true,
+      resolution: '1K',
+    }
+  }
+
+  if (modelId === 'fal-ai/flux-2-pro') {
+    return {
+      prompt,
+      image_size: imageSizeMap[aspectRatio] ?? 'landscape_4_3',
+      output_format: 'png',
+      safety_tolerance: '2',
+      sync_mode: true,
+    }
+  }
+
   if (modelId === 'fal-ai/flux-pro/kontext/max/text-to-image') {
     return {
       prompt: compiledNegative ? `${prompt}\n\nNegative: ${compiledNegative}` : prompt,
@@ -78,21 +103,22 @@ function buildFalInput(modelId: string, payload: any): Record<string, any> {
 }
 
 /**
- * callFal — submits a job to fal.ai and waits for the result.
- * Downloads the result URL and uploads to Supabase Storage.
+ * submitFalImage — submits an image generation job to fal.ai queue WITHOUT waiting.
+ * Returns immediately with { request_id, status: 'pending' } so the Edge Function
+ * can return status 200 before Supabase's execution time limit is hit.
+ * poll-job-status will poll for the result later.
  */
-export async function callFal(
+export async function submitFalImage(
   modelId: string,
   payload: any,
   apiKey: string,
-): Promise<{ bytes: Uint8Array; outputUrl: string }> {
+): Promise<{ request_id: string; status: string }> {
   const orgId = payload.org_id as string
   const jobId = payload.job_id as string
   const start = Date.now()
 
   const input = buildFalInput(modelId, payload)
 
-  // Submit to fal queue
   const submitRes = await fetchWithRetry(`${FAL_BASE}/${modelId}`, {
     method: 'POST',
     headers: {
@@ -109,7 +135,7 @@ export async function callFal(
     await recordUsage(createServiceClient(), {
       org_id: orgId, provider_key: 'fal', model_id: modelId,
       step_key: payload.step_key, job_id: jobId,
-      key_source_used: payload.key_source_used ?? 'user',
+      key_source_used: payload.key_source_used ?? 'platform',
       latency_ms: Date.now() - start, success: false,
       error_code: `fal_${submitRes.status}`,
     })
@@ -120,12 +146,72 @@ export async function callFal(
   const requestId = submitData.request_id as string
   if (!requestId) throw new Error('fal_no_request_id')
 
-  // Poll for result
-  const result = await pollFalJob(requestId, apiKey)
+  return { request_id: requestId, status: 'pending' }
+}
+
+/**
+ * callFal — submits a job to fal.ai.
+ * For models with sync_mode=true (e.g. FLUX.2 Pro), uses the synchronous
+ * fal.run endpoint and returns the result immediately.
+ * For other models, uses the queue.fal.run endpoint and polls for the result.
+ * Downloads the image and uploads to Supabase Storage.
+ */
+export async function callFal(
+  modelId: string,
+  payload: any,
+  apiKey: string,
+): Promise<{ bytes: Uint8Array; outputUrl: string }> {
+  const orgId = payload.org_id as string
+  const jobId = payload.job_id as string
+  const start = Date.now()
+
+  const input = buildFalInput(modelId, payload)
+  const isSync = input.sync_mode === true
+
+  // Sync models use fal.run, async models use queue.fal.run
+  const baseUrl = isSync ? 'https://fal.run' : FAL_BASE
+
+  const submitRes = await fetchWithRetry(`${baseUrl}/${modelId}`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Key ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(isSync ? input : { input }),
+    timeoutMs: isSync ? 120_000 : 30_000,
+    provider: isSync ? 'fal.ai (sync)' : 'fal.ai',
+  })
+
+  if (!submitRes.ok) {
+    const errText = await submitRes.text()
+    await recordUsage(createServiceClient(), {
+      org_id: orgId, provider_key: 'fal', model_id: modelId,
+      step_key: payload.step_key, job_id: jobId,
+      key_source_used: payload.key_source_used ?? 'user',
+      latency_ms: Date.now() - start, success: false,
+      error_code: `fal_${submitRes.status}`,
+    })
+    throw new Error(`fal submit error ${submitRes.status}: ${errText}`)
+  }
+
+  const data = await submitRes.json()
   const latency = Date.now() - start
 
-  // Get image URL from result
-  const imageUrl = result?.data?.images?.[0]?.url
+  // For sync mode, the result is in the response directly
+  // For async mode, poll for the result
+  let imageUrl: string | undefined
+
+  if (isSync) {
+    // Sync response: { images: [{ url: '...' }], seed: number }
+    imageUrl = data?.images?.[0]?.url
+  } else {
+    // Queue response: { request_id: '...' }
+    const requestId = data.request_id as string
+    if (!requestId) throw new Error('fal_no_request_id')
+    const result = await pollFalJobSync(requestId, apiKey, modelId)
+    imageUrl = result?.images?.[0]?.url
+  }
+
   if (!imageUrl) {
     await recordUsage(createServiceClient(), {
       org_id: orgId, provider_key: 'fal', model_id: modelId,
@@ -164,6 +250,45 @@ export async function callFal(
   })
 
   return { bytes, outputUrl: signedData?.signedUrl ?? storagePath }
+}
+
+/**
+ * pollFalJobSync — polls a fal.ai queue job until completion.
+ * Used for async image models (not FLUX.2 Pro which uses sync_mode).
+ */
+async function pollFalJobSync(
+  requestId: string,
+  apiKey: string,
+  modelId: string,
+): Promise<any> {
+  const maxAttempts = 60
+  let attempts = 0
+
+  while (attempts < maxAttempts) {
+    attempts++
+    await new Promise(r => setTimeout(r, 5000))
+
+    const statusRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}/status`, {
+      headers: { 'Authorization': `Key ${apiKey}` },
+    })
+
+    if (!statusRes.ok) continue
+    const status = await statusRes.json()
+
+    if (status.status === 'COMPLETED') {
+      const resultRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}`, {
+        headers: { 'Authorization': `Key ${apiKey}` },
+      })
+      if (!resultRes.ok) throw new Error('fal_result_fetch_failed')
+      return await resultRes.json()
+    }
+
+    if (status.status === 'FAILED') {
+      throw new Error(`fal_job_failed: ${status.error ?? 'unknown'}`)
+    }
+  }
+
+  throw new Error('fal_poll_timeout')
 }
 
 /**
@@ -262,7 +387,7 @@ export async function pollFalVideoJob(
   requestId: string,
   apiKey: string,
 ): Promise<{ status: string; videoUrl?: string; error?: string }> {
-  const statusRes = await fetch(`https://queue.fal.run/requests/${requestId}/status`, {
+  const statusRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}/status`, {
     headers: { 'Authorization': `Key ${apiKey}` },
   })
 
@@ -270,7 +395,7 @@ export async function pollFalVideoJob(
   const statusData = await statusRes.json()
 
   if (statusData.status === 'COMPLETED') {
-    const resultRes = await fetch(`https://queue.fal.run/requests/${requestId}`, {
+    const resultRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}`, {
       headers: { 'Authorization': `Key ${apiKey}` },
     })
     if (!resultRes.ok) return { status: 'processing' }
@@ -288,35 +413,40 @@ export async function pollFalVideoJob(
 }
 
 /**
- * pollFalJob — polls until the fal job completes.
+ * pollFalJob — performs a SINGLE status check for a fal.ai image job.
+ * Returns { status, imageUrl? } for poll-job-status to process each cron tick.
+ * Uses model-specific endpoints: /{modelId}/requests/{requestId}
  */
-export async function pollFalJob(requestId: string, apiKey: string): Promise<any> {
-  const maxAttempts = 60
-  let attempts = 0
-
-  while (attempts < maxAttempts) {
-    attempts++
-    await new Promise(r => setTimeout(r, 5000)) // 5s between polls
-
-    const statusRes = await fetch(`https://queue.fal.run/requests/${requestId}/status`, {
+export async function pollFalJob(
+  requestId: string,
+  apiKey: string,
+  modelId: string = 'fal-ai/flux-2-pro',
+): Promise<{ status: string; imageUrl?: string; error?: string }> {
+  try {
+    const statusRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}/status`, {
       headers: { 'Authorization': `Key ${apiKey}` },
     })
 
-    if (!statusRes.ok) continue
-    const status = await statusRes.json()
+    if (!statusRes.ok) return { status: 'processing' }
+    const statusData = await statusRes.json()
 
-    if (status.status === 'COMPLETED') {
-      const resultRes = await fetch(`https://queue.fal.run/requests/${requestId}`, {
+    if (statusData.status === 'COMPLETED') {
+      const resultRes = await fetch(`https://queue.fal.run/${modelId}/requests/${requestId}`, {
         headers: { 'Authorization': `Key ${apiKey}` },
       })
-      if (!resultRes.ok) throw new Error('fal_result_fetch_failed')
-      return await resultRes.json()
+      if (!resultRes.ok) return { status: 'processing' }
+      const result = await resultRes.json()
+      const imageUrl = result?.data?.images?.[0]?.url ?? result?.images?.[0]?.url
+      if (!imageUrl) return { status: 'failed', error: 'fal_no_image_url' }
+      return { status: 'completed', imageUrl }
     }
 
-    if (status.status === 'FAILED') {
-      throw new Error(`fal_job_failed: ${status.error ?? 'unknown'}`)
+    if (statusData.status === 'FAILED') {
+      return { status: 'failed', error: statusData.error ?? 'fal_job_failed' }
     }
+
+    return { status: 'processing' }
+} catch (err: any) {
+    return { status: 'processing' }
   }
-
-  throw new Error('fal_poll_timeout')
 }

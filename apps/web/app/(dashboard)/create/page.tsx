@@ -88,6 +88,33 @@ const CD_PRESETS: { group: string; chips: { label: string; text: string }[] }[] 
     ],
   },
   {
+    group: 'Camera & Lens',
+    chips: [
+      { label: '📷 50mm prime', text: 'Shot on 50mm medium-format prime lens, Fujifilm colour science, natural depth of field, authentic skin tone rendering.' },
+      { label: '🔭 Wide angle', text: 'Wide-angle 24mm lens perspective, expansive scene, sense of scale and environment, deep depth of field.' },
+      { label: '🔬 Macro lens', text: 'Macro lens close-up, razor-sharp focal point, shallow depth of field with soft bokeh falloff, product-detail precision.' },
+      { label: '🎬 Anamorphic', text: 'Anamorphic lens with horizontal lens flares, cinematic 2.39:1 feel, organic bokeh oval highlights.' },
+    ],
+  },
+  {
+    group: 'Film Stock & Colour Grade',
+    chips: [
+      { label: '🎞️ Fujifilm', text: 'Fujifilm colour science — deep indigo shadows, soft cyan highlights, authentic organic grain texture, natural skin tones.' },
+      { label: '🎬 Teal & orange', text: 'Cinematic teal-and-orange colour grade, deep shadows, warm skin tones, professional colourist finish.' },
+      { label: '⚫ Film noir', text: 'High-contrast black-and-white film noir grade, deep shadows, hard key light, moody and dramatic.' },
+      { label: '☀️ Warm stock', text: 'Warm vintage film stock with golden amber shadows, slight grain, nostalgic and approachable feel.' },
+    ],
+  },
+  {
+    group: 'Materiality',
+    chips: [
+      { label: '🪨 Brushed glass', text: 'Brushed glass surfaces with soft internal luminescence, translucent edges, refractive light play on indigo surfaces.' },
+      { label: '🧱 Matte carbon', text: 'Matte dark carbon fibre texture, subtle directional weave, deep navy absorption, no reflections.' },
+      { label: '✨ Polished metal', text: 'Polished metal surfaces with sharp specular highlights, chrome and brushed steel, clean industrial precision.' },
+      { label: '🧵 Soft fabric', text: 'Luxurious soft fabric texture, natural drape and fold, warm tactile comfort, approachable and premium.' },
+    ],
+  },
+  {
     group: 'Lighting',
     chips: [
       { label: '💡 Studio softbox', text: 'Even three-point softbox studio lighting, clean shadows, professional product-shoot feel.' },
@@ -385,7 +412,9 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
 export default function CreatePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const signalId = searchParams.get('signal_id')
+  // TODO: re-enable 'Use this trend' feature post-launch
+  // const signalId = searchParams.get('signal_id')
+  const signalId = null
   const parentJobId = searchParams.get('parent_job_id')
 
   const [tags, setTags] = useState<PromptTags>(DEFAULT_TAGS)
@@ -667,7 +696,8 @@ export default function CreatePage() {
         const genData = await callGenerate()
         if (!genData) return
         if (genData.status === 'completed' && genData.output_url) { setGeneratedImageUrl(genData.output_url); setGeneratedJobId(genData.job_id); setQuotaUsed(prev => prev + 1); return }
-        if (genData.job_id && assetType === 'video') {
+        // Async job (video or slow image model like fal.ai) — subscribe to Realtime for completion
+        if (genData.job_id && (assetType === 'video' || genData.status === 'pending')) {
           const ch = supabase.channel(`job:${genData.job_id}`)
           ch.on('broadcast', { event: 'job_complete' }, ({ payload }: any) => router.push(`/create/${payload.job_id}`)).subscribe()
           router.push('/dashboard'); return
