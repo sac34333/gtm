@@ -87,17 +87,15 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
     }
   }
 
-  // Sanitise signal URL — signals are untrusted external data; reject any
-  // non-http(s) scheme (e.g. javascript:) to prevent XSS on click.
-  const safeUrl = (() => {
-    if (!signal.url) return '#'
+  let safeUrl = '#'
+  if (signal.url) {
     try {
       const parsed = new URL(signal.url)
-      return parsed.protocol === 'https:' || parsed.protocol === 'http:' ? signal.url : '#'
-    } catch {
-      return '#'
-    }
-  })()
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') safeUrl = signal.url
+    } catch { /* keep '#' */ }
+  }
+
+  const relBadge = signal.relevance_score != null ? relevanceBadge(signal.relevance_score, signal.published_at ?? null) : null
 
   return (
     <Card className={`bg-slate-900 border-slate-800 hover:border-slate-700 hover:-translate-y-0.5 hover:shadow-glow-indigo transition-all duration-300 ${isDismissed ? 'opacity-60' : ''}`}>
@@ -130,10 +128,7 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {signal.relevance_score != null && (() => {
-              const { label, className } = relevanceBadge(signal.relevance_score, signal.published_at ?? null)
-              return <Badge className={`text-xs border ${className}`}>{label}</Badge>
-            })()}
+            {relBadge && <Badge className={`text-xs border ${relBadge.className}`}>{relBadge.label}</Badge>}
           </div>
         </div>
       </CardHeader>
@@ -171,15 +166,6 @@ export function SignalCard({ signal, onDismiss, onRestore, isDismissed }: Signal
             </Button>
           ) : (
             <>
-              {/* TODO: re-enable 'Use this trend' post-launch
-              <Link
-                href={`/create?signal_id=${signal.id}`}
-                className="inline-flex items-center h-7 px-2.5 rounded-md text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
-              >
-                <Zap className="h-3 w-3 mr-1" />
-                Use this trend
-              </Link>
-              */
               <Button
                 size="sm"
                 variant="ghost"
