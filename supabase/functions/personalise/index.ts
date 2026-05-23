@@ -103,9 +103,9 @@ Deno.serve(async (req: Request) => {
       const { data: defaultModel } = await db
         .from('available_models')
         .select('provider_key, model_id')
-        .eq('step_key', 'outreach_copy')
-        .eq('is_default', true)
-        .single()
+        .contains('default_for_step_key', ['outreach_copy'])
+        .eq('is_active', true)
+        .maybeSingle()
       if (defaultModel) {
         providerKey = defaultModel.provider_key
         modelId = defaultModel.model_id
