@@ -425,9 +425,18 @@ Deno.serve(async (req: Request) => {
       prospectIds = (cpRows ?? []).map((r: any) => r.prospect_id)
     }
 
-    const { data: prospects } = prospectIds.length
-      ? await db.from('prospects').select('*').in('id', prospectIds).eq('org_id', orgId)
-      : { data: [] }
+    // If no campaign-specific prospects, fall back to org-level prospects
+    // (ICP enrichment creates prospects at org level but campaign_prospects
+    // may not be populated yet)
+    let prospects: any[] = []
+    if (prospectIds.length) {
+      const { data: pRows } = await db.from('prospects').select('*').in('id', prospectIds).eq('org_id', orgId)
+      prospects = pRows ?? []
+    }
+    if (!prospects.length) {
+      const { data: orgProspects } = await db.from('prospects').select('*').eq('org_id', orgId).limit(50)
+      prospects = orgProspects ?? []
+    }
 
     // Fetch brand context
     const { data: brand } = await db.from('brand_contexts').select('*').eq('org_id', orgId).single()
@@ -459,6 +468,30 @@ Deno.serve(async (req: Request) => {
       : 'No asset linked'
 
     const channelList = channelMix.join(', ')
+
+    // Compute actual schedule dates respecting start_date + working_days_only
+    const campaignStartDate = campaign.start_date
+      ? String(campaign.start_date).slice(0, 10)
+      : new Date().toISOString().slice(0, 10)
+    const scheduleDates: string[] = []
+    if (workingDaysOnly) {
+      let d = new Date(campaignStartDate + 'T12:00:00Z')
+      while (scheduleDates.length < durationDays) {
+        const dow = d.getUTCDay()
+        if (dow !== 0 && dow !== 6) scheduleDates.push(d.toISOString().slice(0, 10))
+        d.setUTCDate(d.getUTCDate() + 1)
+      }
+    } else {
+      const base = new Date(campaignStartDate + 'T12:00:00Z')
+      for (let i = 0; i < durationDays; i++) {
+        const d = new Date(base)
+        d.setUTCDate(d.getUTCDate() + i)
+        scheduleDates.push(d.toISOString().slice(0, 10))
+      }
+    }
+    const scheduleDatesNote = workingDaysOnly
+      ? `The campaign starts ${campaignStartDate} and skips weekends. Use these EXACT working-day dates for the schedule entries:\n${scheduleDates.map((d, i) => `  Day ${i + 1}: ${d}`).join('\n')}`
+      : `The campaign starts ${campaignStartDate}. Generate schedule entries from ${scheduleDates[0]} to ${scheduleDates[scheduleDates.length - 1]}.`
 
     // Build per-channel content schema sections only for selected channels.
     const contentSchemaParts: string[] = []
@@ -677,14 +710,13 @@ CTA STYLE: ${arc.ctaStyle}`
     if (channelMix.includes('linkedin_post')) {
       channelPlaybooks.push(`LINKEDIN_ORGANIC_POST_PLAYBOOK
 - Hook is the first 3 lines visible before "see more" — must create a curiosity gap (a number, contrarian claim, or vivid moment), NOT a topic statement.
-- Body: 1-2 sentences per paragraph with a blank line between every paragraph (use \\n\\n in JSON). Walls of text die in feed.
-- Length sweet spot: 1200-1500 chars. Long enough for dwell time (the #1 LinkedIn ranking signal), short enough to read on mobile.
+- Body: STRICTLY 1200-1500 characters. Count every character. Under 1200 = algorithm buries it; over 1500 = TLDR. 1-2 sentences per paragraph with a blank line between every paragraph (use \\n\\n in JSON). Walls of text die in feed.
 - NEVER put external URLs in the post body — LinkedIn down-ranks posts with outbound links 6-10x. Output a separate "first_comment" field with the link or link teaser. The body should reference "Link in first comment ↓".
 - NO hashtags in the first 100 characters. Place 3-5 hashtags at the very end only.
 - End the post with an engagement question (drives comments → drives algorithm). The CTA goes in a separate paragraph above the question.
 - One emoji max if brand allows; never in the hook.
 - Numbers and specifics > vague claims ("47%" beats "huge lift").
-- Each post entry MUST include: hook, body, cta, hashtags, AND a first_comment field (URL or link-bait teaser, OR empty string if no link applicable).`)
+- Each post entry MUST include: hook, body, cta, hashtags, AND a first_comment field (the website URL — use "${brand.website_url ?? 'https://gtmengine.qubitlyventures.com'}" unless a different landing page was specified; NEVER fabricate URLs like /demo or /icp-sample that may not exist).`)
     }
     if (channelMix.includes('linkedin_message')) {
       channelPlaybooks.push(`LINKEDIN_DM_PLAYBOOK
@@ -822,8 +854,9 @@ ${playbookBlock}
 
 # RULES
 - Every channel-content piece must reference the asset or its core promise concretely (no generic "exciting product" copy).
+- TONE: When targeting marketing leaders (CMO, VP Marketing, Growth Lead), do NOT imply they are replaceable or that their team is unnecessary. Frame the value as amplification and automation of tedious work, not replacement. "Your team, 10x faster" not "Your team, not needed."
 - Vary post times across the day per channel (do NOT use the same time for every entry).
-- ${workingDaysOnly ? 'Skip Saturday & Sunday entirely.' : 'Weekends are allowed — distribute posts across all 7 days.'}
+- ${workingDaysOnly ? 'Skip Saturday & Sunday entirely — only include working days (Mon-Fri) in the schedule.' : 'Weekends are allowed — distribute posts across all 7 days.'}
 - Hashtags: branded must include a campaign-specific tag derived from the campaign name; provide 8-15 unique hashtags total across categories.
 - Honour brand voice and the # CONSTRAINTS block above. Constraint violations invalidate the brief.
 - Channel-specific tactical rules from the # CHANNEL PLAYBOOKS block ABOVE override generic rules.
@@ -866,8 +899,9 @@ ${contentSchema}
   }
 }
 
-Generate exactly ${durationDays} schedule entries starting ${new Date().toISOString().slice(0, 10)}${workingDaysOnly ? ' (skip Saturday & Sunday — only working days)' : ' (include weekends)'}.
-Generate at least 2 variants per channel under "content" for any channel in scope.
+Generate exactly ${durationDays} schedule entries. ${scheduleDatesNote}
+Each schedule entry's recommended_date MUST match the date list above exactly — do NOT invent your own dates.
+Generate exactly ${durationDays} variants per channel under "content" — one content variant per schedule day, so each day has its own copy.
 Generate at least 8 hashtags total across the sets.
 Only include "timing_recommendations" entries for channels in scope: ${channelList}.`
 
@@ -878,27 +912,62 @@ Only include "timing_recommendations" entries for channels in scope: ${channelLi
     let briefData: BriefData | null = null
     let pdfBytes: Uint8Array | null = null
 
-    if (!body.copies_only) {
-      const briefRaw = await routeTextGeneration(
-        providerKey,
-        modelId,
-        [{ role: 'user', content: briefPrompt }],
-        apiKey,
-        orgId,
-        orgSlug,
-        null,
-        'campaign_brief',
-        { responseFormat: { type: 'json_object' } },
-      )
+    function extractJSONObject(raw: string): string {
+      // Try direct parse first
+      try { JSON.parse(raw); return raw } catch {}
+      // Strip markdown code fences
+      const fenceMatch = raw.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/)
+      if (fenceMatch) {
+        const inner = fenceMatch[1].trim()
+        try { JSON.parse(inner); return inner } catch {}
+      }
+      // Find outermost { ... } — handles thinking/reasoning text before/after JSON
+      const start = raw.indexOf('{')
+      const end = raw.lastIndexOf('}')
+      if (start !== -1 && end > start) {
+        const candidate = raw.slice(start, end + 1)
+        try { JSON.parse(candidate); return candidate } catch {}
+        // Try fixing trailing commas before closing brackets
+        const fixed = candidate.replace(/,\s*([}\]])/g, '$1')
+        try { JSON.parse(fixed); return fixed } catch {}
+      }
+      return raw
+    }
 
-      try {
-        const cleaned = briefRaw.replace(/^```json?\s*/i, '').replace(/```\s*$/i, '').trim()
-        briefData = JSON.parse(cleaned)
-      } catch (parseErr) {
-        console.error('brief_parse_failed. Raw response (first 2000 chars):', briefRaw.slice(0, 2000))
-        return new Response(JSON.stringify({ error: 'brief_parse_failed', detail: (parseErr as Error).message, raw_preview: briefRaw.slice(0, 500) }), {
-          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        })
+    if (!body.copies_only) {
+      let briefRaw: string | null = null
+      let briefParseAttempts = 0
+      const MAX_PARSE_ATTEMPTS = 2
+
+      while (briefParseAttempts < MAX_PARSE_ATTEMPTS) {
+        briefParseAttempts++
+        const result = await routeTextGeneration(
+          providerKey,
+          modelId,
+          [{ role: 'user', content: briefPrompt }],
+          apiKey,
+          orgId,
+          orgSlug,
+          null,
+          'campaign_brief',
+          { responseFormat: { type: 'json_object' } },
+        )
+
+        try {
+          const extracted = extractJSONObject(result)
+          briefData = JSON.parse(extracted)
+          briefRaw = result
+          break // success
+        } catch (parseErr) {
+          console.error(`brief_parse_failed (attempt ${briefParseAttempts}). Raw response (first 2000 chars):`, result.slice(0, 2000))
+          if (briefParseAttempts >= MAX_PARSE_ATTEMPTS) {
+            return new Response(JSON.stringify({ error: 'brief_parse_failed', detail: (parseErr as Error).message, raw_preview: result.slice(0, 500) }), {
+              status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+          }
+          // Retry — re-invoke the LLM
+          continue
+        }
       }
 
       // Back-compat shims so the existing /campaigns/[id] Calendar tab keeps rendering.
