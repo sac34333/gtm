@@ -248,3 +248,239 @@ export const GenerateCampaignBriefBodySchema = z.object({
   // Used to backfill copies on a campaign whose brief already exists.
   copies_only: z.boolean().optional(),
 })
+
+// ─── Campaign Brief Output Schemas (Zod + JSON Schema) ──────────────────────
+// Used to validate LLM output for generate-campaign-brief.
+
+export const LinkedInPostSchema = z.object({
+  hook: z.string().min(10, 'Hook must be at least 10 chars - first 3 lines visible before "see more"'),
+  body: z.string().min(1000, 'LinkedIn post body must be at least 1000 chars for algorithm reach. Current: too short.'),
+  cta: z.string().min(5, 'CTA must be at least 5 chars'),
+  hashtags: z.array(z.string()).min(3, 'At least 3 hashtags required').max(7, 'Max 7 hashtags'),
+  first_comment: z.string().min(1, 'first_comment must contain a URL or teaser'),
+})
+
+export const LinkedInDMSchema = z.object({
+  opener: z.string().min(10, 'DM opener must be at least 10 chars — must reference something specific'),
+  body: z.string().min(20, 'DM body must be at least 20 chars').max(180, 'DM body must be ≤ 180 chars'),
+  ask: z.string().min(5, 'DM ask must be at least 5 chars'),
+})
+
+export const EmailVariantSchema = z.object({
+  subject: z.string().min(5, 'Email subject must be at least 5 chars').max(55, 'Email subject must be ≤ 55 chars'),
+  subject_b: z.string().min(5).max(55).optional(),
+  preview: z.string().min(20, 'Email preview must be at least 20 chars').max(90, 'Email preview must be ≤ 90 chars'),
+  body: z.string().min(200, 'Email body must be at least 200 chars'),
+  cta: z.string().min(5, 'Email CTA must be at least 5 chars'),
+  plain_text_body: z.string().min(100, 'Plain text body must be at least 100 chars').optional(),
+})
+
+export const TwitterPostSchema = z.object({
+  tweet: z.string().min(10, 'Tweet must be at least 10 chars').max(280, 'Tweet must be ≤ 280 chars'),
+  thread: z.array(z.string()).optional(),
+})
+
+export const FacebookPostSchema = z.object({
+  hook: z.string().min(10, 'Facebook hook must be at least 10 chars'),
+  body: z.string().min(50, 'Facebook body must be at least 50 chars'),
+  cta: z.string().min(5, 'Facebook CTA must be at least 5 chars'),
+  hashtags: z.array(z.string()).min(1).max(3).optional(),
+  first_comment: z.string().optional(),
+})
+
+export const ColdDMSchema = z.object({
+  opener: z.string().min(5, 'DM opener must be at least 5 chars'),
+  body: z.string().min(10, 'DM body must be at least 10 chars').max(100, 'DM body must be ≤ 100 chars'),
+  ask: z.string().min(3, 'DM ask must be at least 3 chars'),
+})
+
+export const PostingDaySchema = z.object({
+  day: z.number().int().min(1),
+  recommended_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD format'),
+  phase: z.string().min(1, 'Phase is required'),
+  channel: z.string().min(1, 'Channel is required'),
+  post_type: z.string().min(1, 'Post type is required'),
+  theme: z.string().min(3, 'Theme must be at least 3 chars'),
+  hook: z.string().min(10, 'Schedule hook must be at least 10 chars'),
+  time_local: z.string().min(1, 'time_local is required'),
+  time_utc: z.string().min(1, 'time_utc is required'),
+})
+
+export const CampaignBriefDataSchema = z.object({
+  executive_summary: z.string().min(20, 'Executive summary must be at least 20 chars'),
+  executive_summary_rationale: z.string().min(20, 'Rationale must be at least 20 chars'),
+  key_messages: z.array(z.string().min(1).max(140, 'Key messages must be ≤ 140 chars')).min(3, 'At least 3 key messages required').max(7),
+  primary_cta: z.string().min(5, 'Primary CTA must be at least 5 chars'),
+  posting_schedule: z.array(PostingDaySchema).min(1, 'At least one posting day required'),
+  content: z.object({
+    linkedin_post: z.array(LinkedInPostSchema).optional(),
+    linkedin_message: z.array(LinkedInDMSchema).optional(),
+    email: z.array(EmailVariantSchema).optional(),
+    twitter: z.array(TwitterPostSchema).optional(),
+    facebook_post: z.array(FacebookPostSchema).optional(),
+    cold_dm: z.array(ColdDMSchema).optional(),
+  }),
+  hashtag_sets: z.object({
+    branded: z.array(z.string()).optional(),
+    industry: z.array(z.string()).optional(),
+    general: z.array(z.string()).optional(),
+    niche: z.array(z.string()).optional(),
+    regional: z.array(z.string()).optional(),
+  }),
+  timing_recommendations: z.record(z.union([
+    z.string(),
+    z.object({
+      best_days: z.array(z.string()).optional(),
+      best_times: z.array(z.string()).optional(),
+      rationale: z.string().optional(),
+    }),
+  ])),
+}).refine(data => {
+  // At least one content channel must have variants
+  const contentChannels = Object.values(data.content).filter(v => v && v.length > 0)
+  if (contentChannels.length === 0) {
+    return false
+  }
+  return true
+}, { message: 'At least one content channel must have variants' })
+
+export type CampaignBriefData = z.infer<typeof CampaignBriefDataSchema>
+
+// JSON Schema version for structured output via OpenRouter
+export const CampaignBriefJsonSchema = {
+  type: 'object',
+  required: ['executive_summary', 'executive_summary_rationale', 'key_messages', 'primary_cta', 'posting_schedule', 'content', 'hashtag_sets', 'timing_recommendations'],
+  properties: {
+    executive_summary: { type: 'string', description: '2-3 sentence positioning' },
+    executive_summary_rationale: { type: 'string', description: 'Why the brief was built this way' },
+    key_messages: { type: 'array', items: { type: 'string' }, description: '3-5 sharp positioning lines ≤140 chars each' },
+    primary_cta: { type: 'string', description: 'Single most important action' },
+    posting_schedule: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['day', 'recommended_date', 'phase', 'channel', 'post_type', 'theme', 'hook', 'time_local', 'time_utc'],
+        properties: {
+          day: { type: 'integer', description: 'Day number (1-based)' },
+          recommended_date: { type: 'string', description: 'YYYY-MM-DD' },
+          phase: { type: 'string', description: 'Phase label: problem_framing, solution, proof, ask, etc.' },
+          channel: { type: 'string', description: 'Channel: linkedin_post, email, etc.' },
+          post_type: { type: 'string', description: 'Post type: teaser, use_case, social_proof, etc.' },
+          theme: { type: 'string', description: '5-8 word title' },
+          hook: { type: 'string', description: 'Opening line idea' },
+          time_local: { type: 'string', description: 'HH:MM timezone' },
+          time_utc: { type: 'string', description: 'HH:MM' },
+        },
+      },
+    },
+    content: {
+      type: 'object',
+      properties: {
+        linkedin_post: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['hook', 'body', 'cta', 'hashtags', 'first_comment'],
+            properties: {
+              hook: { type: 'string', description: 'First 3 lines visible before "see more"' },
+              body: { type: 'string', description: '1200-1500 chars, paragraphs separated by \\n\\n' },
+              cta: { type: 'string', description: 'Single CTA' },
+              hashtags: { type: 'array', items: { type: 'string' }, description: '3-5 hashtags at very end' },
+              first_comment: { type: 'string', description: 'URL or link teaser' },
+            },
+          },
+        },
+        linkedin_message: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['opener', 'body', 'ask'],
+            properties: {
+              opener: { type: 'string' },
+              body: { type: 'string', description: '120-180 chars MAX' },
+              ask: { type: 'string' },
+            },
+          },
+        },
+        email: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['subject', 'preview', 'body', 'cta'],
+            properties: {
+              subject: { type: 'string', description: 'Under 55 chars' },
+              subject_b: { type: 'string', description: 'Variant B under 55 chars' },
+              preview: { type: 'string', description: '60-90 chars preheader' },
+              body: { type: 'string', description: '120-180 words' },
+              cta: { type: 'string' },
+              plain_text_body: { type: 'string' },
+            },
+          },
+        },
+        twitter: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['tweet'],
+            properties: {
+              tweet: { type: 'string', description: '≤280 chars' },
+              thread: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+        facebook_post: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['hook', 'body', 'cta'],
+            properties: {
+              hook: { type: 'string' },
+              body: { type: 'string', description: '80-120 words' },
+              cta: { type: 'string' },
+              hashtags: { type: 'array', items: { type: 'string' } },
+              first_comment: { type: 'string' },
+            },
+          },
+        },
+        cold_dm: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['opener', 'body', 'ask'],
+            properties: {
+              opener: { type: 'string' },
+              body: { type: 'string', description: '60-100 chars MAX' },
+              ask: { type: 'string' },
+            },
+          },
+        },
+      },
+    },
+    hashtag_sets: {
+      type: 'object',
+      properties: {
+        branded: { type: 'array', items: { type: 'string' } },
+        industry: { type: 'array', items: { type: 'string' } },
+        general: { type: 'array', items: { type: 'string' } },
+        niche: { type: 'array', items: { type: 'string' } },
+        regional: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    timing_recommendations: {
+      type: 'object',
+      additionalProperties: {
+        oneOf: [
+          { type: 'string' },
+          {
+            type: 'object',
+            properties: {
+              best_days: { type: 'array', items: { type: 'string' } },
+              best_times: { type: 'array', items: { type: 'string' } },
+              rationale: { type: 'string' },
+            },
+          },
+        ],
+      },
+    },
+  },
+}

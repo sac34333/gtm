@@ -2,7 +2,7 @@ import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { validateJWT, extractOrgId } from '../_shared/auth.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { resolveApiKey, routeTextGeneration, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
-import { GenerateCampaignBriefBodySchema } from '../_shared/schemas.ts'
+import { GenerateCampaignBriefBodySchema, CampaignBriefDataSchema, CampaignBriefJsonSchema } from '../_shared/schemas.ts'
 
 /** Resolve the default model for a given step_key */
 async function resolveDefaultModel(
@@ -937,14 +937,21 @@ Only include "timing_recommendations" entries for channels in scope: ${channelLi
     if (!body.copies_only) {
       let briefRaw: string | null = null
       let briefParseAttempts = 0
-      const MAX_PARSE_ATTEMPTS = 2
+      const MAX_PARSE_ATTEMPTS = 3
+      let validationErrors: string | null = null
 
       while (briefParseAttempts < MAX_PARSE_ATTEMPTS) {
         briefParseAttempts++
+
+        let prompt = briefPrompt
+        if (validationErrors) {
+          prompt += `\n\n# YOUR PREVIOUS OUTPUT HAD THESE VALIDATION ERRORS — FIX THEM:\n${validationErrors}\n\nReturn corrected JSON.`
+        }
+
         const result = await routeTextGeneration(
           providerKey,
           modelId,
-          [{ role: 'user', content: briefPrompt }],
+          [{ role: 'user', content: prompt }],
           apiKey,
           orgId,
           orgSlug,
@@ -957,7 +964,6 @@ Only include "timing_recommendations" entries for channels in scope: ${channelLi
           const extracted = extractJSONObject(result)
           briefData = JSON.parse(extracted)
           briefRaw = result
-          break // success
         } catch (parseErr) {
           console.error(`brief_parse_failed (attempt ${briefParseAttempts}). Raw response (first 2000 chars):`, result.slice(0, 2000))
           if (briefParseAttempts >= MAX_PARSE_ATTEMPTS) {
@@ -965,9 +971,37 @@ Only include "timing_recommendations" entries for channels in scope: ${channelLi
               status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             })
           }
-          // Retry — re-invoke the LLM
+          validationErrors = `JSON parse error: ${(parseErr as Error).message}`
           continue
         }
+
+        // Validate with Zod
+        const zodResult = CampaignBriefDataSchema.safeParse(briefData)
+        if (!zodResult.success) {
+          const issues = zodResult.error.issues.map(i => {
+            const path = i.path.join('.')
+            return `  - ${path ? path + ': ' : ''}${i.message}`
+          }).join('\n')
+          console.error(`brief_validation_failed (attempt ${briefParseAttempts}). Issues:\n${issues}`)
+          if (briefParseAttempts >= MAX_PARSE_ATTEMPTS) {
+            // Accept partial data rather than failing entirely — but log the issues
+            console.error('Accepting partial brief data after max validation attempts. Issues:', issues)
+          } else {
+            validationErrors = `The JSON you returned has structural/validation errors:\n${issues}`
+            briefData = null
+            continue
+          }
+        }
+
+        // Passed both parse and validation
+        validationErrors = null
+        break
+      }
+
+      if (!briefData) {
+        return new Response(JSON.stringify({ error: 'brief_parse_failed', detail: 'Failed to generate valid brief after multiple attempts' }), {
+          status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
       }
 
       // Back-compat shims so the existing /campaigns/[id] Calendar tab keeps rendering.
