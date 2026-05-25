@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Loader2, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2, Plus } from 'lucide-react'
+import { Loader2, RefreshCw, Trash2, Eye, EyeOff, CheckCircle2, Plus, Lock } from 'lucide-react'
 import { supabase } from '@/lib/supabase/client'
 import { formatDistanceToNow } from 'date-fns'
 import { toast } from 'sonner'
+import { useRole } from '@/hooks/use-role'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -107,6 +108,7 @@ export function IngestionSettings({
   const [addingRss, setAddingRss] = useState(false)
   const [togglingFeedId, setTogglingFeedId] = useState<string | null>(null)
   const [deletingFeedId, setDeletingFeedId] = useState<string | null>(null)
+  const { isViewer } = useRole()
 
   async function handleToggle(newEnabled: boolean) {
     startToggling(async () => {
@@ -287,7 +289,7 @@ export function IngestionSettings({
     }
   }
 
-  const disabled = !isAdmin
+  const disabled = !isAdmin || isViewer
 
   // Group keys by group name
   const keyGroups = DATA_SOURCE_KEYS.reduce<Record<string, typeof DATA_SOURCE_KEYS>>((acc, k) => {
@@ -310,7 +312,10 @@ export function IngestionSettings({
           {/* Toggle */}
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-slate-100 font-medium">Automatically fetch signals</p>
+              <p className="text-slate-100 font-medium">
+                Automatically fetch signals
+                {isViewer && <Lock className="w-3 h-3 ml-1.5 inline text-slate-500" title="Available for members and above" />}
+              </p>
               <p className="text-slate-400 text-sm mt-0.5">
                 {enabled
                   ? lastAt
@@ -336,7 +341,10 @@ export function IngestionSettings({
           {enabled && (
             <div className="space-y-3">
               <Separator className="bg-slate-800" />
-              <Label className="text-slate-300">Fetch frequency</Label>
+              <Label className="text-slate-300">
+                Fetch frequency
+                {isViewer && <Lock className="w-3 h-3 ml-1.5 inline text-slate-500" title="Available for members and above" />}
+              </Label>
               <div className="flex flex-wrap gap-2">
                 {FREQUENCIES.map((f) => (
                   <button
@@ -360,12 +368,13 @@ export function IngestionSettings({
                 size="sm"
                 onClick={handleFetchNow}
                 disabled={disabled || isFetching}
+                title={isViewer ? 'Available for members and above' : undefined}
                 className="border-white/[0.12] bg-white/[0.04] text-slate-100 hover:bg-white/[0.08] hover:text-white hover:border-white/[0.2] disabled:opacity-60"
               >
                 {isFetching ? (
                   <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Fetching signals...</>
                 ) : (
-                  <><RefreshCw className="h-4 w-4 mr-2" />Fetch now</>
+                  <>{isViewer ? <Lock className="h-4 w-4 mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}Fetch now</>
                 )}
               </Button>
             </div>
@@ -588,7 +597,9 @@ export function IngestionSettings({
 
           {disabled && (
             <p className="text-slate-500 text-sm text-center">
-              Contact your admin to change API key settings.
+              {isViewer
+                ? 'Viewers can view but not modify settings. Contact your admin to make changes.'
+                : 'Contact your admin to change API key settings.'}
             </p>
           )}
         </CardContent>

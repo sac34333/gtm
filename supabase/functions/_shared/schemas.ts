@@ -191,7 +191,7 @@ export const SaveDataSourceKeyBodySchema = z.object({
 
 export const InviteUserBodySchema = z.object({
   email: z.string().email().max(254),
-  role: z.enum(['admin', 'member']).default('member'),
+  role: z.enum(['admin', 'member', 'viewer']).default('member'),
 })
 
 export const DeleteProviderKeyBodySchema = z.object({
@@ -201,7 +201,7 @@ export const DeleteProviderKeyBodySchema = z.object({
 export const RemoveMemberBodySchema = z.object({
   user_id: z.string().uuid(),
   action: z.enum(['remove', 'change_role']),
-  new_role: z.enum(['admin', 'member']).optional(),
+  new_role: z.enum(['admin', 'member', 'viewer']).optional(),
 })
 
 export const CreateCampaignBodySchema = z.object({

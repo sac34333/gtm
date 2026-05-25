@@ -41,17 +41,18 @@ export function extractOrgId(user: any): string {
   return orgId
 }
 
-// Role hierarchy: owner > admin > member
+// Role hierarchy: owner > admin > member > viewer
 const ROLE_ORDER: Record<string, number> = {
   owner: 3,
   admin: 2,
   member: 1,
+  viewer: 0,
 }
 
 export async function requireRole(
   orgId: string,
   userId: string,
-  minRole: 'owner' | 'admin' | 'member',
+  minRole: 'owner' | 'admin' | 'member' | 'viewer',
   serviceClient: any,
 ): Promise<string> {
   const { data, error } = await serviceClient

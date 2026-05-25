@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { Globe, ShieldCheck, Trash2, ExternalLink, Loader2, BookOpen, Building2, AlertTriangle } from 'lucide-react'
+import { Globe, ShieldCheck, Trash2, ExternalLink, Loader2, BookOpen, Building2, AlertTriangle, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/use-role'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 
@@ -47,6 +48,7 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
   const [consent3, setConsent3] = useState(false)
   const [pending, startTransition] = useTransition()
   const [disconnecting, setDisconnecting] = useState(false)
+  const { canEdit, isViewer } = useRole()
 
   const allConsented = consent1 && consent2 && consent3
 
@@ -114,26 +116,42 @@ export function LinkedInConnectionCard({ initialConnection }: { initialConnectio
             <ShieldCheck className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 text-sm">
               <div className="text-emerald-200 font-medium">Connected</div>
-              <div className="text-slate-400 mt-1">
-                Account: <span className="text-slate-200 font-mono text-xs">{connection.account_name ?? connection.ad_account_urn.split(':').pop() ?? 'Unknown'}</span>
-              </div>
-              {connection.last_verified_at && (
-                <div className="text-slate-500 text-xs mt-1">
-                  Last verified {new Date(connection.last_verified_at).toLocaleString()}
-                </div>
-              )}
-              {connection.consent_given_at && (
-                <div className="text-slate-500 text-xs mt-0.5">
-                  Terms accepted {new Date(connection.consent_given_at).toLocaleString()}
-                </div>
+              {!isViewer && (
+                <>
+                  <div className="text-slate-400 mt-1">
+                    Account: <span className="text-slate-200 font-mono text-xs">{connection.account_name ?? connection.ad_account_urn.split(':').pop() ?? 'Unknown'}</span>
+                  </div>
+                  {connection.last_verified_at && (
+                    <div className="text-slate-500 text-xs mt-1">
+                      Last verified {new Date(connection.last_verified_at).toLocaleString()}
+                    </div>
+                  )}
+                  {connection.consent_given_at && (
+                    <div className="text-slate-500 text-xs mt-0.5">
+                      Terms accepted {new Date(connection.consent_given_at).toLocaleString()}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
-          <Button onClick={handleDisconnect} variant="outline" disabled={disconnecting}
-            className="border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200">
-            {disconnecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-            Disconnect
-          </Button>
+          {!isViewer && (
+            <Button onClick={handleDisconnect} variant="outline" disabled={disconnecting}
+              className="border-red-500/30 text-red-300 hover:bg-red-500/10 hover:text-red-200">
+              {disconnecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Disconnect
+            </Button>
+          )}
+        </div>
+      ) : isViewer ? (
+        <div className="p-5">
+          <div className="flex items-start gap-3 p-3 rounded-lg bg-slate-800/50 border border-slate-700">
+            <Lock className="w-5 h-5 text-slate-400 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 text-sm">
+              <div className="text-slate-300 font-medium">Not connected</div>
+              <div className="text-slate-500 text-xs mt-1">Available for members and above</div>
+            </div>
+          </div>
         </div>
       ) : (
         <form onSubmit={handleConnect} className="p-5 space-y-5">

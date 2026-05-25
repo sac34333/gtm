@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/use-role'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
@@ -10,6 +11,7 @@ import {
   Plus, Megaphone, Target, Droplets, Rocket,
   Briefcase, AtSign, Mail, MessageSquare,
   Image as ImageIcon, ChevronRight, MoreHorizontal,
+  Lock,
 } from 'lucide-react'
 import { BackButton } from '@/components/layout/back-button'
 
@@ -140,6 +142,7 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
 
 export default function CampaignsPage() {
   const supabase = getSupabaseBrowserClient()
+  const { canEdit } = useRole()
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -207,12 +210,23 @@ export default function CampaignsPage() {
             <h1 className="text-2xl font-bold gtm-title tracking-tight">Campaigns</h1>
             <p className="text-slate-400 text-sm mt-1">Manage multi-channel outreach campaigns with AI-generated content.</p>
           </div>
-          <Link href="/campaigns/new">
-            <button className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-              <Plus className="w-4 h-4" />
+          {canEdit ? (
+            <Link href="/campaigns/new">
+              <button className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+                <Plus className="w-4 h-4" />
+                New Campaign
+              </button>
+            </Link>
+          ) : (
+            <button
+              disabled
+              title="Available for members and above"
+              className="flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-medium bg-slate-700 text-slate-400 cursor-not-allowed opacity-50"
+            >
+              <Lock className="w-4 h-4" />
               New Campaign
             </button>
-          </Link>
+          )}
         </div>
 
         {/* Filter bar */}
@@ -265,12 +279,23 @@ export default function CampaignsPage() {
             <p className="text-slate-500 text-sm mt-1 mb-6">
               Create your first campaign to start generating personalised outreach.
             </p>
-            <Link href="/campaigns/new">
-              <button className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
-                <Plus className="w-4 h-4" />
+            {canEdit ? (
+              <Link href="/campaigns/new">
+                <button className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors">
+                  <Plus className="w-4 h-4" />
+                  New Campaign
+                </button>
+              </Link>
+            ) : (
+              <button
+                disabled
+                title="Available for members and above"
+                className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-slate-700 text-slate-400 cursor-not-allowed opacity-50"
+              >
+                <Lock className="w-4 h-4" />
                 New Campaign
               </button>
-            </Link>
+            )}
           </div>
         ) : (
           <div className="space-y-3 gtm-stagger">

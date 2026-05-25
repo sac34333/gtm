@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/use-role'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
-import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2, Film } from 'lucide-react'
+import { ImageIcon, Video, Sparkles, AlertCircle, Clock, CheckCircle2, XCircle, Layers, ThumbsUp, ThumbsDown, Trash2, Loader2, Film, Lock } from 'lucide-react'
 import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 import { format } from 'date-fns'
 import { BackButton } from '@/components/layout/back-button'
@@ -100,7 +101,7 @@ async function fetchFeedbackForJobs(jobIds: string[]): Promise<Record<string, 'u
   return map
 }
 
-function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInConnected }: { stack: StackedJob; onRequestDelete: (stack: StackedJob) => void; isDeleting: boolean; onLinkedIn: (asset: LinkedInComposeAsset) => void; linkedInConnected: boolean }) {
+function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInConnected, canEdit }: { stack: StackedJob; onRequestDelete: (stack: StackedJob) => void; isDeleting: boolean; onLinkedIn: (asset: LinkedInComposeAsset) => void; linkedInConnected: boolean; canEdit: boolean }) {
   const job = stack.latest
   const [signedUrl, setSignedUrl] = useState<string | null>(null)
   const subject = job.prompt_tags?.subject ?? 'Untitled'
@@ -222,18 +223,29 @@ function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInCon
             </Link>
           )}
           {linkedInConnected && job.status === 'completed' && isImage && signedUrl && (
-            <button
-              type="button"
-              title="Post to LinkedIn"
-              onClick={(e) => {
-                e.preventDefault()
-                e.stopPropagation()
-                onLinkedIn({ jobId: job.id, subject, signedUrl })
-              }}
-              className="p-2 rounded-lg text-slate-400 hover:text-[#0077B5] hover:bg-[#0077B5]/10 active:bg-[#0077B5]/20 transition-colors touch-manipulation"
-            >
-              <LinkedinIcon className="w-4 h-4" />
-            </button>
+            canEdit ? (
+              <button
+                type="button"
+                title="Post to LinkedIn"
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  onLinkedIn({ jobId: job.id, subject, signedUrl })
+                }}
+                className="p-2 rounded-lg text-slate-400 hover:text-[#0077B5] hover:bg-[#0077B5]/10 active:bg-[#0077B5]/20 transition-colors touch-manipulation"
+              >
+                <LinkedinIcon className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                title="Available for members and above"
+                className="p-2 rounded-lg text-slate-500 opacity-50 cursor-not-allowed"
+              >
+                <Lock className="w-4 h-4" />
+              </button>
+            )
           )}
           <button
             type="button"
@@ -259,6 +271,7 @@ export default function LibraryPage() {
   const [composeAsset, setComposeAsset] = useState<LinkedInComposeAsset | null>(null)
   const [linkedInConnected, setLinkedInConnected] = useState(false)
   const queryClient = useQueryClient()
+  const { canEdit } = useRole()
 
   // Check LinkedIn connection once on mount
   useEffect(() => {
@@ -397,6 +410,7 @@ export default function LibraryPage() {
                 isDeleting={deleteMutation.isPending && pendingDelete?.latest.id === stack.latest.id}
                 onLinkedIn={(asset) => { setComposeAsset(asset); setComposeOpen(true) }}
                 linkedInConnected={linkedInConnected}
+                canEdit={canEdit}
               />
             ))}
           </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/use-role'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Progress } from '@/components/ui/progress'
@@ -133,11 +134,12 @@ function CampaignStatusSelect({
 
 // ─── Content Calendar Tab ────────────────────────────────────────────────────
 
-function CalendarTab({ campaign, onGenerateBrief, generating, briefDataOverride }: {
+function CalendarTab({ campaign, onGenerateBrief, generating, briefDataOverride, canEdit }: {
   campaign: Campaign
   onGenerateBrief: () => void
   generating: boolean
   briefDataOverride?: any
+  canEdit: boolean
 }) {
   const supabase = getSupabaseBrowserClient()
   const brief = briefDataOverride ?? campaign.brief_data ?? null
@@ -176,8 +178,11 @@ function CalendarTab({ campaign, onGenerateBrief, generating, briefDataOverride 
         <p className="text-slate-500 text-sm mt-1 mb-6">Generate a campaign brief to see the {durationDays}-day content calendar.</p>
         <button
           onClick={onGenerateBrief}
-          className="inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors"
+          disabled={!canEdit}
+          title={!canEdit ? 'Available for members and above' : undefined}
+          className={`inline-flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
+          {!canEdit && <Lock className="w-4 h-4" />}
           <RefreshCw className="w-4 h-4" />
           Generate Brief
         </button>
@@ -407,8 +412,11 @@ function CalendarTab({ campaign, onGenerateBrief, generating, briefDataOverride 
       <div className="pt-4 border-t border-slate-800">
         <button
           onClick={onGenerateBrief}
-          className="flex items-center gap-2 px-4 h-8 rounded-lg text-xs font-medium bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white transition-colors"
+          disabled={!canEdit}
+          title={!canEdit ? 'Available for members and above' : undefined}
+          className={`flex items-center gap-2 px-4 h-8 rounded-lg text-xs font-medium bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-300 hover:text-white transition-colors ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
+          {!canEdit && <Lock className="w-3.5 h-3.5" />}
           <RefreshCw className="w-3.5 h-3.5" />
           Regenerate brief
         </button>
@@ -419,13 +427,14 @@ function CalendarTab({ campaign, onGenerateBrief, generating, briefDataOverride 
 
 // ─── Prospects & Copy Tab ────────────────────────────────────────────────────
 
-function ProspectsTab({ campaign, prospects, copies, onRegenerateCopies, onUpdateCopyStatus, regenerating }: {
+function ProspectsTab({ campaign, prospects, copies, onRegenerateCopies, onUpdateCopyStatus, regenerating, canEdit }: {
   campaign: Campaign
   prospects: Prospect[]
   copies: OutreachCopy[]
   onRegenerateCopies: () => Promise<void> | void
   onUpdateCopyStatus: (copyId: string, nextStatus: 'approved' | 'rejected' | 'draft') => Promise<void> | void
   regenerating: boolean
+  canEdit: boolean
 }) {
   const channels = campaign.channel_mix ?? []
   const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -479,9 +488,11 @@ function ProspectsTab({ campaign, prospects, copies, onRegenerateCopies, onUpdat
         </div>
         <button
           onClick={() => onRegenerateCopies()}
-          disabled={regenerating}
+          disabled={regenerating || !canEdit}
+          title={!canEdit ? 'Available for members and above' : undefined}
           className="inline-flex items-center gap-2 px-4 h-9 rounded-lg text-sm font-medium border border-slate-700 bg-slate-900/60 hover:bg-slate-800 text-slate-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
+          {!canEdit && <Lock className="w-3.5 h-3.5" />}
           {regenerating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
           {generated === 0 ? 'Generate copies' : 'Regenerate copies'}
         </button>
@@ -618,13 +629,14 @@ function ProspectsTab({ campaign, prospects, copies, onRegenerateCopies, onUpdat
 
 // ─── Brief & Assets Tab ──────────────────────────────────────────────────────
 
-function BriefTab({ campaign, onGenerateBrief, generating, versions, viewingVersion, onViewVersion }: {
+function BriefTab({ campaign, onGenerateBrief, generating, versions, viewingVersion, onViewVersion, canEdit }: {
   campaign: Campaign
   onGenerateBrief: () => void
   generating: boolean
   versions: BriefVersion[]
   viewingVersion: number | null
   onViewVersion: (v: number | null) => void
+  canEdit: boolean
 }) {
   const supabase = getSupabaseBrowserClient()
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null)
@@ -729,9 +741,11 @@ function BriefTab({ campaign, onGenerateBrief, generating, versions, viewingVers
               )}
               <button
                 onClick={onGenerateBrief}
-                disabled={generating}
-                className="flex items-center gap-2 px-4 h-8 rounded-lg text-xs font-medium bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-300 transition-colors disabled:opacity-40"
+                disabled={generating || !canEdit}
+                title={!canEdit ? 'Available for members and above' : undefined}
+                className="flex items-center gap-2 px-4 h-8 rounded-lg text-xs font-medium bg-slate-800 border border-slate-700 hover:border-slate-600 text-slate-300 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
+                {!canEdit && <Lock className="w-3.5 h-3.5" />}
                 {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 Regenerate
               </button>
@@ -743,9 +757,11 @@ function BriefTab({ campaign, onGenerateBrief, generating, versions, viewingVers
             <p className="text-slate-400 text-sm">No brief yet</p>
             <button
               onClick={onGenerateBrief}
-              disabled={generating}
-              className="mt-4 inline-flex items-center gap-2 px-4 h-8 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40"
+              disabled={generating || !canEdit}
+              title={!canEdit ? 'Available for members and above' : undefined}
+              className="mt-4 inline-flex items-center gap-2 px-4 h-8 rounded-lg text-xs font-medium bg-indigo-600 hover:bg-indigo-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
+              {!canEdit && <Lock className="w-3.5 h-3.5" />}
               {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               Generate Brief
             </button>
@@ -761,6 +777,7 @@ function BriefTab({ campaign, onGenerateBrief, generating, versions, viewingVers
 export default function CampaignDetailPage({ params }: { params: { id: string } }) {
   const { id } = params
   const supabase = getSupabaseBrowserClient()
+  const { canEdit, isViewer } = useRole()
 
   const [campaign, setCampaign] = useState<Campaign | null>(null)
   const [prospects, setProspects] = useState<Prospect[]>([])
@@ -1017,7 +1034,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         {/* Tab content */}
         <div>
           {activeTab === 'calendar' && (
-            <CalendarTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} briefDataOverride={activeBriefData} />
+            <CalendarTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} briefDataOverride={activeBriefData} canEdit={canEdit} />
           )}
           {activeTab === 'prospects' && (
             <ProspectsTab
@@ -1027,10 +1044,11 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
               onRegenerateCopies={handleRegenerateCopies}
               onUpdateCopyStatus={handleUpdateCopyStatus}
               regenerating={generating}
+              canEdit={canEdit}
             />
           )}
           {activeTab === 'brief' && (
-            <BriefTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} versions={briefVersions} viewingVersion={viewingVersion} onViewVersion={setViewingVersion} />
+            <BriefTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} versions={briefVersions} viewingVersion={viewingVersion} onViewVersion={setViewingVersion} canEdit={canEdit} />
           )}
           {activeTab === 'ask' && (
             linkedInConnected === null ? (

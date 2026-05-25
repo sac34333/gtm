@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Send, Loader2, Globe, AlertCircle, Sparkles } from 'lucide-react'
+import { Send, Loader2, Globe, AlertCircle, Sparkles, Lock } from 'lucide-react'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import Link from 'next/link'
+import { useRole } from '@/hooks/use-role'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 
@@ -39,6 +40,7 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
   const [linkedinConnected, setLinkedinConnected] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const { canChat, isViewer } = useRole()
 
   // Load history + check LinkedIn connection status
   useEffect(() => {
@@ -177,7 +179,7 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
             <p className="text-sm text-slate-500 mb-5">
               I can see the brief, your prospects, recent signals, and (if connected) your live LinkedIn ad metrics.
             </p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto text-left">
+            {canChat && <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-w-2xl mx-auto text-left">
               {SUGGESTED.map(s => (
                 <button
                   key={s}
@@ -187,7 +189,7 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
                   {s}
                 </button>
               ))}
-            </div>
+            </div>}
           </div>
         ) : (
           messages.map(m => (
@@ -221,6 +223,12 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
 
       {/* Input */}
       <form onSubmit={onSubmit} className="border-t border-white/[0.06] p-3">
+        {isViewer ? (
+          <div className="flex items-center justify-center gap-2 py-3 text-sm text-slate-500">
+            <Lock className="w-4 h-4" />
+            Chat is available for team members and above.
+          </div>
+        ) : (
         <div className="flex items-end gap-2">
           <Textarea
             value={input}
@@ -232,11 +240,12 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
             disabled={sending || (remaining !== null && remaining === 0)}
             className="flex-1 bg-slate-900/40 border-white/10 text-sm resize-none"
           />
-          <Button type="submit" disabled={sending || !input.trim() || (remaining !== null && remaining === 0)}>
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
+<Button type="submit" disabled={sending || !input.trim() || (remaining !== null && remaining === 0)}>
+             {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+           </Button>
         </div>
-        <div className="mt-2 flex flex-col gap-0.5">
+        )}
+        {!isViewer && <div className="mt-2 flex flex-col gap-0.5">
           <p className="text-[10px] text-slate-500">
             Daily caps: 50 messages · 200,000 tokens per workspace · Resets at 00:00 UTC.
           </p>
@@ -247,7 +256,7 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
               : ' Connect LinkedIn to unlock live ad metrics.'}
             &nbsp;Each campaign keeps its own separate chat history.
           </p>
-        </div>
+        </div>}
       </form>
     </div>
   )

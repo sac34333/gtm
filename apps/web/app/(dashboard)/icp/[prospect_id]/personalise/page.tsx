@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useSearchParams, useRouter } from 'next/navigation'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/use-role'
 import { PLATFORMS } from '@/lib/constants'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Textarea } from '@/components/ui/textarea'
-import { AlertCircle, RefreshCw, Check, Copy, ChevronLeft } from 'lucide-react'
+import { AlertCircle, RefreshCw, Check, Copy, ChevronLeft, Lock } from 'lucide-react'
 import Link from 'next/link'
 
 interface Prospect {
@@ -59,6 +60,7 @@ export default function PersonalisePage() {
   const jobIdParam = searchParams.get('job_id') ?? ''
 
   const supabase = getSupabaseBrowserClient()
+  const { canEdit } = useRole()
 
   const [prospect, setProspect] = useState<Prospect | null>(null)
   const [loading, setLoading] = useState(true)
@@ -427,9 +429,11 @@ export default function PersonalisePage() {
 
               <button
                 onClick={generate}
-                disabled={generating || !jobId}
+                disabled={generating || !jobId || !canEdit}
+                title={!canEdit ? 'Available for members and above' : undefined}
                 className="flex items-center gap-2 px-5 h-9 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
               >
+                {!canEdit && <Lock className="w-4 h-4" />}
                 {generating ? (
                   <><RefreshCw className="w-4 h-4 animate-spin" />{activeCopy ? 'Regenerating…' : 'Generating…'}</>
                 ) : (

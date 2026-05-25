@@ -127,6 +127,8 @@ Deno.serve(async (req: Request) => {
     const userId = user.id as string
     const db = createServiceClient()
 
+    await requireRole(orgId, userId, 'member', db)
+
     const contentLength = Number(req.headers.get('content-length') ?? 0)
     if (contentLength > 8192) {
       return new Response(JSON.stringify({ error: 'payload_too_large' }), { status: 413, headers: corsHeaders })

@@ -3,12 +3,13 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/use-role'
 import { INDUSTRIES, ICP_COMPANY_SIZES, COUNTRIES } from '@/lib/constants'
 import { MultiSelect } from '@/components/icp/multi-select'
 import { TagInput } from '@/components/icp/tag-input'
 import { ProspectTable } from '@/components/icp/prospect-table'
 import { Skeleton } from '@/components/ui/skeleton'
-import { RefreshCw, Zap, Download, History, RotateCcw } from 'lucide-react'
+import { RefreshCw, Zap, Download, History, RotateCcw, Lock } from 'lucide-react'
 import { BackButton } from '@/components/layout/back-button'
 
 interface EnrichmentRun {
@@ -52,6 +53,7 @@ export default function ICPPage() {
   const initialCampaignFilter = searchParams.get('campaign') ?? 'all'
 
   const supabase = getSupabaseBrowserClient()
+  const { canEdit } = useRole()
 
   const [criteria, setCriteria] = useState<ICPCriteria>(EMPTY_CRITERIA)
   const [savedCriteria, setSavedCriteria] = useState<ICPCriteria>(EMPTY_CRITERIA)
@@ -367,11 +369,13 @@ export default function ICPPage() {
               <button
                 onClick={() => callEnrich(false)}
                 disabled={
-                  enriching || rescoring
+                  enriching || rescoring || !canEdit
                   || (runUsed !== null && runUsed >= runCap)
                 }
+                title={!canEdit ? 'Available for members and above' : undefined}
                 className="flex items-center gap-2 px-5 h-10 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
               >
+                {!canEdit && <Lock className="w-4 h-4" />}
                 {enriching ? (
                   <><RefreshCw className="w-4 h-4 animate-spin" />Running AI search…</>
                 ) : (
@@ -382,9 +386,11 @@ export default function ICPPage() {
               {isDirty && prospects.length > 0 && (
                 <button
                   onClick={() => callEnrich(true)}
-                  disabled={enriching || rescoring}
+                  disabled={enriching || rescoring || !canEdit}
+                  title={!canEdit ? 'Available for members and above' : undefined}
                   className="flex items-center gap-2 px-5 h-10 rounded-lg text-sm font-medium bg-slate-800 border border-slate-700 hover:border-slate-600 disabled:opacity-50 text-slate-300 hover:text-white transition-colors"
                 >
+                  {!canEdit && <Lock className="w-4 h-4" />}
                   {rescoring ? (
                     <><RefreshCw className="w-4 h-4 animate-spin" />Rescoring…</>
                   ) : (

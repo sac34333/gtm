@@ -9,6 +9,7 @@ import { Lock, RotateCcw, Eye, EyeOff, ExternalLink, AlertCircle, KeyRound, Spar
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useRole } from '@/hooks/use-role'
 import {
   Dialog,
   DialogContent,
@@ -375,6 +376,7 @@ function ProviderKeyCard({ provider, canEdit, cardRef }: {
 
 export default function SettingsModelsPage() {
   const queryClient = useQueryClient()
+  const { isViewer } = useRole()
 
   const [pendingPrefs, setPendingPrefs] = useState<Record<string, Preference>>({})
   const [savingStep, setSavingStep] = useState<string | null>(null)
@@ -404,7 +406,7 @@ export default function SettingsModelsPage() {
 
   const isAdmin = access?.role === 'admin' || access?.role === 'owner'
   const isFullySubscribed = access?.planTier === 'fully_subscribed'
-  const canEdit = isAdmin && isFullySubscribed
+  const canEdit = !isViewer && isAdmin && isFullySubscribed
 
   const { data, isLoading, isError, refetch } = useQuery<ModelsData>({
     queryKey: ['available-models'],
@@ -505,17 +507,21 @@ export default function SettingsModelsPage() {
             <ShieldAlert className="w-5 h-5 text-indigo-300 shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-slate-100">
-                {!isAdmin
+                {isViewer
                   ? 'View-only access'
-                  : 'Locked on your current plan'}
+                  : !isAdmin
+                    ? 'View-only access'
+                    : 'Locked on your current plan'}
               </p>
               <p className="text-xs text-slate-400 mt-0.5">
-                {!isAdmin
-                  ? 'Only org owners and admins can change model settings. Contact your admin to make changes.'
-                  : `Model selection and BYOK API keys are available on the Fully Subscribed plan only. You're on ${access?.planTier?.replace(/_/g, ' ') ?? 'the starter'} — using platform defaults below.`}
+                {isViewer
+                  ? 'Viewers can only view model settings. Contact your admin to make changes.'
+                  : !isAdmin
+                    ? 'Only org owners and admins can change model settings. Contact your admin to make changes.'
+                    : `Model selection and BYOK API keys are available on the Fully Subscribed plan only. You're on ${access?.planTier?.replace(/_/g, ' ') ?? 'the starter'} — using platform defaults below.`}
               </p>
             </div>
-            {isAdmin && !isFullySubscribed && (
+            {isAdmin && !isFullySubscribed && !isViewer && (
               <Link href="/settings/billing" className="shrink-0 text-xs font-medium text-indigo-300 hover:text-indigo-200 underline underline-offset-2">
                 Upgrade →
               </Link>

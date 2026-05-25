@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { toast } from 'sonner'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Lock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,7 @@ import {
   REVENUE_MODELS, PLATFORMS, TIMEZONES,
 } from '@/lib/constants'
 import { BrandFileUpload } from './brand-file-upload'
+import { useRole } from '@/hooks/use-role'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!
 
@@ -196,15 +197,19 @@ function ToneSlider({
 }
 
 function SaveBar({
-  isPending, onSave, dirty,
-}: { isPending: boolean; onSave: () => void; dirty: boolean }) {
+  isPending, onSave, dirty, canEdit = true,
+}: { isPending: boolean; onSave: () => void; dirty: boolean; canEdit?: boolean }) {
   return (
     <div className="flex items-center justify-end gap-3 pt-2 border-t border-white/[0.04]">
       {dirty && !isPending && <span className="text-xs text-amber-400">Unsaved changes</span>}
       <Button
-        type="button" onClick={onSave} disabled={isPending || !dirty}
-        className="bg-indigo-600 hover:bg-indigo-500 text-white"
-      >{isPending ? 'Saving…' : 'Save changes'}</Button>
+        type="button" onClick={onSave} disabled={isPending || !dirty || !canEdit}
+        title={!canEdit ? 'Available for members and above' : undefined}
+        className="bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50"
+      >
+        {!canEdit && <Lock className="w-3.5 h-3.5 mr-1.5" />}
+        {isPending ? 'Saving…' : 'Save changes'}
+      </Button>
     </div>
   )
 }
@@ -223,6 +228,7 @@ export function BrandSettingsForm({
   // Local state for current file paths (so UI updates after upload/remove without full reload)
   const [logoPath, setLogoPath] = useState<string>(asString(initial.logo_url))
   const [guidelinesPath, setGuidelinesPath] = useState<string>(asString(initial.brand_guidelines_url))
+  const { canEdit, isViewer } = useRole()
 
   async function persistFile(field: 'logo_url' | 'brand_guidelines_url', value: string) {
     // Empty string clears the field
@@ -569,7 +575,7 @@ export function BrandSettingsForm({
           </Field>
         </div>
 
-        <SaveBar isPending={isPending} onSave={saveS1} dirty={s1Dirty} />
+        <SaveBar isPending={isPending} onSave={saveS1} dirty={s1Dirty} canEdit={canEdit} />
       </Card>
 
       {/* ── Section 2: Voice & tone ── */}
@@ -640,7 +646,7 @@ export function BrandSettingsForm({
           ))}
         </div>
 
-        <SaveBar isPending={isPending} onSave={saveS2} dirty={s2Dirty} />
+        <SaveBar isPending={isPending} onSave={saveS2} dirty={s2Dirty} canEdit={canEdit} />
       </Card>
 
       {/* ── Section 3: Visual identity ── */}
@@ -739,7 +745,7 @@ export function BrandSettingsForm({
           </Field>
         </div>
 
-        <SaveBar isPending={isPending} onSave={saveS3} dirty={s3Dirty} />
+        <SaveBar isPending={isPending} onSave={saveS3} dirty={s3Dirty} canEdit={canEdit} />
       </Card>
 
       {/* ── Section 4: Content strategy ── */}
@@ -779,7 +785,7 @@ export function BrandSettingsForm({
             placeholder="e.g. politics" max={10} />
         </Field>
 
-        <SaveBar isPending={isPending} onSave={saveS4} dirty={s4Dirty} />
+        <SaveBar isPending={isPending} onSave={saveS4} dirty={s4Dirty} canEdit={canEdit} />
       </Card>
 
       {/* ── Section 5: Compliance ── */}
@@ -812,7 +818,7 @@ export function BrandSettingsForm({
             className="bg-slate-800 border-slate-700 text-slate-100 resize-none" />
         </Field>
 
-        <SaveBar isPending={isPending} onSave={saveS5} dirty={s5Dirty} />
+        <SaveBar isPending={isPending} onSave={saveS5} dirty={s5Dirty} canEdit={canEdit} />
       </Card>
     </div>
   )

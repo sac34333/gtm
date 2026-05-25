@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { getSupabaseBrowserClient } from '@/lib/supabase/client'
+import { useRole } from '@/hooks/use-role'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +14,7 @@ import {
   ImageIcon, Video, Globe, Download, RefreshCw,
   Target, Wand2, ThumbsUp, ThumbsDown, ChevronDown, ChevronUp,
   Loader2, X, ExternalLink, AlertCircle, Sparkles, HelpCircle,
-  Zap, Upload, Volume2,
+  Zap, Upload, Volume2, Lock,
 } from 'lucide-react'
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
@@ -412,6 +413,7 @@ function RefinementPanel({ open, onClose, originalJobId, originalTags, originalI
 export default function CreatePage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { canEdit, isViewer } = useRole()
   // TODO: re-enable 'Use this trend' feature post-launch
   // const signalId = searchParams.get('signal_id')
   const signalId = null
@@ -752,6 +754,13 @@ export default function CreatePage() {
           <div className="mb-4 flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-lg px-4 py-3 text-sm text-amber-300">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span>Your brand profile isn&apos;t set up yet — generation will use generic defaults. <a href="/settings/brand" className="underline underline-offset-2 hover:text-amber-200">Add your brand details</a> for better-grounded outputs.</span>
+          </div>
+        )}
+
+        {isViewer && (
+          <div className="mb-4 flex items-center gap-3 bg-slate-500/10 border border-slate-500/30 rounded-lg px-4 py-3 text-sm text-slate-300">
+            <Lock className="w-4 h-4 shrink-0" />
+            <span>Viewers cannot generate assets.</span>
           </div>
         )}
 
@@ -1167,12 +1176,14 @@ export default function CreatePage() {
               {assetType === 'image' && (
                 <button
                   type="button"
-                  onClick={() => setGenerateVariants(v => !v)}
+                  onClick={canEdit ? () => setGenerateVariants(v => !v) : undefined}
+                  disabled={!canEdit}
+                  title={!canEdit ? 'Available for members and above' : undefined}
                   className={`w-full flex items-center justify-between px-4 py-2.5 rounded-lg border text-sm transition-colors ${
                     generateVariants
                       ? 'border-indigo-500/60 bg-indigo-500/10 text-indigo-300'
                       : 'border-slate-700 bg-slate-800/50 text-slate-400 hover:border-slate-600'
-                  }`}
+                  } ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <span className="flex items-center gap-2">
                     <span className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${generateVariants ? 'bg-indigo-600 border-indigo-500' : 'border-slate-600'}`}>
@@ -1183,14 +1194,15 @@ export default function CreatePage() {
                       )}
                     </span>
                     Generate 3 variants to choose from
+                    {!canEdit && <Lock className="w-3.5 h-3.5 text-slate-500 ml-1" />}
                   </span>
                   <span className="text-xs text-slate-500">uses 3 credits</span>
                 </button>
               )}
-              <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 text-base" disabled={isPending || !tags.subject.trim() || filteredModels.length === 0} onClick={handleGenerate}>
+              <Button className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-medium py-3 text-base" disabled={isPending || !tags.subject.trim() || filteredModels.length === 0 || !canEdit} title={!canEdit ? 'Available for members and above' : undefined} onClick={handleGenerate}>
                 {isPending
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />{assetType === 'video' ? 'Submitting…' : generateVariants ? 'Generating 3 variants…' : 'Generating…'}</>
-                  : generateVariants && assetType === 'image' ? 'Generate 3 Variants' : `Generate ${assetType === 'image' ? 'Image' : 'Video'}`}
+                  : <>{!canEdit && <Lock className="w-4 h-4 mr-2" />}{generateVariants && assetType === 'image' ? 'Generate 3 Variants' : `Generate ${assetType === 'image' ? 'Image' : 'Video'}`}</>}
               </Button>
               <p className="text-center text-xs text-slate-600">{quotaRemaining} {assetType}{quotaRemaining !== 1 ? 's' : ''} remaining this month</p>
             </div>
@@ -1251,14 +1263,14 @@ export default function CreatePage() {
                   <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={async () => { try { const res = await fetch(generatedImageUrl); const blob = await res.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `gtm-${generatedJobId.slice(0, 8)}.png`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url) } catch {} }}>
                     <Download className="w-3.5 h-3.5 mr-1.5" />Download
                   </Button>
-                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={() => setShowRefinement(true)}>
-                    <Wand2 className="w-3.5 h-3.5 mr-1.5" />Refine
+                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" disabled={!canEdit} title={!canEdit ? 'Available for members and above' : undefined} onClick={() => setShowRefinement(true)}>
+                    {!canEdit ? <Lock className="w-3.5 h-3.5 mr-1.5" /> : <Wand2 className="w-3.5 h-3.5 mr-1.5" />}Refine
                   </Button>
                   <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={() => router.push(`/icp?job_id=${generatedJobId}`)}>
                     <Target className="w-3.5 h-3.5 mr-1.5" />For campaign
                   </Button>
-                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" onClick={() => { setGeneratedImageUrl(null); setGeneratedJobId(null); setFeedback(null); handleGenerate() }}>
-                    <RefreshCw className="w-3.5 h-3.5 mr-1.5" />Regenerate
+                  <Button variant="outline" size="sm" className="!bg-slate-800 !text-slate-100 border-slate-700 hover:!bg-slate-700" disabled={!canEdit} title={!canEdit ? 'Available for members and above' : undefined} onClick={() => { setGeneratedImageUrl(null); setGeneratedJobId(null); setFeedback(null); handleGenerate() }}>
+                    {!canEdit ? <Lock className="w-3.5 h-3.5 mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}Regenerate
                   </Button>
                 </div>
                 <div className="flex items-center justify-between border-t border-slate-800 pt-3">
