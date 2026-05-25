@@ -36,7 +36,7 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
   const [sending, setSending] = useState(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
   const [usage, setUsage] = useState<UsageInfo | null>(null)
-  const [linkedinConnected, setLinkedinConnected] = useState(false)
+  const [linkedinConnected, setLinkedinConnected] = useState<boolean | null>(null)
   const [error, setError] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -138,12 +138,21 @@ export function CampaignChat({ campaignId }: { campaignId: string }) {
       {/* Header strip */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] text-xs">
         <div className="flex items-center gap-3">
-          <span className={`inline-flex items-center gap-1.5 ${linkedinConnected ? 'text-emerald-300' : 'text-slate-500'}`}>
-            <Globe className="w-3.5 h-3.5" />
-            {linkedinConnected ? 'LinkedIn live' : 'LinkedIn not connected'}
-          </span>
-          {!linkedinConnected && (
-            <Link href="/settings/integrations" className="text-indigo-300 hover:text-indigo-200 underline">Connect</Link>
+          {linkedinConnected === null ? (
+            <span className="inline-flex items-center gap-1.5 text-slate-500">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Checking LinkedIn…
+            </span>
+          ) : (
+            <>
+              <span className={`inline-flex items-center gap-1.5 ${linkedinConnected ? 'text-emerald-300' : 'text-slate-500'}`}>
+                <Globe className="w-3.5 h-3.5" />
+                {linkedinConnected ? 'LinkedIn live' : 'LinkedIn not connected'}
+              </span>
+              {!linkedinConnected && (
+                <Link href="/settings/integrations" className="text-indigo-300 hover:text-indigo-200 underline">Connect</Link>
+              )}
+            </>
           )}
         </div>
         {usage && remaining !== null && (

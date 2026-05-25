@@ -15,7 +15,7 @@ const MAX_HISTORY_MESSAGES = 12         // recent turns to feed back as context
 const LINKEDIN_CACHE_TTL_MS = 15 * 60_000 // 15 min in-memory cache per Edge Function instance
 // ──────────────────────────────────────────────────────────────────────
 
-interface LiCacheEntry { fetchedAt: number; data: any }
+interface LiCacheEntry { fetchedAt: number; data: string; connected: boolean }
 const liCache = new Map<string, LiCacheEntry>()
 
 async function resolveDefaultModel(db: any, orgId: string, stepKey: string) {
@@ -29,68 +29,80 @@ async function resolveDefaultModel(db: any, orgId: string, stepKey: string) {
   return { providerKey: 'openrouter', modelId: 'google/gemini-2.5-flash' }
 }
 
-async function fetchLinkedInSnapshot(orgId: string, db: any): Promise<string> {
-  const { data: conn } = await db.from('org_linkedin_connections')
+async function fetchLinkedInSnapshot(orgId: string, db: any): Promise<{ snapshot: string; connected: boolean }> {
+  const { data: conn, error: connErr } = await db.from('org_linkedin_connections')
     .select('encrypted_access_token, ad_account_urn, account_name')
     .eq('org_id', orgId)
-    .single()
-  if (!conn) return ''
+    .maybeSingle()
+
+  // No LinkedIn connection at all
+  if (connErr || !conn) return { snapshot: '', connected: false }
 
   const cacheKey = `${orgId}:${conn.ad_account_urn}`
   const cached = liCache.get(cacheKey)
   if (cached && Date.now() - cached.fetchedAt < LINKEDIN_CACHE_TTL_MS) {
-    return cached.data
+    return { snapshot: cached.data, connected: cached.connected }
   }
 
   let token: string
   try {
     token = await decrypt(conn.encrypted_access_token)
   } catch {
-    return '' // bad token, silently skip
+    // Token can't be decrypted — treat as disconnected
+    return { snapshot: '', connected: false }
   }
 
-  const accountId = conn.ad_account_urn.split(':').pop()
-  // Fetch last 14 days of campaign analytics (lightweight summary).
-  const end = new Date()
-  const start = new Date(Date.now() - 14 * 86400_000)
-  const fmt = (d: Date) => `(year:${d.getUTCFullYear()},month:${d.getUTCMonth() + 1},day:${d.getUTCDate()})`
-  const url = `https://api.linkedin.com/rest/adAnalytics?q=analytics&pivot=CAMPAIGN&dateRange=(start:${fmt(start)},end:${fmt(end)})&accounts=List(urn%3Ali%3AsponsoredAccount%3A${accountId})&fields=impressions,clicks,costInUsd,externalWebsiteConversions,pivotValues`
+  // Even before calling the API, we know LinkedIn IS connected.
+  // If the API call fails, we still report connected=true with a degraded message.
+  const accountId = conn.ad_account_urn ? conn.ad_account_urn.split(':').pop() : null
+  let snapshot = `LinkedIn Ads (account: ${conn.account_name ?? accountId ?? 'unknown'}, last 14d):
+  No ad analytics available. The LinkedIn connection is active but the Ad Analytics API returned no data. This usually means no active ad campaigns exist, or the connected account lacks analytics permissions.`
 
-  let snapshot = ''
-  try {
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'LinkedIn-Version': '202401',
-        'X-Restli-Protocol-Version': '2.0.0',
-      },
-    })
-    if (res.ok) {
-      const j = await res.json()
-      const elements = Array.isArray(j?.elements) ? j.elements.slice(0, 8) : []
-      const totals = elements.reduce((acc: any, e: any) => ({
-        impressions: acc.impressions + (e.impressions ?? 0),
-        clicks: acc.clicks + (e.clicks ?? 0),
-        spend: acc.spend + Number(e.costInUsd ?? 0),
-        conversions: acc.conversions + (e.externalWebsiteConversions ?? 0),
-      }), { impressions: 0, clicks: 0, spend: 0, conversions: 0 })
-      snapshot = `LinkedIn Ads (account: ${conn.account_name ?? accountId}, last 14d):
+  if (accountId) {
+    const end = new Date()
+    const start = new Date(Date.now() - 14 * 86400_000)
+    const fmt = (d: Date) => `(year:${d.getUTCFullYear()},month:${d.getUTCMonth() + 1},day:${d.getUTCDate()})`
+    const url = `https://api.linkedin.com/rest/adAnalytics?q=analytics&pivot=CAMPAIGN&dateRange=(start:${fmt(start)},end:${fmt(end)})&accounts=List(urn%3Ali%3AsponsoredAccount%3A${accountId})&fields=impressions,clicks,costInUsd,externalWebsiteConversions,pivotValues`
+
+    try {
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'LinkedIn-Version': '202401',
+          'X-Restli-Protocol-Version': '2.0.0',
+        },
+      })
+      if (res.ok) {
+        const j = await res.json()
+        const elements = Array.isArray(j?.elements) ? j.elements.slice(0, 8) : []
+        const totals = elements.reduce((acc: any, e: any) => ({
+          impressions: acc.impressions + (e.impressions ?? 0),
+          clicks: acc.clicks + (e.clicks ?? 0),
+          spend: acc.spend + Number(e.costInUsd ?? 0),
+          conversions: acc.conversions + (e.externalWebsiteConversions ?? 0),
+        }), { impressions: 0, clicks: 0, spend: 0, conversions: 0 })
+        snapshot = `LinkedIn Ads (account: ${conn.account_name ?? accountId}, last 14d):
   Impressions: ${totals.impressions.toLocaleString()}
   Clicks: ${totals.clicks.toLocaleString()}
   Spend: $${totals.spend.toFixed(2)}
   Conversions: ${totals.conversions}
   CTR: ${totals.impressions ? ((totals.clicks / totals.impressions) * 100).toFixed(2) : '0'}%
   Active campaigns: ${elements.length}`
-    } else if (res.status === 401 || res.status === 403) {
-      snapshot = `(LinkedIn token expired or lacks scopes — ask the user to reconnect at /settings/integrations.)`
+      } else if (res.status === 401 || res.status === 403) {
+        // Token expired or lacks scopes — still connected but token needs refresh
+        snapshot = `LinkedIn Ads (account: ${conn.account_name ?? accountId}, last 14d):
+  The LinkedIn access token has expired or lacks the required scopes. Ask the user to reconnect at /settings/integrations to refresh it.`
+      }
+      // For other errors (5xx, rate limit), keep the default "no data" message above
+    } catch (e) {
+      console.error('linkedin snapshot fetch err:', (e as Error).message)
+      // Network error — keep default "no analytics" message but still connected
     }
-  } catch (e) {
-    console.error('linkedin snapshot fetch err:', (e as Error).message)
   }
 
-  liCache.set(cacheKey, { fetchedAt: Date.now(), data: snapshot })
-  return snapshot
+  liCache.set(cacheKey, { fetchedAt: Date.now(), data: snapshot, connected: true })
+  return { snapshot, connected: true }
 }
 
 // Truncate a string to ~maxChars; preserves head + tail.
@@ -185,7 +197,7 @@ Deno.serve(async (req: Request) => {
     })
 
     // ─── Build context: brand + audience + recent signals + brief + history + LinkedIn ───
-    const [brandRes, prospectsRes, signalsRes, historyRes, liSnapshot] = await Promise.all([
+    const [brandRes, prospectsRes, signalsRes, historyRes, liResult] = await Promise.all([
       db.from('brand_contexts').select('company_name, one_sentence_pitch, extended_description, differentiators, proof_points, industry_sector, target_industries, decision_maker_titles').eq('org_id', orgId).maybeSingle(),
       db.from('campaign_prospects').select('prospect_id, prospects(company_name, job_title, industry, country, icp_score, icp_fit_reason)').eq('campaign_id', campaignId).eq('org_id', orgId).limit(30),
       db.from('signals').select('title, summary, source_type, score, published_at').eq('org_id', orgId).gte('published_at', new Date(Date.now() - 14 * 86400_000).toISOString()).order('score', { ascending: false }).limit(8),
@@ -198,6 +210,8 @@ Deno.serve(async (req: Request) => {
     const signals = signalsRes.data ?? []
     // Reverse history to chronological, drop the message we JUST inserted (it's the latest user msg).
     const history = (historyRes.data ?? []).reverse().slice(0, -1)
+    const liSnapshot = liResult.snapshot
+    const liConnected = liResult.connected
 
     const briefSummary = (() => {
       const bd = (campaign as any).brief_data ?? null
@@ -242,7 +256,8 @@ ${audienceLine}
 # RECENT SIGNALS (last 14d, top by score)
 ${signalsBlock}
 
-${liSnapshot ? `# LINKEDIN ADS LIVE\n${liSnapshot}\n` : ''}# RULES
+${liSnapshot ? `# LINKEDIN ADS LIVE\n${liSnapshot}\n` : liConnected ? '# LINKEDIN\nLinkedIn is connected but no ad analytics are available right now. You can still help with LinkedIn posting, campaign strategy, and organic content. If the user asks about ad performance, explain that analytics data is not currently available and suggest they check their LinkedIn Ads Manager directly.\n' : '# LINKEDIN\nLinkedIn is NOT connected. You cannot access any LinkedIn data. If the user asks about LinkedIn, tell them to connect their LinkedIn account at /settings/integrations to unlock ad metrics and LinkedIn-powered insights.\n'}
+# RULES
 - Be concise: 2-6 sentences unless asked for a list/draft.
 - If the user asks for content (post, email, DM), follow the campaign's voice + the channel's playbook (LinkedIn organic = first-comment trick, no link in body, end with question; LinkedIn DM = no "Hi {{name}}" alone, ≤180 chars; Email = 2 subject variants + PS line; Twitter = quote-tweetable hook).
 - If the user asks something you don't have data for (e.g. real-time competitor intel), say "I don't have that data — here's what I can tell you instead..." and offer the closest grounded answer.
@@ -307,7 +322,7 @@ ${liSnapshot ? `# LINKEDIN ADS LIVE\n${liSnapshot}\n` : ''}# RULES
         daily_tokens_used: (usage?.total_tokens ?? 0) + totalTokens,
         daily_token_cap: DAILY_TOKEN_CAP,
       },
-      linkedin_connected: liSnapshot.length > 0,
+      linkedin_connected: liConnected,
     }), { status: 200, headers: corsHeaders })
   } catch (err) {
     if (err instanceof Response) return err

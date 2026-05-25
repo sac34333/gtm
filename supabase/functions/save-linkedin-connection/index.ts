@@ -117,7 +117,7 @@ const adAccountUrn = typeof body?.ad_account_urn === 'string' ? body.ad_account_
       .upsert({
         org_id: orgId,
         encrypted_access_token: encrypted,
-        ad_account_urn: adAccountUrn,
+        ad_account_urn: adAccountUrn || null,
         account_name: accountName || null,
         granted_scopes: [], // unknown for paste-based flow
         token_expires_at: null,
