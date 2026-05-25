@@ -1128,6 +1128,24 @@ Return ONLY the message text.`
       }
     }
 
+    // Archive previous brief data before overwriting (version history)
+    if (!body.copies_only && campaign.brief_data) {
+      const { data: maxVer } = await db.from('brief_versions')
+        .select('version')
+        .eq('campaign_id', campaign_id)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const nextVersion = (maxVer?.version ?? 0) + 1
+      await db.from('brief_versions').insert({
+        org_id: orgId,
+        campaign_id: campaign_id,
+        version: nextVersion,
+        brief_data: campaign.brief_data,
+        pdf_url: campaign.pdf_url,
+      })
+    }
+
     // Update existing campaign_briefs row (do NOT insert new).
     // copies_only mode: only stamp updated_at + auto-promote draft->active; never
     // overwrite brief_data / pdf_url. Otherwise: write the freshly generated brief.
@@ -1149,6 +1167,7 @@ Return ONLY the message text.`
         pdf_url: storagePath,
         copy_count: copyCount,
         channel_summary: channelSummary,
+        version: body.copies_only ? undefined : (campaign.brief_data ? ((await db.from('brief_versions').select('version').eq('campaign_id', campaign_id).order('version', { ascending: false }).limit(1).maybeSingle())?.data?.version ?? 0) : 0),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )

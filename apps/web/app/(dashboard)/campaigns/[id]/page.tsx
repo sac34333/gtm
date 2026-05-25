@@ -12,7 +12,7 @@ import {
   Image as ImageIcon, FileText, Download, RefreshCw,
   Calendar, Clock, Hash, CheckCircle, AlertCircle,
   Loader2, Plus, X, ChevronRight, ExternalLink, Sparkles,
-  Lock,
+  Lock, History,
 } from 'lucide-react'
 import { LinkedinIcon } from '@/components/icons/linkedin-icon'
 import { CampaignChat } from '@/components/campaigns/campaign-chat'
@@ -51,6 +51,14 @@ interface OutreachCopy {
   platform: string
   status: string | null
   copy_text: string | null
+}
+
+interface BriefVersion {
+  id: string
+  version: number
+  brief_data: any
+  pdf_url: string | null
+  created_at: string
 }
 
 const TYPE_CONFIG: Record<string, { label: string; Icon: any }> = {
@@ -125,13 +133,14 @@ function CampaignStatusSelect({
 
 // ─── Content Calendar Tab ────────────────────────────────────────────────────
 
-function CalendarTab({ campaign, onGenerateBrief, generating }: {
+function CalendarTab({ campaign, onGenerateBrief, generating, briefDataOverride }: {
   campaign: Campaign
   onGenerateBrief: () => void
   generating: boolean
+  briefDataOverride?: any
 }) {
   const supabase = getSupabaseBrowserClient()
-  const brief = campaign.brief_data ?? null
+  const brief = briefDataOverride ?? campaign.brief_data ?? null
   const durationDays: number = Math.max(1, Math.min(90, Number(campaign.duration_days ?? 14)))
   const schedule: any[] = brief?.posting_schedule ?? []
   const hashtagSets: Record<string, string[]> = brief?.hashtag_sets ?? {}
@@ -609,24 +618,65 @@ function ProspectsTab({ campaign, prospects, copies, onRegenerateCopies, onUpdat
 
 // ─── Brief & Assets Tab ──────────────────────────────────────────────────────
 
-function BriefTab({ campaign, onGenerateBrief, generating }: {
+function BriefTab({ campaign, onGenerateBrief, generating, versions, viewingVersion, onViewVersion }: {
   campaign: Campaign
   onGenerateBrief: () => void
   generating: boolean
+  versions: BriefVersion[]
+  viewingVersion: number | null
+  onViewVersion: (v: number | null) => void
 }) {
   const supabase = getSupabaseBrowserClient()
   const [signedPdfUrl, setSignedPdfUrl] = useState<string | null>(null)
-  const [signedAssetUrl, setSignedAssetUrl] = useState<string | null>(null)
+
+  // Which PDF to show: selected version or current
+  const activePdfUrl = viewingVersion !== null && versions.length > 0
+    ? versions.find(v => v.version === viewingVersion)?.pdf_url ?? campaign.pdf_url
+    : campaign.pdf_url
 
   useEffect(() => {
-    if (!campaign.pdf_url) return
-    const path = campaign.pdf_url.replace(/^briefs\//, '')
+    if (!activePdfUrl) { setSignedPdfUrl(null); return }
+    const path = activePdfUrl.replace(/^briefs\//, '')
     supabase.storage.from('briefs').createSignedUrl(path, 3600)
       .then(({ data }) => { if (data?.signedUrl) setSignedPdfUrl(data.signedUrl) })
-  }, [campaign.pdf_url]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [activePdfUrl]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-8">
+      {/* Version history picker */}
+      {versions.length > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-xl border border-slate-800 bg-slate-900/40">
+          <History className="w-4 h-4 text-slate-500 shrink-0" />
+          <span className="text-xs text-slate-400 shrink-0">Brief version:</span>
+          <div className="flex items-center gap-1 flex-wrap">
+            <button
+              onClick={() => onViewVersion(null)}
+              className={`px-2.5 h-7 rounded-md text-xs font-medium transition-colors ${
+                viewingVersion === null ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              Current
+            </button>
+            {versions.map((v) => (
+              <button
+                key={v.version}
+                onClick={() => onViewVersion(v.version)}
+                className={`px-2.5 h-7 rounded-md text-xs font-medium transition-colors ${
+                  viewingVersion === v.version ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-slate-300 hover:bg-slate-700'
+                }`}
+              >
+                v{v.version}
+                <span className="text-slate-600 ml-1">{new Date(v.created_at).toLocaleDateString()}</span>
+              </button>
+            ))}
+          </div>
+          {viewingVersion !== null && (
+            <button onClick={() => onViewVersion(null)} className="ml-auto text-xs text-slate-500 hover:text-slate-300 transition-colors">
+              Back to current
+            </button>
+          )}
+        </div>
+      )}
       {/* Asset */}
       <div>
         <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
@@ -720,6 +770,13 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [linkedInConnected, setLinkedInConnected] = useState<boolean | null>(null)
+  const [briefVersions, setBriefVersions] = useState<BriefVersion[]>([])
+  const [viewingVersion, setViewingVersion] = useState<number | null>(null)
+
+  // The brief data currently being viewed (current or a past version)
+  const activeBriefData = viewingVersion !== null && briefVersions.length > 0
+    ? briefVersions.find(v => v.version === viewingVersion)?.brief_data
+    : campaign?.brief_data
 
   const load = useCallback(async () => {
     const [campRes, prospectsRes, copiesRes, liRes] = await Promise.all([
@@ -732,6 +789,13 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
     ])
 
     if (campRes.data) setCampaign(campRes.data as Campaign)
+
+    // Fetch brief version history
+    const { data: vData } = await supabase.from('brief_versions')
+      .select('id, version, brief_data, pdf_url, created_at')
+      .eq('campaign_id', id)
+      .order('version', { ascending: false })
+    if (vData) setBriefVersions(vData as BriefVersion[])
 
     if (prospectsRes.data) {
       setProspects(prospectsRes.data.map((row: any) => ({
@@ -953,7 +1017,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
         {/* Tab content */}
         <div>
           {activeTab === 'calendar' && (
-            <CalendarTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} />
+            <CalendarTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} briefDataOverride={activeBriefData} />
           )}
           {activeTab === 'prospects' && (
             <ProspectsTab
@@ -966,7 +1030,7 @@ export default function CampaignDetailPage({ params }: { params: { id: string } 
             />
           )}
           {activeTab === 'brief' && (
-            <BriefTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} />
+            <BriefTab campaign={campaign} onGenerateBrief={handleGenerateBrief} generating={generating} versions={briefVersions} viewingVersion={viewingVersion} onViewVersion={setViewingVersion} />
           )}
           {activeTab === 'ask' && (
             linkedInConnected === null ? (

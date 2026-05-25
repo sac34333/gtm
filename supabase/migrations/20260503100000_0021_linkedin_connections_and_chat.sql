@@ -14,14 +14,26 @@ CREATE TABLE IF NOT EXISTS public.org_linkedin_connections (
 
 ALTER TABLE public.org_linkedin_connections ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY org_linkedin_select ON public.org_linkedin_connections
-  FOR SELECT USING (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
-CREATE POLICY org_linkedin_insert ON public.org_linkedin_connections
-  FOR INSERT WITH CHECK (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
-CREATE POLICY org_linkedin_update ON public.org_linkedin_connections
-  FOR UPDATE USING (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
-CREATE POLICY org_linkedin_delete ON public.org_linkedin_connections
-  FOR DELETE USING (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
+DO $$ BEGIN
+  CREATE POLICY org_linkedin_select ON public.org_linkedin_connections
+    FOR SELECT USING (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE POLICY org_linkedin_insert ON public.org_linkedin_connections
+    FOR INSERT WITH CHECK (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE POLICY org_linkedin_update ON public.org_linkedin_connections
+    FOR UPDATE USING (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+DO $$ BEGIN
+  CREATE POLICY org_linkedin_delete ON public.org_linkedin_connections
+    FOR DELETE USING (org_id = (auth.jwt() -> 'app_metadata' ->> 'org_id')::uuid);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 -- Chat messages per campaign
 CREATE TABLE IF NOT EXISTS public.campaign_chat_messages (
