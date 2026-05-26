@@ -12,7 +12,7 @@ Deno.serve(async (req: Request) => {
     const orgId = extractOrgId(user)
     const db = createServiceClient()
 
-    await requireRole(orgId, user.id, 'admin', db)
+    await requireRole(orgId, user.id, 'viewer', db)
 
     const url = new URL(req.url)
     const period = url.searchParams.get('period') ?? 'month'

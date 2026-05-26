@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
     const orgId = extractOrgId(user)
     const db = createServiceClient()
 
-    await requireRole(orgId, user.id, 'member', db)
+    await requireRole(orgId, user.id, 'viewer', db)
 
     // Check cache
     const cached = cache.get(orgId)
