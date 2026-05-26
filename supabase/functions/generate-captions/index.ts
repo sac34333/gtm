@@ -20,7 +20,7 @@
 
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
 import { createServiceClient } from '../_shared/db.ts'
-import { validateJWT } from '../_shared/auth.ts'
+import { validateJWT, requireRole } from '../_shared/auth.ts'
 import { resolveApiKey, routeTextGeneration, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
 
 const DEFAULT_PLATFORMS = ['linkedin', 'x', 'instagram', 'whatsapp']
@@ -81,10 +81,12 @@ Deno.serve(async (req: Request) => {
     const isCron = !!cronSecret && headerSecret === cronSecret
 
     let callerOrgId: string | null = null
+    let callerUserId: string | null = null
     if (!isCron) {
       try {
         const { user } = await validateJWT(req)
         callerOrgId = (user.app_metadata?.org_id as string) ?? null
+        callerUserId = user.id ?? null
         if (!callerOrgId) {
           return new Response(JSON.stringify({ error: 'no_org' }), { status: 401, headers: corsHeaders })
         }
@@ -104,6 +106,10 @@ Deno.serve(async (req: Request) => {
       : DEFAULT_PLATFORMS
 
     const db = createServiceClient()
+
+    if (callerOrgId && callerUserId) {
+      await requireRole(callerOrgId, callerUserId, 'member', db)
+    }
 
     const { data: job, error: jobErr } = await db
       .from('generation_jobs')

@@ -1,5 +1,5 @@
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
-import { validateJWT, extractOrgId } from '../_shared/auth.ts'
+import { validateJWT, extractOrgId, requireRole } from '../_shared/auth.ts'
 import { createServiceClient } from '../_shared/db.ts'
 
 Deno.serve(async (req: Request) => {
@@ -15,6 +15,7 @@ Deno.serve(async (req: Request) => {
     const { user } = await validateJWT(req)
     const orgId = extractOrgId(user)
     const db = createServiceClient()
+    await requireRole(orgId, user.id, 'member', db)
 
     const { error } = await db.from('org_linkedin_connections').delete().eq('org_id', orgId)
     if (error) {

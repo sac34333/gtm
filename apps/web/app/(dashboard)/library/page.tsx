@@ -251,11 +251,11 @@ function ThumbCard({ stack, onRequestDelete, isDeleting, onLinkedIn, linkedInCon
             type="button"
             aria-label="Delete asset"
             title={hasVersions ? `Delete latest version (${stack.versionCount} total)` : 'Delete asset'}
-            disabled={isDeleting}
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRequestDelete(stack) }}
-            className="p-2 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20 transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed"
+            disabled={isDeleting || !canEdit}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); if (canEdit) onRequestDelete(stack) }}
+            className={`p-2 rounded-lg transition-colors touch-manipulation disabled:opacity-40 disabled:cursor-not-allowed ${canEdit ? 'text-slate-500 hover:text-red-400 hover:bg-red-500/10 active:bg-red-500/20' : 'text-slate-600'}`}
           >
-            {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            {!canEdit ? <Lock className="w-4 h-4" /> : isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -393,12 +393,12 @@ export default function LibraryPage() {
             <Sparkles className="w-10 h-10 text-slate-600 mx-auto" />
             <p className="text-slate-300">No generations yet.</p>
             <p className="text-xs text-slate-500">Create your first image or video to see it here.</p>
-            <Link href="/create" className="inline-block">
+            {canEdit && <Link href="/create" className="inline-block">
               <Button className="bg-indigo-600 hover:bg-indigo-500 text-white mt-2">
                 <Sparkles className="w-4 h-4 mr-2" />
                 Start creating
               </Button>
-            </Link>
+            </Link>}
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-5 gtm-stagger">

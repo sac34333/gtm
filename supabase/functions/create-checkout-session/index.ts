@@ -9,7 +9,7 @@
  */
 
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
-import { validateJWT, extractOrgId } from '../_shared/auth.ts'
+import { validateJWT, extractOrgId, requireRole } from '../_shared/auth.ts'
 import { createServiceClient } from '../_shared/db.ts'
 
 const json = (req: Request, status: number, body: Record<string, unknown>) =>
@@ -60,6 +60,7 @@ Deno.serve(async (req: Request) => {
   const baseUrl = (Deno.env.get('DODO_PAYMENTS_BASE_URL') ?? 'https://live.dodopayments.com').replace(/\/$/, '')
 
   const db = createServiceClient()
+  await requireRole(orgId, user.id, 'member', db)
 
   // ── Validate product_id is a known active plan ──
   const { data: plan, error: planErr } = await db

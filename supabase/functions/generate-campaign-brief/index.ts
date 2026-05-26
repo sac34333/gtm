@@ -1,5 +1,5 @@
 import { handleCors, getCorsHeaders } from '../_shared/cors.ts'
-import { validateJWT, extractOrgId } from '../_shared/auth.ts'
+import { validateJWT, extractOrgId, requireRole } from '../_shared/auth.ts'
 import { createServiceClient } from '../_shared/db.ts'
 import { resolveApiKey, routeTextGeneration, ProviderError, userMessageFor } from '../_shared/providers/router.ts'
 import { GenerateCampaignBriefBodySchema, CampaignBriefDataSchema, CampaignBriefJsonSchema } from '../_shared/schemas.ts'
@@ -377,6 +377,7 @@ Deno.serve(async (req: Request) => {
     const { user } = await validateJWT(req)
     const orgId = extractOrgId(user)
     const db = createServiceClient()
+    await requireRole(orgId, user.id, 'member', db)
 
     const contentLength = Number(req.headers.get('content-length') ?? 0)
     if (contentLength > 1_048_576) {
