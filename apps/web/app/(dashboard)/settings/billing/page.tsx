@@ -361,7 +361,7 @@ export default function SettingsBillingPage() {
             <li>• Site is <span className="text-slate-200">managed 24/7 by the Qubitly team</span> — no infrastructure to worry about</li>
             <li>• Personal <span className="text-slate-200">onboarding session</span> to set up brand voice, ICP and signal sources</li>
             <li>• <span className="text-slate-200">Email support</span> — typically answered within one business day</li>
-            <li>• <span className="text-slate-200">All future features included free</span> — AEO, content remix, case-study generator, SEO recommendations, A/B testing, CRM sync, and more</li>
+            {/* <li>• <span className="text-slate-200">All future features included free</span> — AEO, content remix, case-study generator, SEO recommendations, A/B testing, CRM sync, and more</li> */}
           </ul>
         </div>
       </section>
