@@ -9,8 +9,8 @@ const TABS = [
   { href: '/settings', label: 'General', icon: Settings, exact: true },
   { href: '/settings/brand', label: 'Brand & ICP', icon: Palette },
   { href: '/settings/integrations', label: 'Integrations', icon: Plug },
-  { href: '/settings/models', label: 'Models', icon: Cpu },
-  { href: '/settings/usage', label: 'Usage', icon: BarChart3 },
+  // { href: '/settings/models', label: 'Models', icon: Cpu },
+  // { href: '/settings/usage', label: 'Usage', icon: BarChart3 },
   { href: '/settings/billing', label: 'Billing', icon: CreditCard },
   { href: '/settings/team', label: 'Team', icon: Users },
 ]
