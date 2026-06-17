@@ -148,5 +148,3 @@ Dodo Payments handles subscriptions. The `dodopayments-webhook` Edge Function pr
 ---
 
 ## License
-
-Proprietary — Qubitly Ventures
